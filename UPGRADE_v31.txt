@@ -1,0 +1,32 @@
+G-SMaRT Integrated Accounting and Government Contracting System - version 31 (2026-11-18)
+=========================================================================================
+
+Fix: New company stopped at "Step verify: The new database does not match the program:
+2026_11_03_barangay_sop_forms.sql, 2026_11_10_letterheads_bid_forms_types.sql", even with
+Company 1 fully up to date.
+
+The cause
+---------
+Your database was not the problem: running those two scripts again could not help.
+A new company receives a copy of the set-up lists of Company 1. The steps and papers of the SOP
+(Barangay Contracts) were missing from that list, so the new database got the SOP tables empty.
+The final check of the set-up looks for the first SOP step and papers to recognise those two
+upgrades, did not find them in the new database, and stopped.
+
+The fix
+-------
+app/Provision.php          the SOP steps and the SOP papers are now copied to a new company with
+                           the other Barangay Contracts lists. Who made or approved a copied list
+                           entry (form templates, requirement library, references, SOP steps) is
+                           left blank on the copy, since those people are users of Company 1.
+views/manual/chapters/13-company-owner.html, 14-super-admin.html, views/manual/search.json, README.md
+                           the list of what a new company receives now names the Barangay Contracts lists
+
+No database change. Copy the files over the program folder, keeping the folders.
+
+The company whose set-up failed
+-------------------------------
+Log in as the Super Admin, open Companies > JJM Trading and Services, type the owner's username,
+full name, e-mail and temporary password again (they are never kept), and press Set it up again.
+The company then becomes active with its own database (government_contracting_system_company_002),
+its Company Code and its owner, who changes the temporary password at the first log-in.

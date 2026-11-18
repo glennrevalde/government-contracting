@@ -20,7 +20,9 @@ declare(strict_types=1);
  *   - the audit trail protection triggers (database/triggers.sql);
  *   - the set-up lists in COPY (chart of accounts, module default accounts, tax codes, the withholding tax table,
  *     terms, payment methods, price levels, units of measure, item and customer types, fixed asset categories, the roles with their
- *     page access and special permissions, the pages and modules, the numbering, and the settings);
+ *     page access and special permissions, the pages and modules, the numbering, the settings, and the
+ *     Barangay Contracts lists: procurement modes, references, kinds of documents, the requirement library,
+ *     the form templates and the company's SOP with its steps and papers);
  *   - one inventory site, "Main".
  * Nothing else: no customers, suppliers, items, employees or users, no transactions, balances, journals,
  * payments, budgets, audit trail or history. Its only user is the Company Owner created with it.
@@ -54,6 +56,16 @@ final class Provision
         'brgy_doc_types'           => 'Barangay Contracts: kinds of documents',
         'brgy_requirements'        => 'Barangay Contracts: compliance requirement library (the standard list; requirements of one procuring entity are not copied)',
         'brgy_templates'           => 'Barangay Contracts: proforma and form templates',
+        'brgy_sop_steps'           => 'Barangay Contracts: the steps of the SOP (small value procurement, bidding, payment)',
+        'brgy_sop_papers'          => 'Barangay Contracts: the papers of the SOP steps and how each is prepared',
+    ];
+
+    /** who made or approved a copied list entry: users of the template company, so left blank on the copy */
+    private const COPIED_USER_COLUMNS = [
+        'brgy_templates'    => ['created_by', 'updated_by'],
+        'brgy_requirements' => ['created_by', 'approved_by'],
+        'brgy_references'   => ['reviewed_by'],
+        'brgy_sop_steps'    => ['updated_by'],
     ];
 
     /** settings that describe the template company itself, replaced or cleared on the copy */
@@ -308,6 +320,13 @@ final class Provision
             if (in_array('brgy_requirements', $tables, true)) {
                 // requirements of one procuring entity belong to the template company's directory, which is not copied
                 $new->exec('DELETE FROM brgy_requirements WHERE entity_id IS NOT NULL');
+            }
+            foreach (self::COPIED_USER_COLUMNS as $t => $cols) {
+                foreach ($cols as $col) {
+                    if (in_array($t, $tables, true) && (int)$new->value('SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = :t AND column_name = :c', ['t' => $t, 'c' => $col])) {
+                        $new->exec("UPDATE `$t` SET `$col` = NULL");
+                    }
+                }
             }
             if (!(int)$new->value('SELECT COUNT(*) FROM sites')) {
                 $new->insert('sites', ['code' => 'MAIN', 'name' => 'Main', 'site_type' => 'warehouse', 'is_active' => 1]);

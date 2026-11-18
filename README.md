@@ -157,6 +157,16 @@ The modified report can be saved as a layout (its added fields included), shared
 
 The pages load Bootstrap 5.3.3 and Bootstrap Icons 1.11.3 from `cdn.jsdelivr.net`. To run fully offline, download both and place the files as listed in `assets/vendor/README.txt`. The system switches to the local copies automatically. The previews of Office files in the Document Vault work offline (the quick view is part of the program; LibreOffice, when installed, runs on the server).
 
+### Installing the system as an app (version 30)
+
+Users can install the system on a phone, tablet or computer and open it from an icon, full screen, without the browser's address bar. Nothing comes from an app store: the browser installs it from the system itself, and no database change is involved.
+
+- **Install app** in the top bar and **Install the app** on the log-in page. When the browser offers the install, the button opens it; otherwise it shows the steps for that browser (Chrome, Edge, Android, iPhone and iPad: Share > Add to Home Screen). Both are hidden inside the installed app.
+- **It needs https or localhost.** Browsers install the app only from an `https://` address with a certificate the device trusts, or from `http://localhost` on the computer that runs the system. From a plain `http://` address on the office network the system still works in the browser, but it cannot be installed there.
+- **Nothing private is kept on the device.** Pages always come from the server and are never cached. The service worker (`sw.js`) keeps only the stylesheets, scripts, fonts and icons of `assets/`, and shows `offline.html` when the server cannot be reached. Saving, uploads, log-ins and downloads go straight to the server.
+- The app's name comes from `config/config.php` ('app' > 'name'), shown as "G-SMaRT" under the icon; its colors are in `app/Pwa.php` and its icons in `assets/icons/`.
+- On an iPhone or iPad the installed app keeps its own log-in, separate from Safari's, so users log in once inside it.
+
 ## 9. nginx
 
 ```nginx
@@ -186,6 +196,7 @@ index.php, login.php     entry points (index.php?p=<page key>)
 register.php             the join page: an employee creates an account with the Company Code
 platform.php             the Super Admin pages (several companies)
 manual.php               the User's Manual (the Help button of every page opens it at that page's section)
+manifest.php, sw.js      the installable app: its manifest and service worker (app/Pwa.php); offline.html is shown without a connection
 app/                     core classes: DB, Auth, Access, Audit, Txn, Posting, Stock, Depreciation, Pos, Report ...
 app/registry.php         list of every page (drives menus and Page Access Configuration)
 app/reports/             report definitions by module
@@ -197,6 +208,7 @@ modules/brgy/            Barangay Contracts pages (the logic is in app/Brgy.php,
 modules/company/         the Company Owner's pages: Company Profile & Code, Employees & Users, Join Requests
 modules/platform/        the Super Admin pages: companies, new company, database updates, Super Admins, settings, audit log
 assets/                  CSS and JavaScript (no build step)
+assets/icons/            the icons of the installed app
 assets/manual/img/       the screenshots of the User's Manual
 views/manual/            the User's Manual: its chapters (chapters/*.html), contents (manual.json) and search list (search.json)
 config/config.php        database and app settings
@@ -245,7 +257,7 @@ The system can run any number of companies. Each company has a **database of its
 1. generates a unique Company Code;
 2. names a database for it (`government_contracting_system_company_002`, `_003` ...; a name that already exists on the server is never used);
 3. creates the database and every table exactly as the copied company has them today, with all columns, keys, indexes and foreign keys, and the counters starting from 1;
-4. copies the set-up lists only: settings (with the new company's name, address, phone, e-mail and TIN; no logo, no closing date), the modules, pages, roles with their page access and special permissions, the numbering (starting again from 1), the chart of accounts (without bank account numbers), module default accounts, terms, tax codes, payment methods, price level names, customer types, billing groups, item categories, units of measure and fixed asset categories; and adds one inventory site, Main;
+4. copies the set-up lists only: settings (with the new company's name, address, phone, e-mail and TIN; no logo, no closing date), the modules, pages, roles with their page access and special permissions, the numbering (starting again from 1), the chart of accounts (without bank account numbers), module default accounts, terms, tax codes, payment methods, price level names, customer types, billing groups, item categories, units of measure, fixed asset categories, and the Barangay Contracts lists (procurement modes, regulatory references, kinds of documents, the requirement library, the form templates, and the steps and papers of the SOP); and adds one inventory site, Main;
 5. puts the audit trail protection triggers in place;
 6. creates the owner's account with the company's full-access role (the owner must change the temporary password at the first log-in);
 7. checks the new database (every table there, the structure matching the program, no customer, supplier, item or transaction in it);
