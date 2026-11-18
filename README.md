@@ -284,4 +284,5 @@ Chapters 1 (Getting Started) and 13 (joining a company) can be read before loggi
 
 `tests/selenium/accounts.py` lists every login with its password and role; `tests/selenium/README.md` explains the settings, the options and the results.
 #   g o v e r n m e n t - c o n t r a c t i n g  
+ #   g o v e r n m e n t - c o n t r a c t i n g  
  
