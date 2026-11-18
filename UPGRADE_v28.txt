@@ -1,0 +1,119 @@
+G-SMaRT Integrated Accounting and Government Contracting System - version 28 (2026-11-10)
+=========================================================================================
+
+Every proforma and form now has a letterhead with its logos and its signatories that are
+set on the Format tab, the papers of steps 8 and 13 of the bidding follow the company's
+own forms, and the transaction types Cash Out (purchases) and Kaliwaan (purchases) are
+added.
+
+This package holds ONLY the files that are new or changed since version 27, in the
+same folders. Copy them over your installation (folder government-contracting-system);
+every other file stays as it is.
+
+Upgrading an installation of version 27
+---------------------------------------
+1. Back up the database and the program folder (storage/ and config/config.php too).
+2. Copy the files of this package over your installation. config/config.php is not
+   in the package; yours stays.
+3. Run the new migration on your database (phpMyAdmin: select the database > Import;
+   Navicat: Execute SQL File):
+
+       database/migrations/2026_11_10_letterheads_bid_forms_types.sql
+
+   It needs 2026_11_03_barangay_sop_forms.sql (version 27) to have been run first.
+   With several companies, run it on every company database (Super Admin: Companies >
+   Database updates > Update all companies). Until it is run, the program shows a page
+   naming it.
+4. Press Ctrl+F5 once in the browser so it loads the changed assets/js/brgy.js and
+   assets/css/app.css.
+
+The migration adds the column txn_types to brgy_sop_steps and brgy_sop_papers, the
+settings of the representative's title and cellphone, the person managing the firm
+and the liaison officer, the types Cash Out (purchases) and Kaliwaan (purchases) before
+the types already listed, one kind of document and one paper (notice of
+post-qualification, in step 13), three templates (supplier profile, technical
+specifications, notice of post-qualification) and the X marks of the two new types on
+the pre-printed transaction form. The nine papers of steps 8 and 13 get their new
+design as a new version; the other templates supplied with the program get the
+{{letterhead}} and {{signatories}} fields in place of their fixed header and signatures,
+as a new version, ONLY when their text was never changed (a template you changed keeps
+its text: put the fields in with the buttons of its Format tab). Every version before
+stays under Versions and can be put back. Nothing is deleted and no amount changes.
+Written for MySQL 5.5 (no JSON functions, every column added through a check of
+information_schema), safe to run twice.
+
+New installation
+----------------
+Use the full version 26 package, copy the version 27 package and then this package over
+it, then import ONE of the two database files of this package in phpMyAdmin (Import):
+
+    database/government_contracting_system.sql        demo company with data
+    database/government_contracting_system_clean.sql  setup and users, no transactions
+
+Both already include this version. Log in as admin / Admin@12345 (a new password is
+asked at once). Do NOT import those two files over a live database: they drop every
+table.
+
+What is new
+-----------
+ 1. Letterhead and logos (Proforma & Form Templates > a template > Format). The field
+    {{letterhead}} prints:
+      - the company letterhead: the company logo and the name in a gold banner with the
+        address and telephone (the look of the company's letters), or
+      - the barangay letterhead: the seal of the city / municipality and the seal of the
+        barangay on each side of Republic of the Philippines, the province, the city and
+        the barangay (each barangay's own seals and names), or
+      - a letterhead of the template's own, or none.
+    The company and barangay letterheads are shared: a change on one template (the lines
+    of text, pictures left and right, two pictures of your own uploaded in the box, the
+    banner and its colours, the font, sizes, the line under it) shows on every template
+    that uses it. Contracting Settings shows both and the templates using them.
+ 2. Signatories. The field {{signatories}} prints the signatures set on the Format tab:
+    each with the words above it (Very truly yours, Conforme:, Received by:), the name,
+    the position, more lines, bold / underlined / capitals / italics, a signature line,
+    left / center / right / the right half of the page; how many side by side and the
+    room to sign. Ready-made ones: company representative, conforme, received by,
+    Punong Barangay, BAC Chairman, BAC members 1 to 5, treasurer, inspector, dealer's
+    signature, a blank to write on.
+ 3. The Format tab also sets a footer after the text or at the bottom of the page (its
+    alignment, size, bold), the colour of the table headings, the words of the statement
+    of compliance, how dates are written (14 October 2026 or October 14, 2026), and the
+    fonts CG Omega and Cambria.
+ 4. Step 8 of the bidding (additional requirements), from the company's forms, on Legal
+    paper with one-inch margins: statement of all ongoing government and private
+    contracts (filled from the company's awarded contracts, with % accomplished and the
+    outstanding works), statement of the single largest completed similar contract
+    (SLCC, from the closed contracts), supplier profile, letter of intent (manifestation
+    of intent to participate), technical specifications (Section VII, with the statement
+    of compliance), production details (Section VI, schedule of requirements, with the
+    delivery period), manpower requirements, after-sales service and warranty provision.
+    The specifications of each item of the price schedule print one a line; a line in
+    capitals or ending with ":" prints bold, **text** is bold.
+ 5. Step 13 (post-bidding), prepared for the barangay's signatures with the barangay
+    letterhead: notice of post-qualification (new), BAC resolution (BAC Chairman, five
+    members and the Punong Barangay), notice of award and notice to proceed, with the
+    contract price in words and figures and "OFFICE OF THE BARANGAY" at the foot.
+ 6. New fields: the representative as addressed (MR. JUAN DELA CRUZ) and in a salutation
+    (Mr. J. Dela Cruz), the person managing the firm and the liaison officer, the
+    barangay's name and city line (Barangay Sabang, City of Lapu-Lapu), BAC members 1 to
+    5, the contract price and the ABC in words and figures, the delivery period and the
+    warranty in words, the location of the project, the procurement law in a sentence,
+    today's date written either way, and the statement tables.
+ 7. Transaction types Cash Out (purchases) and Kaliwaan (purchases) on the new
+    transaction form (Contracting Settings > The SOP lists them); the transaction form
+    prints CASH OUT and KALIWAAN boxes, and the pre-printed pad has their X marks.
+    SOP Steps & Papers: a step or paper can be limited to some types of transaction;
+    a transaction of another type skips the step (or marks the paper not needed) with a
+    note saying why, and gets it back when its type changes.
+
+Files
+-----
+ - storage/contracts/ also holds the letterhead pictures (lhpic_*). They are shown to
+   logged-in users through index.php?p=file.lhpic. Include the folder in file backups.
+ - php tools/test_brgy.php --yes also checks the letterheads, signatories, the new forms
+   and the types of transaction (on a TEST COPY of a database only).
+ - tests/selenium: the sop suite has new cases for the types, step 8, the letterhead and
+   signatories of a template, and the Format tab on a phone.
+
+The user's manual, chapter 11, has the new sections Letterheads, logos and signatories,
+and The papers of steps 8 and 13.

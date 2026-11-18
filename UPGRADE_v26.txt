@@ -1,0 +1,165 @@
+G-SMaRT Integrated Accounting and Government Contracting System - version 26 (2026-10-29)
+=========================================================================================
+
+The system has a new name: G-SMaRT Integrated Accounting and Government
+Contracting System (it was G-SMaRT Accounting). Accounting is now the backbone of
+the system: the government contracting work (Barangay Contracts, below) runs on it
+and records everything in the same books.
+
+This package is the COMPLETE system, in the folder government-contracting-system.
+
+New installation
+----------------
+Unzip the folder into C:\xampp\htdocs\ (or your web root), import ONE of these
+in phpMyAdmin (Import), then open http://localhost/government-contracting-system/:
+
+    database/government_contracting_system.sql        demo company with data
+    database/government_contracting_system_clean.sql  setup and users, no transactions
+
+Either file creates the database government_contracting_system, the name now in
+config/config.php. Log in as admin / Admin@12345 (a new password is asked at once).
+Do NOT import those two files over a live database: they drop every table.
+
+Existing installation
+---------------------
+1. Back up the database and the program folder (storage/ and config/config.php too).
+2. Copy the program files over your installation, EXCEPT config/config.php: keep
+   yours, it names your current database. Your folder may keep its name
+   (accounting-system); nothing in the program depends on it.
+3. Run the new migration on your database (phpMyAdmin: select the database > Import;
+   Navicat: Execute SQL File):
+
+       database/migrations/2026_10_29_barangay_contracting.sql
+
+4. The database name. Choose one:
+   a) keep the name accounting_system: nothing to do, your config/config.php
+      already names it. The program shows its new name either way.
+   b) take the new name government_contracting_system: run, from the program folder,
+
+          php tools/rename_database.php          (shows what it would do)
+          php tools/rename_database.php --yes    (renames)
+
+      MySQL has no RENAME DATABASE, so the tool creates the new database, moves every
+      table into it with one RENAME TABLE (nothing is copied or lost), puts the audit
+      trail protection triggers back, drops the empty old database and changes
+      config/config.php. With several companies it also renames the platform database
+      (accounting_system_master -> government_contracting_system_master) and the
+      company databases (accounting_system_company_002 -> ..._company_002), updates the
+      platform's records of them and storage/platform/multi_company.json; new
+      companies get the new prefix. Run it while nobody is working in the program.
+      If your MySQL user may not create or drop databases, use phpMyAdmin instead:
+      select the database > Operations > Rename database to, then change 'name' in
+      config/config.php.
+
+The migration adds the Barangay Contracts module: 28 new tables (all named brgy_...),
+its 14 pages and 18 reports, six Contracts roles, view / print / review rights for the
+role named Accountant, the special permission "Max contract / billing amount this role
+may approve (Barangay Contracts)", the accounts Retention Receivable, Bid and
+Performance Security Deposits, Contract Revenue - Works, Liquidated Damages and Loss on
+Forfeited Security (an existing account of the same name is used instead), seven
+module default accounts, the site "Delivered, awaiting acceptance" (BRGY-DLV), the
+customer type Government, the number series BCP-, BDR-, BBL-, BCL-, BCO-, BFM- and
+BSC-, and the starting lists (procurement modes, regulatory references, compliance
+requirements and 31 proforma and form templates). No existing table or column is
+changed, nothing is deleted and no amount changes. Written for MySQL 5.5, safe to run
+twice. With several companies, run it on every company database (Super Admin:
+Companies > Database updates > Update all companies). Until it is run, the program
+shows a page naming it.
+
+Files and folders
+-----------------
+ - storage/contracts/ is the document vault of the module (permits, bids, notices,
+   delivery receipts, inspection reports, billing papers, 2307s, final forms). The web
+   server must be able to write to it; browsers cannot open it (.htaccess). With
+   several companies each company gets its own storage/companies/c00N/contracts
+   folder on first use. Include storage/ in your file backups: the database backup
+   does not hold the files. The files whose names start with d2026 are the sample
+   papers of the demo database; delete them on a live installation.
+ - The User's Manual chapters are now numbered files 01 to 15; the older copies
+   10-administration.html, 11-company-owner.html, 12-super-admin.html,
+   13-appendices.html and the like can be deleted from views/manual/chapters.
+ - After copying the files, press Ctrl+F5 once in the browser so it loads the new
+   assets/js/brgy.js and the changed assets/css/app.css.
+
+Daily alert e-mail (optional)
+-----------------------------
+    Linux cron:   15 6 * * * php /path/to/government-contracting-system/tools/brgy_alerts.php
+    Windows:      a daily task running C:\xampp\php\php.exe with the argument
+                  C:\xampp\htdocs\government-contracting-system\tools\brgy_alerts.php
+It sends the day's alerts to the addresses on Contracting Settings > "Daily alert
+e-mail to", using PHP mail(). Add --print to see the message without sending it.
+php tools/test_brgy.php --yes checks the module's rules (segregation of duties,
+approval limits, quantities, duplicate invoices, postings, reconciliation) on a TEST
+COPY of a database; it adds test users and records, so never run it on live data.
+
+What is new: Barangay Contracts
+-------------------------------
+ 1. Projects & Contracts: one record per opportunity, from the notice to the
+    closeout, in twelve phases (intake, eligibility, costing, pre-submission
+    approval, bid submitted, evaluation, award, fulfilment, delivery and acceptance,
+    billing, collection, closeout), with the next step and its buttons on top and
+    tabs for the price schedule, compliance, documents, forms, submissions and
+    letters, award and contract, deliveries, change orders, billing and collection,
+    costs, tasks, timeline and ledger.
+ 2. Compliance: a checklist made from the Compliance Requirement Library (by
+    procurement law, category, mode, ABC band and entity; requirements need an
+    approver), answered from the Document Vault. Each paper must be valid on the date
+    its stage needs it (the bid deadline for eligibility and bid papers). Company
+    papers are filed once and reused on every bid while valid.
+ 3. Price schedule: lines with cost, markup, price and tax code, an ABC meter, CSV
+    export, and a read-only costing version kept each time the bid goes for review.
+ 4. Maker > checker > approver on bids, billing packs, change orders and forms, with
+    returns and reopening, segregation of duties, named checker / approver per
+    project, alternates while away and approval limits per role (Approval Queue).
+ 5. Submissions with their proof (only the authorized submitter records the bid; a
+    late bid is refused), correspondence with reply-due dates, bid results (lost,
+    cancelled) for the win / loss analysis.
+ 6. The entity's acts are recorded from its own papers: notice of award, contract or
+    purchase order, notice to proceed, inspection and acceptance, approved variation
+    orders. Bid, performance and warranty securities with their postings.
+ 7. Deliveries & Acceptance: deliveries within the contract (stocked goods move to
+    "Delivered, awaiting acceptance"), the inspection result per line, rejected goods
+    brought back; delivery receipts and accomplishment reports printed.
+ 8. Billing Packs: billing of accepted quantities only, expected taxes withheld,
+    retention and liquidated damages, one invoice per approved pack (duplicate
+    prevention, sales invoice number checked), the papers of the pack, submission and
+    acknowledgment.
+ 9. Collections & Retention: payments with the income tax and VAT withheld (checked
+    against the Withholding Tax Table), retention, liquidated damages, other
+    deductions and bank charges; returned checks; retention released; 2307s received.
+10. Forms & Proformas: 31 reusable templates (cover letter, company profile, price
+    quotation, price schedule, technical proposal, method statement, implementation
+    schedule, supply proposal, scope of work, contract review sheet, handover memo,
+    PO conforme, contracts for goods, services and works, delivery receipt,
+    accomplishment report, transmittal, billing letter, statement of account,
+    follow-up letter, acknowledgment receipt, reconciliation sheet, closeout,
+    internal sheets and agreements). Templates are edited in the page with fields
+    such as {{entity.head_name}} or {{lines.table}}, keep their versions and can be
+    duplicated per entity. Prepared forms are filled from the records, the blanks
+    listed, edited, approved, filed in the vault as final, and printed on A4, Letter,
+    Folio or Legal (DRAFT mark until final) or saved for Word. Prescribed forms
+    (omnibus sworn statement, bid securing declaration, bid form) are shells for the
+    official text.
+11. Contracting Dashboard (alerts, pipeline by phase, approvals, next 30 days,
+    entities, contracts in force) and 18 reports under Reports > Barangay Contract
+    Reports, including the contracts-to-ledger reconciliation and the 2307 tracker.
+12. Accounting: every posting goes through the existing transactions on the
+    contract's Customer:Job and class (inventory transfer, invoice, customer payment
+    with taxes withheld, credit memo, deposit, statement charge, journal entry), once
+    per event; voiding the record voids its entry. Closeout is refused while the
+    contract does not agree with the ledger.
+
+Before using it
+---------------
+ - Contracting Settings: registration and PhilGEPS numbers, authorized
+   representative, bank details, the controls and the alerts.
+ - Procurement Modes and Compliance Requirement Library: enter the ceilings and
+   requirements you have verified against RA 12009, its IRR and the current GPPB
+   issuances. The program never assumes an amount ceiling or a rate.
+ - Proforma & Form Templates: adapt the wording; have contract proformas reviewed
+   by counsel.
+ - System Administration > Users: give the contracting staff their roles.
+
+The user's manual (Help button, Home > User's Manual) has the new name, a new chapter
+11, Barangay Contracts, and the appendices list the new roles, permission, number
+series, command-line tools (rename_database.php too) and storage folder.

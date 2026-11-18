@@ -1,0 +1,530 @@
+<p>The Barangay Contracts module runs the company's work with barangays and other procuring entities from start to end: the opportunity, the eligibility papers, the costing and the bid, its approval and submission, the award, the deliveries and the entity's acceptance, change orders, billing packs, collections with the taxes the entity withholds, retention, and the closeout. It keeps every paper in a document vault, prepares the letters, proposals, contracts and receipts from reusable proformas, and posts everything that touches the books through the accounting modules, so inventories, receivables, payables, sales and taxes stay in one ledger.</p>
+<p>In the sidebar the module has four groups:</p>
+<ul>
+<li><strong>Transactions:</strong> Contracting Dashboard, Projects &amp; Contracts, Approval Queue, Deliveries &amp; Acceptance, Billing Packs, Collections &amp; Retention, Forms &amp; Proformas, Document Vault.</li>
+<li><strong>Lists:</strong> Barangays &amp; Procuring Entities.</li>
+<li><strong>Setup:</strong> Proforma &amp; Form Templates, Compliance Requirement Library, Procurement Modes, Regulatory References, Contracting Settings, SOP Steps &amp; Papers.</li>
+<li><strong>Reports</strong>, under the heading <strong>Barangay Contract Reports</strong>: nineteen reports, listed at the end of this chapter.</li>
+</ul>
+<figure class="man-fig man-fig-narrow"><a class="man-zoom" href="assets/manual/img/nav__brgy.jpg" title="Click to enlarge"><img src="assets/manual/img/nav__brgy.jpg" alt="The Barangay Contracts module in the sidebar" width="272" height="844" loading="lazy" decoding="async"></a><figcaption>The Barangay Contracts module in the sidebar</figcaption></figure>
+<div class="man-callout man-important"><div class="man-callout-t"><i class="bi bi-exclamation-triangle"></i>Important</div><p>The module follows the procurement rules; it does not interpret them. Amount ceilings, thresholds, securities, documentary requirements and prescribed forms change, and the procuring entity's own bidding documents govern each procurement. The program never assumes a ceiling or a rate: they are left blank until someone in the company enters them after checking the current law, its implementing rules and the GPPB issuances (see <a href="#pg-brgy-references">Regulatory References</a>). Republic Act No. 12009 (the New Government Procurement Act) governs procurements started after it took effect; RA 9184 still governs those started before it.</p></div>
+
+<h2 id="s-brgy-flow">How a contract moves<a class="man-hash" href="#s-brgy-flow" aria-label="Link to this section"><i class="bi bi-link-45deg"></i></a></h2>
+<p>One record, the <strong>project</strong>, follows a job from the first notice to the closeout. Its phase is shown on every page of the project as a track of twelve steps:</p>
+<div class="table-responsive man-table"><table class="table table-sm">
+<thead><tr><th>Phase</th><th>What happens</th><th>What moves it on</th></tr></thead>
+<tbody>
+<tr><td>01 Opportunity intake</td><td>The notice, RFQ or invitation is recorded with its ABC, dates and source</td><td>The go decision</td></tr>
+<tr><td>02 Eligibility and compliance</td><td>The checklist of papers is filled from the vault</td><td>The price schedule</td></tr>
+<tr><td>03 Costing and proposal</td><td>The price schedule (bill of quantities) with costs, markup and prices</td><td>Sending the bid for review</td></tr>
+<tr><td>04 Pre-submission approval</td><td>Checker and approver look at the bid; a copy of the costing is kept</td><td>The submission by the authorized submitter</td></tr>
+<tr><td>05 Bid submitted</td><td>The offer is fixed; proof of submission on file</td><td>Bid opening, clarifications, post-qualification</td></tr>
+<tr><td>06 Evaluation and post-qualification</td><td>Ranking, requests of the BAC, replies</td><td>The notice of award, or the result (lost, cancelled)</td></tr>
+<tr><td>07 Award and contract</td><td>Notice of award, contract or purchase order, notice to proceed, securities</td><td>Start of fulfilment</td></tr>
+<tr><td>08 Mobilization and fulfilment</td><td>Purchases for the contract, preparation, tasks</td><td>The first delivery</td></tr>
+<tr><td>09 Delivery and acceptance</td><td>Deliveries, the entity's inspection and acceptance</td><td>The first invoice</td></tr>
+<tr><td>10 Billing</td><td>Billing packs for accepted quantities, invoices, submission, acknowledgment</td><td>The first collection</td></tr>
+<tr><td>11 Collection</td><td>Payments with taxes withheld and deductions, returned checks, retention</td><td>The closeout</td></tr>
+<tr><td>12 Closeout</td><td>Everything delivered, accepted, billed, collected and agreeing with the ledger</td><td>An approver can reopen it</td></tr>
+</tbody></table></div>
+<p>Besides its phase, a project has a <strong>status</strong>: Open (an opportunity or a bid), Awarded (a contract in force), Lost, No bid, Cancelled (by the entity) or Closed.</p>
+<h3 id="s-brgy-controlled">Maker, checker, approver<a class="man-hash" href="#s-brgy-controlled" aria-label="Link to this section"><i class="bi bi-link-45deg"></i></a></h3>
+<p>Four kinds of records are controlled: the <strong>bid</strong>, <strong>billing packs</strong>, <strong>change orders</strong> and <strong>prepared forms</strong>. Each goes Draft &gt; For review &gt; Reviewed &gt; Approved, and can be Returned for correction (with the reason, which the preparer sees) or Reopened by an approver. Nobody reviews or approves what they sent for review, and the approver is not the checker (Contracting Settings &gt; Segregation of duties). A project can name its own checker and approver; then only they, or the alternate they named while away, take those steps. An approver's role carries an approval limit (<a href="manual.php?c=administration#pg-admin-roles">System Administration &gt; Roles</a> &gt; special permission <strong>Max contract / billing amount this role may approve (Barangay Contracts)</strong>; blank means no limit).</p>
+<h3 id="s-brgy-entity-acts">The entity's own acts<a class="man-hash" href="#s-brgy-entity-acts" aria-label="Link to this section"><i class="bi bi-link-45deg"></i></a></h3>
+<p>The notice of award, the purchase order or contract, the notice to proceed, the inspection and acceptance, an approved variation order and the payment are acts of the procuring entity. The program records them from the entity's own papers, with their dates and a copy in the vault, and never presents an internal approval as the entity's decision: an award needs the notice, an acceptance needs the inspection report, a change order changes the contract only with the entity's approval on file.</p>
+<h3 id="s-brgy-roles">Who does what<a class="man-hash" href="#s-brgy-roles" aria-label="Link to this section"><i class="bi bi-link-45deg"></i></a></h3>
+<p>Six roles come with the module. Give users the role that matches their job (<a href="manual.php?c=administration#pg-admin-users">System Administration &gt; Users</a>); a role can be changed like any other.</p>
+<div class="table-responsive man-table"><table class="table table-sm">
+<thead><tr><th>Role</th><th>Does</th></tr></thead>
+<tbody>
+<tr><td>Contracts - Bid &amp; Compliance Officer</td><td>Records opportunities, keeps the directory and the vault, prepares the checklist, the price schedule and the forms, sends the bid for review and, when named as the authorized submitter, records the submission</td></tr>
+<tr><td>Contracts - Approver (Management)</td><td>Reviews and approves bids, billing packs, change orders and forms; waives requirements; closes out and reopens contracts; keeps the setup lists</td></tr>
+<tr><td>Contracts - Project Manager</td><td>Starts fulfilment, records deliveries and the entity's inspection, prepares change orders, tasks and progress reports</td></tr>
+<tr><td>Contracts - Warehouse &amp; Delivery</td><td>Records deliveries and files the signed delivery receipts</td></tr>
+<tr><td>Contracts - Billing Officer</td><td>Prepares billing packs, issues the invoice once approved, submits the pack and records its acknowledgment</td></tr>
+<tr><td>Contracts - Collection Officer</td><td>Records collections with the taxes withheld and the deductions, returned checks, retention released and the BIR Forms 2307 received</td></tr>
+</tbody></table></div>
+<p>The Accountant can view and print the whole module and review in the Approval Queue. Costs and margins show only to roles with the special permission <strong>View costs and margins</strong>.</p>
+
+<h2 id="s-brgy-sop">The company's SOP<a class="man-hash" href="#s-brgy-sop" aria-label="Link to this section"><i class="bi bi-link-45deg"></i></a></h2>
+<p>The company's Standard Operating Procedure for barangay transactions runs inside the program. A transaction on the SOP follows one of two processes, step by step, in the order of the SOP; each step says what the SOP asks, lists its papers and checks, and is marked done only when nothing is missing. The company prepares the barangay's own papers (purchase request, purchase order, IAR, RIS, canvass, abstract, disbursement voucher, notices); the barangay checks and signs them, and the signed copies (PDF, JPG or JPEG scans or photos) are attached for tracing and downloading.</p>
+<div class="table-responsive man-table"><table class="table table-sm">
+<thead><tr><th>Process</th><th>When</th></tr></thead>
+<tbody>
+<tr><td>Small value procurement (SOP)</td><td>Transactions below the small value limit of Contracting Settings (the SOP's "below 100K"): nine steps, from the transaction form to the release of the papers</td></tr>
+<tr><td>Bidding (SOP)</td><td>Fifteen steps of the bidding process, then the six steps of the payment process flow</td></tr>
+<tr><td>Twelve phases (without the SOP)</td><td>The phases and the compliance checklist described above, as before</td></tr>
+</tbody></table></div>
+<p>The process is chosen when the transaction is recorded (the amount suggests one) and can change until a step is done. The SOP keeps the books the same way as any contract: the award, the delivery and acceptance, the billing pack and its invoice, and the payment received with the taxes withheld are the module's usual records, reached from the steps.</p>
+<figure class="man-fig"><a class="man-zoom" href="assets/manual/img/brgy_projects__process.jpg" title="Click to enlarge"><img src="assets/manual/img/brgy_projects__process.jpg" alt="The Process tab: the steps of the SOP, the current step with its papers, and the payment hold" width="1094" height="1350" loading="lazy" decoding="async"></a><figcaption>The Process tab: the steps of the SOP, the current step with its papers, and the payment hold</figcaption></figure>
+<h3 id="s-brgy-sop-svp">Small value procurement<a class="man-hash" href="#s-brgy-sop-svp" aria-label="Link to this section"><i class="bi bi-link-45deg"></i></a></h3>
+<div class="table-responsive man-table"><table class="table table-sm">
+<thead><tr><th>Step</th><th>What the SOP says</th><th>Before the step is done</th></tr></thead>
+<tbody>
+<tr><td>1. Receive transaction details</td><td>The sales representative gives the project title, approved budget, requestor, inspector and complete item specifications. The transaction form is prepared. If the details are not complete, <strong>Request / prepare details</strong> sends a task to the sales representative (additional research and price validation).</td><td>The details, the items on the Price schedule tab, the transaction form prepared, the five checks</td></tr>
+<tr><td>2. Prepare the required documents</td><td>The company prepares the barangay's papers: purchase request, purchase order, inspection and acceptance report, requisition and issue slip, canvass forms, abstract of canvass and disbursement voucher. <strong>Prepare every paper of this step</strong> makes them all at once from the proformas.</td><td>Every paper prepared</td></tr>
+<tr><td>3. Supplier canvassing</td><td>Three suppliers fill in and sign the canvass forms. Each quotation is recorded with its total, validity, brand, remarks (passed or failed) and the signed form; the company's own quotation is the total of the price schedule.</td><td>Three quotations, each with its signed form. When the company's quotation is the lowest that passed, the purchase order is recorded as the award; otherwise the transaction is recorded as lost</td></tr>
+<tr><td>4. Prepare billing documents</td><td>Sales invoice, official receipt and BIR Form 2307 (three copies, signed by the proprietor). Held while the payment is not released (special case F): <strong>Cheque ready</strong> records the cheque; <strong>Log a follow-up</strong> keeps each call to the barangay. The delivery and acceptance (from the signed IAR), the billing pack and the payment received are reached from the step.</td><td>The payment released, the whole contract invoiced, the payment received with its official receipt number, the signed SI, OR and 2307 attached</td></tr>
+<tr><td>5. Review documents</td><td>Accuracy, completeness, proper signatures, correct computations.</td><td>The four checks, every signed copy of the earlier papers attached, and a reviewer other than whoever prepared the billing papers</td></tr>
+<tr><td>6. File and monitor records</td><td>Copies retained; the transaction is encoded in the monitoring (the program itself, and the Transaction Monitoring report).</td><td>The two checks</td></tr>
+<tr><td>7. Forward documents</td><td>The copies go to the Accounting Department.</td><td>To whom and when</td></tr>
+<tr><td>8. Prepare transmittal</td><td>The transmittal lists the papers released.</td><td>The transmittal number</td></tr>
+<tr><td>9. Release of documents</td><td>Delivered by the sales representative or picked up at the office. The signed transmittal must always come back.</td><td>How, to whom and when; the signed transmittal attached. The contract is then closed out when it agrees with the ledger</td></tr>
+</tbody></table></div>
+<figure class="man-fig"><a class="man-zoom" href="assets/manual/img/brgy_projects__canvass.jpg" title="Click to enlarge"><img src="assets/manual/img/brgy_projects__canvass.jpg" alt="Supplier canvassing: three quotations with their signed forms; the lowest that passed is the company's" width="1094" height="1350" loading="lazy" decoding="async"></a><figcaption>Supplier canvassing: three quotations with their signed forms; the lowest that passed is the company's</figcaption></figure>
+<div class="man-callout man-important"><div class="man-callout-t"><i class="bi bi-exclamation-triangle"></i>Special case F: payment not released</div><p>While the cheque is not ready the program does not prepare the sales invoice, the official receipt or the BIR Form 2307, and refuses a billing pack for the transaction. Follow up and wait; once <strong>Cheque ready</strong> is recorded (number, date, bank, amount), the billing papers are prepared and the closing goes on. The setting can be switched off on Contracting Settings.</p></div>
+<h3 id="s-brgy-sop-bidding">Bidding and payment<a class="man-hash" href="#s-brgy-sop-bidding" aria-label="Link to this section"><i class="bi bi-link-45deg"></i></a></h3>
+<div class="table-responsive man-table"><table class="table table-sm">
+<thead><tr><th>Step</th><th>Before the step is done</th></tr></thead>
+<tbody>
+<tr><td>1. Receive bidding details</td><td>Bidding form and complete project details</td></tr>
+<tr><td>2. Verify completeness</td><td>Specifications, approved schedule, bid dates, submission requirements</td></tr>
+<tr><td>3. Posting on PhilGEPS</td><td>PhilGEPS reference and posting date</td></tr>
+<tr><td>4. Prepare pre-bid documents</td><td>Invitation to bid, purchase request, letter to COA; the ABC and the Aboitiz requirements for the offices that ask for them (Barangays &amp; Procuring Entities)</td></tr>
+<tr><td>5. Assign authorized representative</td><td>The representative for the pre-bid conference and the bidding, and the special power of attorney</td></tr>
+<tr><td>6. Prepare legal documents</td><td>Bid securing declaration and omnibus sworn statement, notarized</td></tr>
+<tr><td>7. Print eligibility documents</td><td>PhilGEPS registration, DTI / SEC registration, mayor's permit, COR, tax clearance, audited financial statements, income tax return: each answered by a valid copy in the vault (Company papers) at the bid deadline</td></tr>
+<tr><td>8. Prepare additional requirements</td><td>Statement of all ongoing contracts, statement of the single largest completed similar contract, supplier profile, letter of intent, technical specifications (Section VII), production details (Section VI, schedule of requirements), manpower requirements, warranty certificate: each prepared from the company's own form (see <a href="#s-brgy-tpl-bidforms">The papers of steps 8 and 13</a>)</td></tr>
+<tr><td>9. Organize and label documents</td><td>Arranged, labelled and stamped "Certified True Copy"</td></tr>
+<tr><td>10. Secure signatures</td><td>Each paper marked signed by the proprietor (or its signed copy attached)</td></tr>
+<tr><td>11. Final verification</td><td>The bid reviewed and approved for submission by two other people (the usual maker, checker, approver)</td></tr>
+<tr><td>12. Submit documents</td><td>Endorsed to the representative, and the submission recorded</td></tr>
+<tr><td>13. Prepare post-bidding documents</td><td>Notice of post-qualification, BAC resolution, notice of award, notice to proceed (prepared for the barangay's signatures), post-qualification papers; the award recorded (or the result if not awarded)</td></tr>
+<tr><td>14. Project completion</td><td>Everything accepted; the certificate of completion signed by the inspector and the Barangay Captain</td></tr>
+<tr><td>15. Coordinate payment schedule</td><td>The cheque released (follow-ups until then)</td></tr>
+<tr><td>16 to 21. Payment process</td><td>SI, OR and 2307; encode in monitoring; forward to accounting; prepare transmittal; secure signature (the signed transmittal returned); file for record (closeout)</td></tr>
+</tbody></table></div>
+<figure class="man-fig"><a class="man-zoom" href="assets/manual/img/brgy_projects__bidding.jpg" title="Click to enlarge"><img src="assets/manual/img/brgy_projects__bidding.jpg" alt="A bidding transaction at step 7: the company papers on file and the tax clearance still missing" width="1094" height="1350" loading="lazy" decoding="async"></a><figcaption>A bidding transaction at step 7: the company papers on file and the tax clearance still missing</figcaption></figure>
+<h3 id="s-brgy-sop-papers">Papers and signed copies<a class="man-hash" href="#s-brgy-sop-papers" aria-label="Link to this section"><i class="bi bi-link-45deg"></i></a></h3>
+<p>Each paper of a step shows where it stands: <strong>To prepare</strong>, <strong>Prepared</strong> (a form was made from its proforma), <strong>Signed copy attached</strong>, <strong>On file</strong> (a company paper valid in the vault), <strong>Held</strong> (payment not released) or <strong>Not needed</strong>.</p>
+<ul>
+<li><strong>Prepare</strong> makes the form from its proforma, filled from the transaction; <strong>Print</strong> prints it with the format of its template; the form number opens it on Forms &amp; Proformas to correct it.</li>
+<li><strong>Attach signed</strong> files the signed copy (PDF, JPG or JPEG) in the Document Vault under the project; <strong>Replace</strong> keeps the earlier copy as an older version. <strong>Signed copy</strong> opens it.</li>
+<li><strong>Mark signed</strong> (bidding, step 10) records that the proprietor signed a paper before it is scanned.</li>
+<li><strong>Not needed</strong> (approvers, with the reason) takes a paper off the transaction; <strong>Add another paper to this step</strong> adds one the SOP does not list.</li>
+<li><strong>All papers</strong> lists every paper of the transaction with its form and signed copy; <strong>Download signed copies</strong> gives them all, with the signed canvass forms, as one ZIP file named by step.</li>
+</ul>
+<h4 id="s-brgy-sop-step">Step by step: work a step<a class="man-hash" href="#s-brgy-sop-step" aria-label="Link to this section"><i class="bi bi-link-45deg"></i></a></h4>
+<ol>
+<li>Open the transaction: it opens on the <strong>Process</strong> tab, at the current step (the steps on the left jump to any step).</li>
+<li>Read what the SOP says; prepare, print and attach the papers; enter what the step asks (the PhilGEPS posting, the cheque, the forwarding, the release ...).</li>
+<li>Tick the checks. <strong>Still to do</strong> lists what stands in the way.</li>
+<li>Click <strong>Step N done</strong> (with a remark if useful). The next step opens. Each step done goes to the timeline and the audit trail with who did it and when.</li>
+</ol>
+<div class="man-callout man-note"><div class="man-callout-t"><i class="bi bi-info-circle"></i>Note</div><p>The steps are done in order. An approver may <strong>Skip</strong> a step that does not apply, or <strong>Open this step again</strong>, with the reason. The steps, their papers and checks are kept on SOP Steps &amp; Papers: a step or paper added there reaches the open transactions.</p></div>
+
+<h2 id="s-brgy-books">What the module records in the books<a class="man-hash" href="#s-brgy-books" aria-label="Link to this section"><i class="bi bi-link-45deg"></i></a></h2>
+<p>The module reaches the ledger only through the transactions of the accounting modules. Each record posts once for each event; a second posting is refused, and voiding the record voids its entry. Every entry carries the contract's Customer:Job (and its class), so the job's profit and loss, its receivable and its retention can be read from the books at any time.</p>
+<div class="table-responsive man-table"><table class="table table-sm">
+<thead><tr><th>When</th><th>Debit</th><th>Credit</th><th>Transaction</th></tr></thead>
+<tbody>
+<tr><td>Notice of award, contract, notice to proceed</td><td colspan="2">Nothing: no sale, no receivable. A Customer:Job and a class are opened</td><td>none</td></tr>
+<tr><td>Purchase order to a supplier or subcontractor</td><td colspan="2">Nothing (a purchase order does not post)</td><td>Purchase Order, lines on the job</td></tr>
+<tr><td>Supplier bill for the contract (Vendors)</td><td>Inventory, or the cost account, on the job</td><td>Accounts Payable</td><td>Bill / Item Receipt</td></tr>
+<tr><td>Goods delivered, waiting for acceptance</td><td>Inventory at the site "Delivered, awaiting acceptance"</td><td>Inventory at the warehouse</td><td>Inventory Transfer</td></tr>
+<tr><td>Goods rejected and brought back</td><td>Inventory at the warehouse</td><td>Inventory at the delivered site</td><td>Inventory Transfer</td></tr>
+<tr><td>Billing pack approved: invoice</td><td>Accounts Receivable (job); Cost of Goods Sold</td><td>Sales / Service income / Contract revenue; Output VAT; Inventory</td><td>Invoice</td></tr>
+<tr><td>Collection</td><td>Undeposited Funds or the bank; Creditable Withholding Tax; Creditable VAT Withheld</td><td>Accounts Receivable</td><td>Customer Payment with the taxes withheld</td></tr>
+<tr><td>Retention, liquidated damages, other deductions, bank charges</td><td>Retention Receivable; Liquidated Damages; the account chosen; Bank and Merchant Charges</td><td>Accounts Receivable</td><td>Credit Memo applied to the invoice</td></tr>
+<tr><td>Retention released</td><td>The bank</td><td>Retention Receivable</td><td>Deposit</td></tr>
+<tr><td>A deposited check returned</td><td>Accounts Receivable</td><td>The bank</td><td>Statement Charge (a check not yet deposited: the payment is voided)</td></tr>
+<tr><td>Security paid in cash or by check</td><td>Bid and Performance Security Deposits</td><td>The bank</td><td>Journal Entry</td></tr>
+<tr><td>Security returned / forfeited</td><td>The bank / Loss on Forfeited Security</td><td>Bid and Performance Security Deposits</td><td>Journal Entry</td></tr>
+</tbody></table></div>
+<div class="man-callout man-example"><div class="man-callout-t"><i class="bi bi-journal-text"></i>Example</div><p>Barangay San Isidro accepts laptops, monitors, keyboards and mice worth ₱234,000.00 (prices include VAT). The invoice posts Dr Accounts Receivable ₱234,000.00, Cr Sales ₱208,928.57 and Cr Output VAT ₱25,071.43, with the cost of the goods out of the "Delivered, awaiting acceptance" site. The barangay pays by check and withholds 1% income tax on the amount net of VAT (₱2,089.29) and 5% VAT (₱10,446.43): the collection posts Dr Undeposited Funds ₱221,464.28, Dr Creditable Withholding Tax ₱2,089.29, Dr Creditable VAT Withheld ₱10,446.43, Cr Accounts Receivable ₱234,000.00. The taxes appear on the BIR Reports and the Form 2307 tracker.</p></div>
+<p>The accounts are the module default accounts (<a href="manual.php?c=chart-of-accounts#pg-coa-default_accounts">Module Default Accounts</a> &gt; Barangay Contracts): Contract Revenue - Goods, - Services, - Works, Retention Receivable, Bid and Performance Security Deposits, Liquidated Damages and Loss on Forfeited Security. The withholding taxes come from the <a href="manual.php?c=bir-reports#pg-bir-wht_table">Withholding Tax Table</a>; the VAT withheld appears on the <a href="manual.php?c=bir-reports#pg-rpt-bir_cvat_withheld">Creditable VAT Withheld Schedule</a>.</p>
+
+<h2 id="s-brgy-setup">Setting up<a class="man-hash" href="#s-brgy-setup" aria-label="Link to this section"><i class="bi bi-link-45deg"></i></a></h2>
+<ol>
+<li><strong>Contracting Settings:</strong> the company's registration number, PhilGEPS number and membership, authorized representative, bank details for payment, VAT status, and the controls.</li>
+<li><strong>Chart of Accounts &gt; Module Default Accounts:</strong> check the seven Barangay Contracts accounts.</li>
+<li><strong>Procurement Modes</strong> and <strong>Compliance Requirement Library:</strong> enter the ceilings and requirements you verified; approve the requirements.</li>
+<li><strong>Document Vault &gt; Company papers:</strong> file the permits, registrations, tax clearance, PhilGEPS certificate and financial statements once, with their validity.</li>
+<li><strong>Barangays &amp; Procuring Entities:</strong> add each entity with its officials (Punong Barangay, BAC chair, treasurer).</li>
+<li><strong>Proforma &amp; Form Templates:</strong> adapt the letters, quotations, proposals and contracts to the company's wording.</li>
+<li><strong>System Administration &gt; Users:</strong> give the contracting staff their roles.</li>
+</ol>
+
+<h2 id="pg-brgy-dashboard">Contracting Dashboard<a class="man-hash" href="#pg-brgy-dashboard" aria-label="Link to this section"><i class="bi bi-link-45deg"></i></a></h2>
+<p>Where every contract stands. The figures at the top count the opportunities in preparation (and the bids due within seven days), the bids waiting for a result, the value of the contracts in force, what is still to be accepted, what was accepted and not billed, the receivable from the ledger with the retention held, the win rate of the last twelve months and, for those who see costs, the margin on live contracts.</p>
+<p><strong>Where to find it:</strong> Barangay Contracts &gt; Contracting Dashboard.</p>
+<figure class="man-fig"><a class="man-zoom" href="assets/manual/img/brgy_dashboard__main.jpg" title="Click to enlarge"><img src="assets/manual/img/brgy_dashboard__main.jpg" alt="The Contracting Dashboard" width="1094" height="1350" loading="lazy" decoding="async"></a><figcaption>The Contracting Dashboard</figcaption></figure>
+<ul>
+<li><strong>Needs attention:</strong> papers expired or expiring, bids due, replies due to the BAC, mandatory papers not in order, approvals waiting for you, records returned to you, late deliveries, deliveries not yet accepted, goods rejected and not replaced, billings not submitted or not acknowledged, overdue receivables, retention that can be claimed, securities lapsing, overdue tasks and any contract whose figures do not agree with the ledger. Each line opens the record. The same alerts can be e-mailed every morning (see <a href="#pg-brgy-settings">Contracting Settings</a>).</li>
+<li><strong>Pipeline by phase:</strong> the open projects and contracts in each phase, with their amounts; a click lists them.</li>
+<li><strong>Your approvals</strong>, <strong>Next 30 days</strong> (deadlines, bid openings, due dates, replies, tasks), <strong>Procuring entities</strong> and <strong>Contracts in force</strong> with their progress.</li>
+</ul>
+
+<h2 id="pg-brgy-projects">Projects &amp; Contracts<a class="man-hash" href="#pg-brgy-projects" aria-label="Link to this section"><i class="bi bi-link-45deg"></i></a></h2>
+<p>The list of projects and, for each, the record of the whole job. The list shows the open and awarded projects by default, with the next date (bid due or delivery due, in red when passed); search by number, title, RFQ, contract or entity, and filter by entity, status or phase. <strong>Export</strong> gives the list as a CSV file.</p>
+<p><strong>Where to find it:</strong> Barangay Contracts &gt; Projects &amp; Contracts. Creating needs the create permission, changing the edit permission.</p>
+<figure class="man-fig"><a class="man-zoom" href="assets/manual/img/brgy_projects__overview.jpg" title="Click to enlarge"><img src="assets/manual/img/brgy_projects__overview.jpg" alt="A contract in force: the phase track, the next step and the overview" width="1094" height="1344" loading="lazy" decoding="async"></a><figcaption>A contract in force: the phase track, the next step and the overview</figcaption></figure>
+<p>The head of a project shows its title, entity, category, mode, reference, status and the phase track. Under it, the <strong>next step</strong> box says what the project waits for and holds the buttons for it (Go / No bid, Send for review, Record the submission, Record the award, Start fulfilment, New delivery, New billing pack, Record collection, Close out, Reopen). The tabs hold everything else.</p>
+<p>A transaction on the SOP opens on its <strong>Process</strong> tab, with the steps of the SOP in the head instead of the phases; its phase is still shown under them. The list shows the process and the step each transaction is at, and filters by process; search also finds the transaction form number and the cheque number. On a transaction of the SOP the price schedule has one more column, <strong>PR est. cost</strong>: the estimated unit cost the purchase request shows (blank = the unit price).</p>
+<figure class="man-fig"><a class="man-zoom" href="assets/manual/img/brgy_projects__new.jpg" title="Click to enlarge"><img src="assets/manual/img/brgy_projects__new.jpg" alt="New transaction: the process, the transaction form and the numbers of the barangay's papers" width="1094" height="1350" loading="lazy" decoding="async"></a><figcaption>New transaction: the process, the transaction form and the numbers of the barangay's papers</figcaption></figure>
+<h4 id="s-brgy-new-opportunity">Step by step: record an opportunity<a class="man-hash" href="#s-brgy-new-opportunity" aria-label="Link to this section"><i class="bi bi-link-45deg"></i></a></h4>
+<ol>
+<li>Click <strong>New transaction</strong> and choose the <strong>Process</strong>: small value procurement, bidding (both on the SOP) or the twelve phases. For the SOP, fill in the <strong>Transaction form</strong> (date, tradename, type, requestor, inspector, purpose, sales representative, fund; the series number is given on saving) and the numbers and dates of the barangay's papers (PR, PO, RIS, IAR, DV, date and term of delivery) as they become known. Type the title as in the notice, choose the <strong>Procuring entity</strong>, the <strong>Category</strong> (goods, general services, infrastructure works, consulting) and the <strong>Procurement mode</strong>; the procurement law follows the mode (RA 9184 only for procurements started under the old law).</li>
+<li>Enter the RFQ / ITB number, the PhilGEPS reference, the link to the posting, the <strong>ABC</strong>, the source of funds, the end-user, the delivery site and the delivery period in calendar days.</li>
+<li>Enter the key dates: site inspection, pre-bid conference, last day for questions, the <strong>bid deadline</strong> and the bid opening.</li>
+<li>Enter the terms the RFQ states: retention %, liquidated damages % per day, warranty, payment terms.</li>
+<li>Name the people: preparer, checker, approver (three different people), the <strong>authorized submitter</strong> (the only one who records the bid submission), the project manager and the collector.</li>
+<li>Click <strong>Record opportunity</strong>. The compliance checklist is made at once from the requirement library, and the company papers already in the vault are linked to it.</li>
+<li>Decide <strong>Go</strong> or <strong>No bid</strong> with the reason. No bid closes the opportunity (an approver can reopen it).</li>
+</ol>
+<h4 id="s-brgy-tab-checklist">The Compliance tab<a class="man-hash" href="#s-brgy-tab-checklist" aria-label="Link to this section"><i class="bi bi-link-45deg"></i></a></h4>
+<figure class="man-fig"><a class="man-zoom" href="assets/manual/img/brgy_projects__compliance.jpg" title="Click to enlarge"><img src="assets/manual/img/brgy_projects__compliance.jpg" alt="The compliance checklist of a bid in preparation" width="1094" height="1350" loading="lazy" decoding="async"></a><figcaption>The compliance checklist of a bid in preparation</figcaption></figure>
+<p>Each requirement shows its stage, whether it is mandatory, conditional or optional, the document filed for it and its status:</p>
+<div class="table-responsive man-table"><table class="table table-sm">
+<thead><tr><th>Status</th><th>Means</th></tr></thead>
+<tbody>
+<tr><td>In order</td><td>A document is filed, reviewed and valid on the date it is needed</td></tr>
+<tr><td>For review</td><td>A document is filed and waits for another person's review in the vault</td></tr>
+<tr><td>Missing</td><td>Nothing filed yet</td></tr>
+<tr><td>Expired</td><td>The document's validity ends before the date it is needed (shown next to it)</td></tr>
+<tr><td>Returned</td><td>The reviewer returned the document; the reason is shown</td></tr>
+<tr><td>Not required</td><td>Waived for this project, with the reason (a mandatory one only by an approver)</td></tr>
+<tr><td>Later</td><td>A paper of a later stage (contract, delivery, billing), not due yet</td></tr>
+</tbody></table></div>
+<p>Eligibility and bid papers have to be valid on the bid deadline (then on the day the bid went in); contract, delivery and billing papers while the contract runs. <strong>File</strong> uploads the paper or picks one already in the vault; a company paper can be filed as such, to be reused on every bid. <strong>Prepare the form</strong> makes the paper from its template (cover letter, omnibus sworn statement ...). <strong>Add what the library suggests</strong> adds requirements approved after the project was recorded; <strong>Add a requirement of this project</strong> adds one asked only in this RFQ. Papers filed anywhere in the project (the notice of award, the inspection report, the invoice) answer their requirement on their own.</p>
+<h4 id="s-brgy-tab-lines">The Price schedule tab<a class="man-hash" href="#s-brgy-tab-lines" aria-label="Link to this section"><i class="bi bi-link-45deg"></i></a></h4>
+<figure class="man-fig"><a class="man-zoom" href="assets/manual/img/brgy_projects__lines.jpg" title="Click to enlarge"><img src="assets/manual/img/brgy_projects__lines.jpg" alt="The price schedule with the ABC meter" width="1094" height="1344" loading="lazy" decoding="async"></a><figcaption>The price schedule with the ABC meter</figcaption></figure>
+<p>The bill of quantities: for each line its kind (goods, service, works), an item (optional; it brings the description, unit, cost and tax code), the description, unit, quantity, unit cost and markup (seen only with the View costs and margins permission), the unit price and the tax code. A blank price is the cost plus the markup. Prices include VAT unless Contracting Settings say otherwise. The meter under the lines compares the total with the ABC and turns red above it. <strong>Export (CSV for Excel)</strong> gives the schedule as a file Excel opens.</p>
+<p>The schedule can be changed only while the bid is a draft or returned. Each time the bid goes for review a read-only copy of the costing is kept (costing versions). After the award the schedule becomes the contract lines, and only change orders alter them; the tab then shows, per line, the quantities delivered, accepted, rejected and billed.</p>
+<h4 id="s-brgy-bid">Step by step: send the bid for approval and submit it<a class="man-hash" href="#s-brgy-bid" aria-label="Link to this section"><i class="bi bi-link-45deg"></i></a></h4>
+<ol>
+<li>When the checklist and the schedule are ready, click <strong>Send for review</strong> (next step box). The program refuses while something is not settled and lists what: the go decision, an empty schedule, a line without quantity or price, a bid above the ABC, the deadline passed, a mandatory eligibility or bid paper missing, expired or not reviewed.</li>
+<li>The checker opens the bid (Approval Queue or the project) and clicks <strong>Mark reviewed</strong>, or <strong>Return for correction</strong> with the reason.</li>
+<li>The approver clicks <strong>Approve</strong> (within their approval limit, before the deadline). The schedule is now read-only.</li>
+<li>The authorized submitter submits the bid as the entity asks (by hand, e-mail, PhilGEPS, courier) and records it on the <strong>Submissions &amp; letters</strong> tab: what, how, the actual date and time, to whom, the tracking number, who received it, and the proof (receiving copy, sent e-mail, courier receipt). A hand-carried or couriered bid needs its proof or at least who received it; a submission after the deadline is refused. The bid is then fixed and the project moves to "Bid submitted".</li>
+</ol>
+<div class="man-callout man-note"><div class="man-callout-t"><i class="bi bi-info-circle"></i>Note</div><p>The program never sends anything to PhilGEPS or to the entity by itself; it records what was actually done, with its proof.</p></div>
+<h4 id="s-brgy-tab-submissions">The Submissions &amp; letters tab<a class="man-hash" href="#s-brgy-tab-submissions" aria-label="Link to this section"><i class="bi bi-link-45deg"></i></a></h4>
+<p>All submissions (bid, compliance papers, post-qualification documents, billing packs, follow-ups) with their receipt, and the correspondence: bulletins, clarification requests, notices, meetings and letters, in or out. A letter with a <strong>reply due</strong> date stays open (and on the dashboard) until it is marked <strong>Answered</strong>. Recording a bid opening, bulletin, clarification or post-qualification moves a submitted bid to "Evaluation and post-qualification".</p>
+<h4 id="s-brgy-award">Step by step: record the award and start the contract<a class="man-hash" href="#s-brgy-award" aria-label="Link to this section"><i class="bi bi-link-45deg"></i></a></h4>
+<ol>
+<li>When the entity's notice of award (or purchase order) comes, open the <strong>Award &amp; contract</strong> tab and enter its number and date, the date the company received it, the amount awarded (it has to agree with the approved schedule), the PO or contract number, the signing and notice-to-proceed dates, and attach the paper. The due date follows from the start and the delivery period unless typed.</li>
+<li>Click <strong>Record the award</strong>. The entity becomes a customer (type Government) if it is not one yet, a Customer:Job and a class are opened for the contract, and nothing is posted.</li>
+<li>Record the securities (bid, performance, warranty) on the same tab. Cash, cashier's and manager's checks and bank drafts post a journal entry to Bid and Performance Security Deposits; a returned security posts back to the bank, a forfeited one to Loss on Forfeited Security.</li>
+<li>Click <strong>Start fulfilment</strong> once the contract is signed or the PO received (works also need the notice to proceed).</li>
+</ol>
+<p>If the bid was not awarded, click <strong>Not awarded</strong> with the reason, the winning bidder and amount and your rank (they feed the Won and Lost report), or <strong>Cancelled by the entity</strong>. An award the entity cancels before any work is recorded with <strong>Award cancelled by the entity</strong>.</p>
+<h4 id="s-brgy-tab-changes">The Change orders tab<a class="man-hash" href="#s-brgy-tab-changes" aria-label="Link to this section"><i class="bi bi-link-45deg"></i></a></h4>
+<p>A change order adds to or takes from contract lines (an existing line keeps its price), adds new lines, or extends the time. It goes through maker, checker and approver, and then changes the contract only when <strong>Apply to the contract</strong> is clicked with the entity's approval (variation order, amended PO, extension letter): its number, date and the paper. The contract amount, the lines and the due date follow.</p>
+<h4 id="s-brgy-tab-costs">The Costs, Tasks, Timeline and Ledger tabs<a class="man-hash" href="#s-brgy-tab-costs" aria-label="Link to this section"><i class="bi bi-link-45deg"></i></a></h4>
+<ul>
+<li><strong>Costs</strong> (View costs and margins permission): revenue and costs of the contract from the ledger, the margin and the estimated cost to complete; the purchases on the job; <strong>Purchase order for this contract</strong> makes a purchase order whose lines carry the contract's job and class (received and billed in <a href="manual.php?c=vendors#pg-vend-purchase_orders">Vendors</a> as usual).</li>
+<li><strong>Tasks:</strong> tasks, milestones, progress logs, risks and defects with who, when and how far.</li>
+<li><strong>Timeline:</strong> everything that happened, newest first: steps, submissions, letters, deliveries, billings, collections, documents and change orders, with who did them.</li>
+<li><strong>Ledger:</strong> every entry the contract put in the books, by record and event, and whether the contract agrees with the ledger.</li>
+</ul>
+<figure class="man-fig"><a class="man-zoom" href="assets/manual/img/brgy_projects__timeline.jpg" title="Click to enlarge"><img src="assets/manual/img/brgy_projects__timeline.jpg" alt="The timeline of a works contract" width="1094" height="1350" loading="lazy" decoding="async"></a><figcaption>The timeline of a works contract</figcaption></figure>
+<h4 id="s-brgy-closeout">Step by step: close out<a class="man-hash" href="#s-brgy-closeout" aria-label="Link to this section"><i class="bi bi-link-45deg"></i></a></h4>
+<ol>
+<li>When everything is delivered, accepted, billed and collected, an approver clicks <strong>Close out</strong>.</li>
+<li>The program checks: nothing accepted and not billed, no delivery waiting for inspection, no billing in preparation, no receivable left on the job, and the contract agrees with the ledger. These cannot be overridden.</li>
+<li>Open points (quantities never accepted, retention still held, a security still active, a change order never applied) can be accepted with a reason: tick <strong>Close anyway</strong> and type it.</li>
+<li>A closed, lost, cancelled or no-bid project can be <strong>Reopened</strong> by an approver, with the reason.</li>
+</ol>
+
+<h2 id="pg-brgy-approvals">Approval Queue<a class="man-hash" href="#pg-brgy-approvals" aria-label="Link to this section"><i class="bi bi-link-45deg"></i></a></h2>
+<p>Everything that waits for the user's review or approval: bids, billing packs, change orders and forms, each with its amount, who sent it and when, and the buttons <strong>Mark reviewed</strong>, <strong>Approve</strong> and <strong>Return for correction</strong>. A bid shows its ABC, margin and checklist; a billing pack its expected deductions and what its pack still lacks. The menu shows the number waiting next to the page name.</p>
+<p><strong>Where to find it:</strong> Barangay Contracts &gt; Approval Queue. Reviewing needs the edit permission on this page, approving the approve permission.</p>
+<figure class="man-fig"><a class="man-zoom" href="assets/manual/img/brgy_approvals__main.jpg" title="Click to enlarge"><img src="assets/manual/img/brgy_approvals__main.jpg" alt="The Approval Queue of a checker" width="1094" height="1344" loading="lazy" decoding="async"></a><figcaption>The Approval Queue of a checker</figcaption></figure>
+<ul>
+<li><strong>Returned to me:</strong> what the user sent that came back, with the reason.</li>
+<li><strong>Everything in approval:</strong> all records being reviewed or approved, whoever they wait for.</li>
+<li><strong>Alternates:</strong> a checker or approver names who acts for them while away (checker, approver or both, from and to). The alternate's steps are recorded as done for the person away, within that person's approval limit, and still not on what the alternate prepared.</li>
+<li><strong>Decisions:</strong> the steps taken since a date (also the Approval Log report).</li>
+</ul>
+
+<h2 id="pg-brgy-deliveries">Deliveries &amp; Acceptance<a class="man-hash" href="#pg-brgy-deliveries" aria-label="Link to this section"><i class="bi bi-link-45deg"></i></a></h2>
+<p>Goods delivered, services rendered and works accomplished, and the entity's inspection and acceptance of each.</p>
+<p><strong>Where to find it:</strong> Barangay Contracts &gt; Deliveries &amp; Acceptance, or <strong>New delivery</strong> on a contract.</p>
+<figure class="man-fig"><a class="man-zoom" href="assets/manual/img/brgy_deliveries__view.jpg" title="Click to enlarge"><img src="assets/manual/img/brgy_deliveries__view.jpg" alt="A delivery with its inspection result" width="1094" height="1344" loading="lazy" decoding="async"></a><figcaption>A delivery with its inspection result</figcaption></figure>
+<h4 id="s-brgy-delivery-steps">Step by step: a delivery and its acceptance<a class="man-hash" href="#s-brgy-delivery-steps" aria-label="Link to this section"><i class="bi bi-link-45deg"></i></a></h4>
+<ol>
+<li>Click <strong>New delivery</strong> and choose the contract. Enter the date, the kind, the site the goods leave from, the vehicle and who received them at the entity.</li>
+<li>Type the quantity delivered on each line (<strong>Everything left</strong> fills what is left of the contract), with serial or batch numbers. A quantity beyond what is left of the contract is refused: more needs an approved change order.</li>
+<li>Click <strong>Record delivery</strong>. Stocked items move to the site "Delivered, awaiting acceptance" (an inventory transfer); they are sold only when billed.</li>
+<li><strong>Print delivery receipt</strong> (or the accomplishment report for services and works) prints it for signature; <strong>Prepare as a form</strong> makes an editable copy.</li>
+<li>When the entity's inspection and acceptance report comes, enter on the same page the dates, the report number, the inspectors and, per line, the quantities <strong>accepted</strong> and <strong>rejected</strong> (<strong>All accepted</strong> fills them), and attach the signed report. Rejected stocked goods move back to the warehouse they left from.</li>
+</ol>
+<p>Only accepted quantities can be billed. Acceptance can be corrected later, but never below what was already billed. A delivery not yet billed can be voided (its stock movements are reversed).</p>
+
+<h2 id="pg-brgy-billing">Billing Packs<a class="man-hash" href="#pg-brgy-billing" aria-label="Link to this section"><i class="bi bi-link-45deg"></i></a></h2>
+<p>A billing pack bills accepted quantities: the lines, the invoice, the papers the entity asks for, the submission and the entity's acknowledgment.</p>
+<p><strong>Where to find it:</strong> Barangay Contracts &gt; Billing Packs, or <strong>New billing pack</strong> on a contract.</p>
+<figure class="man-fig"><a class="man-zoom" href="assets/manual/img/brgy_billing__view.jpg" title="Click to enlarge"><img src="assets/manual/img/brgy_billing__view.jpg" alt="A billing pack: the figures, the lines, the pack and the approval trail" width="1094" height="1344" loading="lazy" decoding="async"></a><figcaption>A billing pack: the figures, the lines, the pack and the approval trail</figcaption></figure>
+<h4 id="s-brgy-billing-steps">Step by step: bill, invoice, submit<a class="man-hash" href="#s-brgy-billing-steps" aria-label="Link to this section"><i class="bi bi-link-45deg"></i></a></h4>
+<ol>
+<li>Click <strong>New billing pack</strong>, choose the contract, the date, the kind (partial, progress, milestone, final), the period and the BIR-registered <strong>sales invoice number</strong>. Type the quantity to bill on each line (<strong>Everything accepted</strong> fills them). More than was accepted and not billed is refused, and so are billings that together would exceed the contract.</li>
+<li>Click <strong>Prepare billing</strong>. Each line is split into its amount and VAT, and the expected deductions are worked out: income tax and VAT withheld (from the Withholding Tax Table, on the amount net of VAT), retention and liquidated damages (for deliveries after the due date, at the rate of the contract; it can be typed over).</li>
+<li><strong>Send for review</strong>; the checker reviews and the approver approves, as for the bid.</li>
+<li>The billing officer clicks <strong>Issue the invoice</strong>: one invoice is posted to the contract's Customer:Job. A second invoice for the same billing is refused, and so is a sales invoice number already used.</li>
+<li>Complete the pack: each paper the settings ask for shows whether it is on file (a scan, a final form, the signed delivery receipts and inspection reports of the contract). <strong>File it</strong> uploads a missing one; <strong>Prepare the form</strong> makes the statement of account, transmittal or billing letter.</li>
+<li>Record the submission (how, when, to whom, proof); a pack with a required paper missing is refused when Contracting Settings say so.</li>
+<li>Record the entity's <strong>acknowledgment</strong> (when, by whom, the logbook number, the receiving copy).</li>
+</ol>
+<p>A billing without collections can be voided: its invoice is voided in the books and its quantities can be billed again.</p>
+
+<h2 id="pg-brgy-collections">Collections &amp; Retention<a class="man-hash" href="#pg-brgy-collections" aria-label="Link to this section"><i class="bi bi-link-45deg"></i></a></h2>
+<p>Payments of the entities against billings, retention released, returned checks and the BIR Forms 2307 received.</p>
+<p><strong>Where to find it:</strong> Barangay Contracts &gt; Collections &amp; Retention, or <strong>Record collection</strong> on a billing or a contract.</p>
+<figure class="man-fig"><a class="man-zoom" href="assets/manual/img/brgy_collections__new.jpg" title="Click to enlarge"><img src="assets/manual/img/brgy_collections__new.jpg" alt="Recording a collection with the taxes withheld" width="1094" height="1344" loading="lazy" decoding="async"></a><figcaption>Recording a collection with the taxes withheld</figcaption></figure>
+<h4 id="s-brgy-collection-steps">Step by step: a payment<a class="man-hash" href="#s-brgy-collection-steps" aria-label="Link to this section"><i class="bi bi-link-45deg"></i></a></h4>
+<ol>
+<li>Choose the billing paid. The page shows what is open on the invoice, any returned check still to be covered, and the expected taxes and net cash.</li>
+<li><strong>Fill as expected (paid in full)</strong> fills the taxes, retention and liquidated damages as expected and the cash as the rest. Then change the amounts to what the check or LDDAP-ADA and the entity's 2307 actually show.</li>
+<li>Enter how it was paid (check with its number and date, LDDAP-ADA with its number, transfer, cash), the drawee bank, where it was received (Undeposited Funds for a check to be deposited, or the bank), the receipt issued.</li>
+<li>Enter what the entity deducted: income tax withheld, VAT withheld, retention, liquidated damages, other deductions (with what they are and the account), bank charges. <strong>Settled on the billing</strong> adds them up.</li>
+<li>Tick <strong>BIR Form 2307 received</strong> and attach it if it came with the payment (it can be filed later on the collection).</li>
+<li>Click <strong>Post the collection</strong>. A difference between the taxes typed and the Withholding Tax Table needs an explanation.</li>
+</ol>
+<p><strong>Check returned:</strong> on the collection, enter the date, the bank's reason and any bank fee. A check not yet deposited voids the payment; a deposited one is charged back to the receivable. The billing is open again; record the replacement as a new collection.</p>
+<p><strong>Retention released:</strong> choose the contract, the amount (up to what is held), how and into which bank. It posts a deposit that clears Retention Receivable.</p>
+
+<h2 id="pg-brgy-forms">Forms &amp; Proformas<a class="man-hash" href="#pg-brgy-forms" aria-label="Link to this section"><i class="bi bi-link-45deg"></i></a></h2>
+<p>Letters, quotations, proposals, schedules, contracts, receipts and reports made from the templates and filled from the records: the company, the entity and its officials, the project, its price schedule and checklist, and the delivery, billing or collection the form is for.</p>
+<p><strong>Where to find it:</strong> Barangay Contracts &gt; Forms &amp; Proformas, the <strong>Forms</strong> tab of a project, the papers of the Process tab, and the <strong>Prepare</strong> boxes of deliveries, billings and collections.</p>
+<ul>
+<li>Every form prints with the <strong>format of its template</strong> (paper, margins, font, the columns of the item tables, the parts shown, copies, printer offset). <strong>Formats</strong> on the list page shows the format of every template and opens it. A template set for pre-printed paper prints only the values, each in its place on the barangay's pad; the print page switches between <strong>With the layout</strong> and <strong>On pre-printed paper</strong>, and the edit page lists the values to correct.</li>
+<li>The forms of the SOP (transaction form, PR, PO, IAR, RIS, request for quotation, abstract, DV, transmittal and the bidding papers) need no review: they show <strong>Prepared</strong> and print clean at once, blank fields as blank lines to fill by hand. <strong>Lock it and file it in the vault</strong> files one as final.</li>
+<li><strong>Signed copy</strong> attaches the scan of the signed form (PDF, JPG or JPEG); a paper of the SOP is then done on the Process tab. The list marks the forms that have one.</li>
+</ul>
+<figure class="man-fig"><a class="man-zoom" href="assets/manual/img/brgy_forms__view.jpg" title="Click to enlarge"><img src="assets/manual/img/brgy_forms__view.jpg" alt="A disbursement voucher prepared by the company, with its signed copy" width="1094" height="1344" loading="lazy" decoding="async"></a><figcaption>A disbursement voucher prepared by the company, with its signed copy</figcaption></figure>
+<figure class="man-fig"><a class="man-zoom" href="assets/manual/img/brgy_forms__edit.jpg" title="Click to enlarge"><img src="assets/manual/img/brgy_forms__edit.jpg" alt="Editing a prepared form" width="1094" height="1350" loading="lazy" decoding="async"></a><figcaption>Editing a prepared form</figcaption></figure>
+<h4 id="s-brgy-form-steps">Step by step: prepare, approve and print a form<a class="man-hash" href="#s-brgy-form-steps" aria-label="Link to this section"><i class="bi bi-link-45deg"></i></a></h4>
+<ol>
+<li>Choose the template and, where it applies, the delivery, billing or collection; click <strong>Prepare</strong>. The form opens as a draft on paper of its size.</li>
+<li>Edit the text in the page: the toolbar sets headings, bold, alignment, lists, tables and page breaks. Pasted text comes in clean.</li>
+<li><strong>Fill in the blanks</strong> lists the fields that had no value in the records (shown highlighted in the page): type each one there, or click it in the page and type.</li>
+<li>Set the signatory, the paper (A4, Letter, Folio / long, Legal, A5, half letter) and the orientation; click <strong>Save</strong>. <strong>Fill again from the records</strong> makes the form again from the current template and records (what was typed is replaced).</li>
+<li><strong>Send for review</strong>; the checker reviews and the approver approves. A form with blanks cannot be sent.</li>
+<li><strong>Make final and file in the vault:</strong> the form is locked, filed as a document (where it answers its checklist item or billing pack paper) and printed without the DRAFT mark. A prescribed form needs the official version it follows.</li>
+<li><strong>Print</strong> (or <strong>Print draft</strong>, with DRAFT across every page) and <strong>Word</strong> (a .doc file that opens in Microsoft Word or LibreOffice).</li>
+</ol>
+<div class="man-callout man-important"><div class="man-callout-t"><i class="bi bi-exclamation-triangle"></i>Important</div><p>The omnibus sworn statement, the bid securing declaration and the bid form are <strong>prescribed forms</strong>: their wording is issued by the GPPB or the procuring entity. Their templates are shells: paste the current official text from the entity's bidding documents, fill the blanks, and state the official version followed. Do not rewrite a prescribed form.</p></div>
+
+<h2 id="pg-brgy-vault">Document Vault<a class="man-hash" href="#pg-brgy-vault" aria-label="Link to this section"><i class="bi bi-link-45deg"></i></a></h2>
+<p>Every paper of the contracting work. Each file keeps its type, number, issuer, dates of issue and validity, a checksum taken when it was filed (a file changed on disk is refused when opened), its versions, its review and whether it is final (locked). Confidential papers (financial bids, costing) open only for users with the View costs and margins permission. Opening and downloading are recorded in the audit trail.</p>
+<p><strong>Where to find it:</strong> Barangay Contracts &gt; Document Vault. Filing needs the create permission, reviewing the edit permission, voiding the delete permission.</p>
+<figure class="man-fig"><a class="man-zoom" href="assets/manual/img/brgy_vault__company.jpg" title="Click to enlarge"><img src="assets/manual/img/brgy_vault__company.jpg" alt="The company papers in the Document Vault" width="1094" height="1344" loading="lazy" decoding="async"></a><figcaption>The company papers in the Document Vault</figcaption></figure>
+<ul>
+<li><strong>Company papers:</strong> one card for each kind of company paper (PhilGEPS certificate, mayor's permit, registration, BIR 2303, tax clearance, PCAB license, financial statements, NFCC ...), with its validity: Valid, Expires soon, Expired, For review, Not on file. A company paper is filed once and linked to every bid that asks for it while it is valid.</li>
+<li><strong>For review:</strong> papers filed and waiting for another person's review: <strong>Approve</strong>, <strong>Approve as final (lock)</strong> or <strong>Return</strong> with what to correct. Nobody reviews a paper they filed.</li>
+<li><strong>Expiring and expired:</strong> papers whose validity ends within the alert days of Contracting Settings.</li>
+<li><strong>All documents:</strong> search by title, number, issuer, tag, file name or project.</li>
+</ul>
+<p>A renewed permit is filed as a <strong>new version</strong> of the old one: the checklists that used the old version move to the new one and need its review. Accepted files: PDF, pictures (JPG, PNG, GIF, WEBP), Word, Excel, PowerPoint and Publisher files of every version (below), Rich Text, OpenDocument, CSV and text, up to the size set on Contracting Settings. A file whose content does not match its extension (a zip renamed .docx, a text renamed .ppt), or that looks like a program or a script, is refused; a virus scanner can be set by the administrator.</p>
+<h3 id="s-brgy-vault-preview">Seeing the file on its page<a class="man-hash" href="#s-brgy-vault-preview" aria-label="Link to this section"><i class="bi bi-link-45deg"></i></a></h3>
+<p>A document opens on its own page with its file at the left: a PDF in the browser's viewer, a picture as it is, and a Word, Excel, PowerPoint or Publisher file in one of two views, chosen with the buttons above it.</p>
+<figure class="man-fig"><a class="man-zoom" href="assets/manual/img/brgy_vault__word.jpg" title="Click to enlarge"><img src="assets/manual/img/brgy_vault__word.jpg" alt="A Word document shown in the quick view of the Document Vault" width="1094" height="1000" loading="lazy" decoding="async"></a><figcaption>A Word document shown in the quick view</figcaption></figure>
+<ul>
+<li><strong>Quick view</strong> (always there, nothing to install): the program reads the file itself. A Word document shows as a page with its headings, bold, italic and underlined text, sizes, fonts and colours, alignment and indents, numbered and bulleted lists, tables with merged cells, pictures, text boxes, header and footer. An Excel workbook shows its sheets (a tab for each) with the column letters and row numbers, column widths and row heights, merged cells, fills, borders, wrapped text, and its number, date, percent and currency formats. A PowerPoint presentation shows its slides in proportion (background, titles, bullets, pictures, tables and the shapes of its master) with the speaker notes. A Publisher file shows its text and pictures.</li>
+<li><strong>Page view</strong> (when LibreOffice is installed on the server): the file as it prints, page by page, made by LibreOffice. On a phone or a tablet the pages open in its PDF viewer.</li>
+</ul>
+<figure class="man-fig"><a class="man-zoom" href="assets/manual/img/brgy_vault__excel.jpg" title="Click to enlarge"><img src="assets/manual/img/brgy_vault__excel.jpg" alt="An Excel 97-2003 workbook shown in the quick view, with a tab for each sheet" width="1094" height="1000" loading="lazy" decoding="async"></a><figcaption>An Excel 97-2003 workbook in the quick view, a tab for each sheet</figcaption></figure>
+<div class="table-responsive man-table"><table class="table table-sm">
+<thead><tr><th>Program</th><th>Versions the quick view reads</th></tr></thead>
+<tbody>
+<tr><td>Word</td><td>Word for DOS and Word 1.0 / 2.0 for Windows (the text), Word 6.0 and 95, Word 97 to 2003 (.doc, .dot), Rich Text (.rtf), Word 2003 XML, Word 2007 to 365 (.docx, .docm, .dotx, .dotm), and a Word file saved as a web page under .doc</td></tr>
+<tr><td>Excel</td><td>Excel 2.1, 3.0 and 4.0, Excel 5.0 and 95, Excel 97 to 2003 (.xls, .xlt), Excel 2003 XML, Excel 2007 to 365 (.xlsx, .xlsm, .xltx, .xltm) and the binary workbook (.xlsb), a workbook saved as a web page under .xls, and CSV</td></tr>
+<tr><td>PowerPoint</td><td>PowerPoint 95 (the text of the slides), PowerPoint 97 to 2003 (.ppt, .pps, .pot), PowerPoint 2007 to 365 (.pptx, .pptm, .ppsx, .potx, .potm)</td></tr>
+<tr><td>Publisher</td><td>Publisher 98 to 365 (.pub): the text and the pictures</td></tr>
+</tbody></table></div>
+<p>The view chosen last is remembered in the browser. A file protected with a password shows a note instead: download it and open it with its password. Pictures kept as Windows metafiles (WMF / EMF clip art) show as grey boxes in the quick view, and formulas saved without their results (by programs other than Excel) show as formulas; the page view draws and calculates them. OpenDocument files (.odt, .ods, .odp) show in the page view. Each view is made once per file and kept in storage/contracts/previews; opening and viewing are recorded in the audit trail like the downloads.</p>
+
+<h2 id="pg-brgy-entities">Barangays &amp; Procuring Entities<a class="man-hash" href="#pg-brgy-entities" aria-label="Link to this section"><i class="bi bi-link-45deg"></i></a></h2>
+<p>The government customers: official name, kind, address, TIN, how they take submissions, their funding and payment practice and their particular requirements, and their officials and contact persons with the dates each served.</p>
+<p><strong>Where to find it:</strong> Barangay Contracts &gt; Barangays &amp; Procuring Entities.</p>
+<figure class="man-fig"><a class="man-zoom" href="assets/manual/img/brgy_entities__view.jpg" title="Click to enlarge"><img src="assets/manual/img/brgy_entities__view.jpg" alt="A procuring entity with its officials, seals and projects" width="1094" height="1350" loading="lazy" decoding="async"></a><figcaption>A procuring entity with its officials, seals and projects</figcaption></figure>
+<p>Besides the Punong Barangay, BAC chair and members, treasurer and secretary, the forms of the SOP use the <strong>Chairman, Committee on Appropriations</strong> (PO and DV), the <strong>barangay bookkeeper</strong> and the <strong>city / municipal accountant</strong> (DV), the requisitioner and the inspector. <strong>Seals for the letterheads</strong> takes the seal of the barangay and the seal of its city or municipality (PNG or JPG); they print left and right of the letterhead of the request for quotation, invitation to bid, BAC resolution, notices and certificate of completion. Tick <strong>Asks for the ABC and the Aboitiz requirements</strong> for the offices that ask for them (the Cebu City offices): their bidding transactions then list those two papers at step 4.</p>
+<p>After an election or a reorganization, add the new official with the date they took office: the term of the one before closes the day before, and forms dated earlier still show the right name. The entity becomes a customer (type Government, with the usual withholding taxes) at its first award, or with <strong>Make it a customer now</strong>.</p>
+
+<h2 id="pg-brgy-templates">Proforma &amp; Form Templates<a class="man-hash" href="#pg-brgy-templates" aria-label="Link to this section"><i class="bi bi-link-45deg"></i></a></h2>
+<p>The company's reusable proformas, grouped by the stage they are used at: bid (cover letter, company profile, price quotation, price schedule, technical proposal, method statement, implementation schedule, supply proposal, scope of work), award (contract review sheet, handover memo, PO conforme), contracts (goods, services, works), delivery (delivery receipt, accomplishment report), billing (transmittal, billing letter, statement of account), collection (follow-up letter, acknowledgment receipt, reconciliation sheet), closeout, and internal ones (bid approval sheet, supplier quotation request, subcontract, supply agreement).</p>
+<p><strong>Where to find it:</strong> Barangay Contracts &gt; Proforma &amp; Form Templates.</p>
+<figure class="man-fig"><a class="man-zoom" href="assets/manual/img/brgy_templates__list.jpg" title="Click to enlarge"><img src="assets/manual/img/brgy_templates__list.jpg" alt="The templates by stage" width="1094" height="1350" loading="lazy" decoding="async"></a><figcaption>The templates by stage</figcaption></figure>
+<ul>
+<li>A template opens as a preview filled from a project of your choice, with the fields that would be blank for it.</li>
+<li><strong>Edit</strong> changes its text in the page, its paper and orientation, what a final copy counts as (the document type that answers a checklist item or a pack paper), and whether it is a prescribed form. <strong>Insert a field</strong> lists every field by group (company, entity, project and contract, tables, delivery, billing and collection) and puts it where the cursor was, for example <code>{{entity.head_name}}</code> or <code>{{lines.table}}</code>.</li>
+<li>Every save keeps the text before it as a version, with what changed; <strong>Put back</strong> makes an older version current again. Forms already prepared keep their own text.</li>
+<li><strong>Duplicate</strong> makes a copy to adapt (for a particular entity, say); <strong>Set aside</strong> stops offering a template; one never used can be deleted.</li>
+</ul>
+<p>The SOP adds the proformas of the barangay papers the company prepares: transaction form, purchase request, purchase order, inspection and acceptance report, requisition and issue slip, request for quotation (the canvass form, with the seals), abstract of bids as quoted, disbursement voucher, transmittal of documents, and the bidding papers (bidding form, invitation to bid, letter to COA, approved budget for the contract, special power of attorney, the papers of steps 8 and 13, certificate of completion). Their fields come from the transaction: <code>{{txn.series}}</code>, <code>{{pr.items}}</code>, <code>{{po.items}}</code>, <code>{{dv.taxes}}</code>, <code>{{abstract.table}}</code> and the others listed under <strong>Insert a field</strong>.</p>
+<p>Two fields are set on the <strong>Format</strong> tab rather than typed: <code>{{letterhead}}</code> (the letterhead, with its logos or seals) and <code>{{signatories}}</code> (who signs the form). Every template supplied with the program has them where its header and signatures were; in a template of your own, put them where they belong with <strong>Insert a field</strong> (group <em>Letterhead and signatures</em>), or with the buttons the Format tab shows when they are missing.</p>
+<h3 id="s-brgy-tpl-format">Format<a class="man-hash" href="#s-brgy-tpl-format" aria-label="Link to this section"><i class="bi bi-link-45deg"></i></a></h3>
+<p>The <strong>Format</strong> tab of a template sets how its forms print, with a live preview filled from a project of your choice. Every template has one, the ones supplied before included.</p>
+<div class="table-responsive man-table"><table class="table table-sm">
+<thead><tr><th>Part</th><th>What it sets</th></tr></thead>
+<tbody>
+<tr><td>Paper</td><td>A4, Letter, Folio / long, Legal, A5, half letter or a size of your own in millimetres; orientation; the four margins in millimetres</td></tr>
+<tr><td>Text</td><td>Font (CG Omega and Cambria among them), size, line spacing, size of the titles and of the tables; how dates are written (14 October 2026 or October 14, 2026)</td></tr>
+<tr><td>Letterhead and logos</td><td>Which letterhead <code>{{letterhead}}</code> prints, its pictures, lines of text and colours (below)</td></tr>
+<tr><td>Signatories</td><td>Who signs: each signatory with the words above (Very truly yours, Conforme:, Received by:), the name, the position and more lines; how many side by side, the room to sign (below)</td></tr>
+<tr><td>Tables</td><td>Thickness of the lines, cell padding, blank rows after the items, "***nothing follows***", specifications under the items, the colour of the headings, the words of the statement of compliance ("comply"); for each item table of the template, each column: printed or not, its title ("/" starts a new line), its width in % (0 = the rest) and its alignment</td></tr>
+<tr><td>Parts printed</td><td>Parts of the template that can be left out (the penalty clause and appropriations of the PO, the taxes and supporting papers of the DV, the notes of the RFQ, the seals of the letterhead ...)</td></tr>
+<tr><td>Copies and printer</td><td>How many copies print at once and the label of each (Original, Duplicate ...); an offset in millimetres for a printer that prints a little off; a footer (for example OFFICE OF THE BARANGAY), after the text or at the bottom of the page, its alignment, size and bold</td></tr>
+</tbody></table></div>
+<figure class="man-fig"><a class="man-zoom" href="assets/manual/img/brgy_templates__format.jpg" title="Click to enlarge"><img src="assets/manual/img/brgy_templates__format.jpg" alt="The format of the purchase request, with its live preview" width="1094" height="1344" loading="lazy" decoding="async"></a><figcaption>The format of the purchase request, with its live preview</figcaption></figure>
+<h3 id="s-brgy-tpl-letterhead">Letterheads, logos and signatories<a class="man-hash" href="#s-brgy-tpl-letterhead" aria-label="Link to this section"><i class="bi bi-link-45deg"></i></a></h3>
+<p>The box <strong>Letterhead and logos</strong> of the Format tab chooses what <code>{{letterhead}}</code> prints:</p>
+<div class="table-responsive man-table"><table class="table table-sm">
+<thead><tr><th>Letterhead</th><th>What it is</th></tr></thead>
+<tbody>
+<tr><td>Company letterhead (shared)</td><td>The company's own papers: the company logo on the left and the name in a gold banner, the address and telephone under it. Every template that uses it shows the same one, so a change made on one template (or a picture uploaded) changes all of them.</td></tr>
+<tr><td>Barangay letterhead with the seals (shared)</td><td>The papers issued in the barangay's name (notices, BAC resolution, invitation to bid ...): the seal of the city or municipality on the left, the seal of the barangay on the right (uploaded on each procuring entity), and Republic of the Philippines, the province, the city and the barangay between them. Each barangay's own seals and names fill it.</td></tr>
+<tr><td>Its own letterhead</td><td>A letterhead of this template only, starting from the settings of the letterhead chosen before (the supplier profile and the schedule of requirements print the barangay hall's name in text only, for example).</td></tr>
+<tr><td>No letterhead</td><td><code>{{letterhead}}</code> prints nothing (the barangay's pre-printed pads, the technical specifications).</td></tr>
+</tbody></table></div>
+<ul>
+<li><strong>Picture on the left / on the right</strong>: the company logo (Company Information), the seal of the city or municipality, the seal of the barangay, or Picture A or B, uploaded in the box (PNG keeps a transparent background). The height of the pictures is in millimetres.</li>
+<li><strong>Lines of text</strong>: one a line, with fields: <code># </code> at the start makes the big line of the name, <code>**text**</code> is bold, and a line whose fields are all blank is left out. Then the alignment, the font, the sizes, a coloured banner behind the text (its colour and the colour of its text), the line under the letterhead and the space after it.</li>
+</ul>
+<p>The box <strong>Signatories</strong> lists who signs, in order. <strong>Add</strong> puts in a ready-made signatory (company representative, conforme of the company, received by, Punong Barangay, BAC Chairman, BAC members 1 to 5, Barangay Treasurer, inspector, dealer's signature, a blank to write on) to change as needed; the arrows move one up or down and the cross removes it. Each has the words above it, the name (bold, underlined or in capitals), the position (in italics if wanted), more lines (the company, the address, <em>Date: ____</em>), its alignment (left, center, right, or centered on the right half of the page), a signature line, and whether it starts a new row. <strong>Side by side</strong> says how many share a row (the BAC resolution has three); a lone centered signatory takes the whole row. Names and positions hold fields such as <code>{{signatory.name}}</code>, <code>HON. {{entity.bac_chair_upper}}</code> or <code>{{entity.bac_member_1_upper}}</code>; a name whose fields are blank prints as a line to sign on, and an official recorded as "Hon. ..." gets the title once.</p>
+<figure class="man-fig"><a class="man-zoom" href="assets/manual/img/brgy_templates__letterhead.jpg" title="Click to enlarge"><img src="assets/manual/img/brgy_templates__letterhead.jpg" alt="The notice of award: the barangay letterhead with the seals and the signatories, on the Format tab" width="1094" height="1350" loading="lazy" decoding="async"></a><figcaption>The notice of award: the barangay letterhead with the seals and the signatories, on the Format tab</figcaption></figure>
+<div class="man-callout man-tip"><div class="man-callout-t"><i class="bi bi-lightbulb"></i>Tip</div><p>Forms already prepared keep their text, letterhead and signatures as they were; <strong>Fill again</strong> on a draft form takes the template as it is now. <strong>Defaults</strong> on the Format tab puts the paper, margins, fonts and tables back and keeps the letterhead and the signatories.</p></div>
+<h3 id="s-brgy-tpl-bidforms">The papers of steps 8 and 13<a class="man-hash" href="#s-brgy-tpl-bidforms" aria-label="Link to this section"><i class="bi bi-link-45deg"></i></a></h3>
+<p>The papers of step 8 (additional requirements) and step 13 (post-bidding) follow the company's own forms, on Legal paper with one-inch margins. Each can be changed like any template: its text, letterhead, logos, signatories, margins and paper.</p>
+<div class="table-responsive man-table"><table class="table table-sm">
+<thead><tr><th>Paper</th><th>How it prints</th><th>What fills it</th></tr></thead>
+<tbody>
+<tr><td>Statement of all ongoing government and private contracts</td><td>Legal, landscape</td><td>The company's other contracts that are awarded and not closed: name, cost, owner, nature of work, dates, % accomplished (planned from the days since the notice to proceed, actual from what was accepted) and the value of the outstanding works, with their total. Private contracts are typed on the form; "NONE" prints when there are none.</td></tr>
+<tr><td>Statement of the single largest completed contract similar to the contract to be bid (SLCC)</td><td>Folio, landscape</td><td>The company's largest closed contract of the same category (any category when there is none): amounts at award and at completion, duration, dates.</td></tr>
+<tr><td>Supplier profile</td><td>Legal; the barangay hall's name in text</td><td>The company (Company Information), and the person managing its affairs and the authorized liaison officer (Contracting Settings)</td></tr>
+<tr><td>Letter of intent (manifestation of intent to participate)</td><td>Legal; the company letterhead</td><td>The project, the BAC, the company and the procurement law of the project (RA 12009, or RA 9184 for a procurement started under it)</td></tr>
+<tr><td>Technical specifications (Section VII)</td><td>Legal; no letterhead</td><td>Each item of the price schedule with its specifications, one a line, and the statement of compliance. A line in capitals (SUSPENSION) or ending with ":" (Inclusions:) prints bold, and <code>**Engine Type:**</code> makes just those words bold.</td></tr>
+<tr><td>Production details (Section VI, schedule of requirements)</td><td>Legal; the barangay hall's name in text</td><td>Each item and each line of its specifications on a row, the quantity and unit, and the delivery period in words in one cell down the side (from the delivery days of the project)</td></tr>
+<tr><td>Manpower requirements</td><td>Legal; the company letterhead</td><td>The project and its location; the vehicle and the personnel are typed in the template</td></tr>
+<tr><td>Warranty certificate (after-sales service and warranty provision)</td><td>Legal; the company letterhead</td><td>The project and its warranty in words (from the warranty months of the project)</td></tr>
+<tr><td>Notice of post-qualification</td><td>Legal; the barangay letterhead; OFFICE OF THE BARANGAY at the foot</td><td>Addressed to the representative (title and name in Contracting Settings); signed by the BAC Chairman, received by the company</td></tr>
+<tr><td>BAC resolution</td><td>Legal; the barangay letterhead</td><td>The contract price and the ABC in words and figures; the BAC Chairman, five BAC members and the Punong Barangay</td></tr>
+<tr><td>Notice of award</td><td>Legal; the barangay letterhead; OFFICE OF THE BARANGAY at the foot</td><td>The contract price in words and figures; signed by the Punong Barangay, conforme of the company</td></tr>
+<tr><td>Notice to proceed</td><td>Legal; the barangay letterhead</td><td>The purchase order number and date; the acknowledgment of the company's representative</td></tr>
+</tbody></table></div>
+<figure class="man-fig"><a class="man-zoom" href="assets/manual/img/brgy_forms__bid_papers.jpg" title="Click to enlarge"><img src="assets/manual/img/brgy_forms__bid_papers.jpg" alt="Papers of steps 8 and 13 as they print: letter of intent, technical specifications, schedule of requirements, supplier profile, notice of post-qualification, BAC resolution, notice of award, notice to proceed" width="1072" height="876" loading="lazy" decoding="async"></a><figcaption>Papers of steps 8 and 13 as they print: letter of intent, technical specifications, schedule of requirements, supplier profile, notice of post-qualification, BAC resolution, notice of award, notice to proceed</figcaption></figure>
+<h3 id="s-brgy-tpl-positions">Pre-printed paper<a class="man-hash" href="#s-brgy-tpl-positions" aria-label="Link to this section"><i class="bi bi-link-45deg"></i></a></h3>
+<p>For the barangay's own pads and the company's series-numbered transaction forms, a template can print <strong>only the values</strong>, each where it falls on the paper. On the <strong>Pre-printed paper</strong> tab:</p>
+<ol>
+<li>Choose the paper (a size of your own for a pad), the font and its size.</li>
+<li>Upload a <strong>scan of the pre-printed paper</strong> (JPG or PNG, scanned at 100%): it shows behind the fields while placing them and never prints.</li>
+<li><strong>Add a field</strong> (or <strong>Fixed text</strong>, or an <strong>item table</strong> with its columns) and drag it to its blank; the arrow keys move the chosen field by 0.5 mm (with Shift, 5 mm). Set its width, size, bold, capitals and alignment in the panel. <strong>Values of the project</strong> shows what would print.</li>
+<li><strong>Save the positions</strong>, then <strong>Test print (grid)</strong> on the pre-printed paper: a millimetre grid with each field in a box shows where the printer puts it. Move the fields, or set the offset when the whole page is off.</li>
+<li>Switch <strong>Forms of this template print</strong> to <strong>On pre-printed paper</strong>.</li>
+</ol>
+<figure class="man-fig"><a class="man-zoom" href="assets/manual/img/brgy_templates__positions.jpg" title="Click to enlarge"><img src="assets/manual/img/brgy_templates__positions.jpg" alt="The values of the transaction form placed on its pre-printed pad" width="1094" height="1350" loading="lazy" decoding="async"></a><figcaption>The values of the transaction form placed on its pre-printed pad</figcaption></figure>
+<div class="man-callout man-note"><div class="man-callout-t"><i class="bi bi-info-circle"></i>Note</div><p>Print at 100% (actual size), with the margins of the print dialog at "None" for pre-printed paper and "Default" or "None" for the layout. The format and the positions are kept with each version of the template; <strong>Put back</strong> restores them too.</p></div>
+<div class="man-callout man-note"><div class="man-callout-t"><i class="bi bi-info-circle"></i>Note</div><p>The contract proformas are the company's own drafts. Where the entity's bidding documents prescribe a contract form or general and special conditions of contract, those govern; have the contract reviewed by counsel before signing.</p></div>
+
+<h2 id="pg-brgy-process">SOP Steps &amp; Papers<a class="man-hash" href="#pg-brgy-process" aria-label="Link to this section"><i class="bi bi-link-45deg"></i></a></h2>
+<p>The company's SOP as the program follows it, in three tabs: <strong>I. Small value procurement</strong>, <strong>II. Bidding and payment</strong> (shown as a flow, section by section) and <strong>Papers</strong>.</p>
+<p><strong>Where to find it:</strong> Barangay Contracts &gt; SOP Steps &amp; Papers. Changes need the edit permission of the page (the Approver role has it).</p>
+<figure class="man-fig"><a class="man-zoom" href="assets/manual/img/brgy_process__svp.jpg" title="Click to enlarge"><img src="assets/manual/img/brgy_process__svp.jpg" alt="SOP Steps &amp; Papers: the small value procurement as a flow" width="1094" height="1350" loading="lazy" decoding="async"></a><figcaption>SOP Steps &amp; Papers: the small value procurement as a flow</figcaption></figure>
+<ul>
+<li>A <strong>step</strong> has its number, section, title, what the SOP says, who does it, its checks (one a line), its papers, and what the program does at it (the kind of step decides what is asked before it is done: papers prepared or signed, the canvass, the cheque, the release ...). A step can be set inactive; one never done on a transaction can be deleted.</li>
+<li>A <strong>paper</strong> has its name, how it is made (prepared by the company from a proforma, a company paper on file, issued in the program, filled by a supplier, received), its proforma, the kind of document it is filed as in the vault, its copies and whether it is signed, notarized or a certified true copy; a paper can be limited to the entities that ask for the extra bid papers.</li>
+<li>A step or paper added here reaches every open transaction the next time it is opened; what is done on a transaction stays.</li>
+<li><strong>For the types of transaction</strong>: a step or paper is for every type (Cash Out, Kaliwaan, Purchases, Construction ... as listed in Contracting Settings) unless some are unticked. A transaction of a type that is not ticked skips the step, and marks the paper not needed, each with a note saying why; when its type changes, what was set aside for the old type comes back. A step done or a paper signed stays as it is. The card of the step says <em>Only for ...</em>.</li>
+</ul>
+
+<h2 id="pg-brgy-requirements">Compliance Requirement Library<a class="man-hash" href="#pg-brgy-requirements" aria-label="Link to this section"><i class="bi bi-link-45deg"></i></a></h2>
+<p>What the procuring entities ask for, with when each requirement applies: procurement law, category, procurement modes, ABC band, effective dates, and the entity (for a requirement of one entity only). Each requirement says its stage, whether it is mandatory, conditional or optional, whether it has a validity date, the document type that answers it, the form that prepares it, and its legal basis with a link to the official source.</p>
+<p><strong>Where to find it:</strong> Barangay Contracts &gt; Compliance Requirement Library. A requirement added or changed by someone without the approve permission is <strong>Proposed</strong> and counts only once an approver approves it (not the one who proposed it); new checklists then include it, and <strong>Add what the library suggests</strong> adds it to open projects.</p>
+
+<h2 id="pg-brgy-modes">Procurement Modes<a class="man-hash" href="#pg-brgy-modes" aria-label="Link to this section"><i class="bi bi-link-45deg"></i></a></h2>
+<p>The modes of procurement under RA 12009 (competitive bidding, limited source bidding, direct contracting, direct acquisition, repeat order, small value procurement, negotiated procurement, direct sales ...) and, for procurements started before it, those of RA 9184. For each: its legal basis and link, the ABC ceiling, whether bid and performance securities are asked, the usual retention and the effective dates. The ceiling is blank until someone enters the figure verified against the current rules; a project with an ABC above a ceiling that was entered is refused.</p>
+
+<h2 id="pg-brgy-references">Regulatory References<a class="man-hash" href="#pg-brgy-references" aria-label="Link to this section"><i class="bi bi-link-45deg"></i></a></h2>
+<p>The laws, rules and issuances the requirements, modes, forms and tax treatment rest on: RA 12009 and its IRR, the GPPB resolution on the transition from RA 9184, the GPPB bidding documents and forms, the COA circular on documentary requirements, the BIR regulations on invoicing and on withholding by government payors, RA 9184 and the Data Privacy Act. Each shows its dates, its official link and when someone last checked it (<strong>Checked today</strong>); one not checked for a year is shown in amber.</p>
+
+<h2 id="pg-brgy-settings">Contracting Settings<a class="man-hash" href="#pg-brgy-settings" aria-label="Link to this section"><i class="bi bi-link-45deg"></i></a></h2>
+<figure class="man-fig"><a class="man-zoom" href="assets/manual/img/brgy_settings__main.jpg" title="Click to enlarge"><img src="assets/manual/img/brgy_settings__main.jpg" alt="Contracting Settings" width="1094" height="1350" loading="lazy" decoding="async"></a><figcaption>Contracting Settings</figcaption></figure>
+<div class="table-responsive man-table"><table class="table table-sm">
+<thead><tr><th>Setting</th><th>What it does</th></tr></thead>
+<tbody>
+<tr><td>The company on the forms</td><td>Registration number, VAT status, PhilGEPS number and membership, the authorized representative with the title the barangay's notices address (Mr., Ms., Engr. ...), position and cellphone, the person managing the affairs of the firm and the authorized liaison officer (Supplier Profile), bank details for payment. Name, address, TIN, phone and logo come from Company Information.</td></tr>
+<tr><td>Letterheads of the forms</td><td>The company letterhead and the barangay letterhead as they print, the templates that use each, and a link to change them (on the Format tab of a template)</td></tr>
+<tr><td>Prices in the price schedule include VAT</td><td>The price schedule is VAT inclusive; billing splits each line into amount and VAT</td></tr>
+<tr><td>Segregation of duties</td><td>Preparer, checker and approver are three people; nobody reviews a paper they filed</td></tr>
+<tr><td>A bid above the ABC cannot go for approval</td><td>The ABC is the ceiling of the bid</td></tr>
+<tr><td>Mandatory papers in order before the bid goes for review</td><td>Missing, expired or unreviewed mandatory eligibility and bid papers stop the bid</td></tr>
+<tr><td>No bid submission after the deadline</td><td>Approval and submission are refused after the bid deadline</td></tr>
+<tr><td>Acceptance needs the entity's paper</td><td>Accepted quantities need the signed inspection report or delivery receipt</td></tr>
+<tr><td>A billing pack is complete before it is submitted</td><td>Every required paper of the pack is on file</td></tr>
+<tr><td>Performance security before fulfilment</td><td>For modes that ask for one</td></tr>
+<tr><td>A class per contract</td><td>Opens a class at the award, besides the Customer:Job</td></tr>
+<tr><td>The SOP</td><td>The tradename on the transaction form; the amount below which a new transaction is suggested as small value procurement; the department the papers are forwarded to; the types of transaction (<code>code|name</code>, one a line: Cash Out (purchases), Kaliwaan (purchases), Purchases and Construction to start with; the box on the transaction form prints the name without what is in brackets, and the steps each type goes through are ticked on SOP Steps &amp; Papers); <strong>Hold the SI, OR and 2307 until the payment is released</strong> (special case F); <strong>A paper counts as signed when its signed copy is attached</strong>; <strong>The review is done by another person</strong></td></tr>
+<tr><td>Defaults of a new project</td><td>Retention % and liquidated damages % per day (each project keeps what its contract states)</td></tr>
+<tr><td>Accounting</td><td>The site for goods delivered and awaiting acceptance, the withholding taxes on goods, on services and works, and on VAT; the default accounts are shown (changed on Module Default Accounts)</td></tr>
+<tr><td>What a billing pack holds</td><td>One paper a line: <code>document type code|name|1</code> (1 = required, 0 = if any)</td></tr>
+<tr><td>Alerts and files</td><td>Days before papers expire, before a bid deadline, for deliveries not accepted and billings not acknowledged; the addresses of the daily alert e-mail; the largest file; a virus scan command (administrators)</td></tr>
+<tr><td>Previews of Word, Excel, PowerPoint and Publisher files</td><td>Whether the page view is on (LibreOffice found on the server, and where) or the quick view only; the LibreOffice program to use when it is in another folder, or <code>off</code> (administrators); <strong>Make the previews again</strong> after LibreOffice is installed or changed</td></tr>
+</tbody></table></div>
+<p>The daily alert e-mail is sent by <code>tools/brgy_alerts.php</code>, scheduled once a day on the server (for example <code>15 6 * * * php /path/to/government-contracting-system/tools/brgy_alerts.php</code>); it uses PHP's mail settings. The bottom of the page shows how the contracts reach the books (the table in <a href="#s-brgy-books">What the module records in the books</a>).</p>
+
+<h2 id="sec-brgy-reports">Barangay Contract Reports<a class="man-hash" href="#sec-brgy-reports" aria-label="Link to this section"><i class="bi bi-link-45deg"></i></a></h2>
+<p>Each report has the filters, column choices, printing, export and memorizing of every report of the program (see <a href="manual.php?c=home-and-reports#pg-home-reports">Working with Reports</a>).</p>
+<h3 id="pg-rpt-brgy_bid_register">Bid Register<a class="man-hash" href="#pg-rpt-brgy_bid_register" aria-label="Link to this section"><i class="bi bi-link-45deg"></i></a></h3>
+<p>Every opportunity by bid deadline: entity, mode, category, RFQ, ABC, bid and its percentage of the ABC, deadline, submission, bid status, status and phase. Filters: dates, entity, status.</p>
+<h3 id="pg-rpt-brgy_win_loss">Won and Lost Opportunities<a class="man-hash" href="#pg-rpt-brgy_win_loss" aria-label="Link to this section"><i class="bi bi-link-45deg"></i></a></h3>
+<p>The bids submitted in the dates with their result, rank, winning bidder and amount, how far above it the company was, and the reason; the win rate by count and by amount, and what was won by category.</p>
+<h3 id="pg-rpt-brgy_eligibility">Eligibility and Compliance Matrix<a class="man-hash" href="#pg-rpt-brgy_eligibility" aria-label="Link to this section"><i class="bi bi-link-45deg"></i></a></h3>
+<p>The checklist of every open project (or contract in force) with each requirement's document, validity and status, and the state of every company paper.</p>
+<h3 id="pg-rpt-brgy_submissions">Tender and Document Submission Log<a class="man-hash" href="#pg-rpt-brgy_submissions" aria-label="Link to this section"><i class="bi bi-link-45deg"></i></a></h3>
+<p>Every submission in the dates: what, how, to whom, tracking number, who received it and when, acknowledgment, whether the proof is on file, and whether a bid was on time.</p>
+<h3 id="pg-rpt-brgy_contract_status">Contract Status: Awarded, Delivered, Billed, Collected<a class="man-hash" href="#pg-rpt-brgy_contract_status" aria-label="Link to this section"><i class="bi bi-link-45deg"></i></a></h3>
+<p>Per contract: amount (with change orders), accepted and its percentage, billed, settled, cash collected, taxes withheld, retention held and receivable from the ledger.</p>
+<h3 id="pg-rpt-brgy_delivery_variance">Delivery and Implementation Variance<a class="man-hash" href="#pg-rpt-brgy_delivery_variance" aria-label="Link to this section"><i class="bi bi-link-45deg"></i></a></h3>
+<p>Per contract line: contract quantity, delivered, rejected, accepted, still to be accepted, value left and, for contracts past their due date, the liquidated damages exposure.</p>
+<h3 id="pg-rpt-brgy_inspection">Inspection and Acceptance Register<a class="man-hash" href="#pg-rpt-brgy_inspection" aria-label="Link to this section"><i class="bi bi-link-45deg"></i></a></h3>
+<p>Every delivery with its acceptance date, the days the entity took, the report number, the inspectors, the value accepted and the quantity rejected.</p>
+<h3 id="pg-rpt-brgy_billing_pack">Billing Pack Completeness<a class="man-hash" href="#pg-rpt-brgy_billing_pack" aria-label="Link to this section"><i class="bi bi-link-45deg"></i></a></h3>
+<p>Every billing with how many of its required papers are on file and which are missing, when it was submitted and acknowledged, and how long it has waited.</p>
+<h3 id="pg-rpt-brgy_ar_aging">A/R Aging by Barangay<a class="man-hash" href="#pg-rpt-brgy_ar_aging" aria-label="Link to this section"><i class="bi bi-link-45deg"></i></a></h3>
+<p>The open invoices of the contracts on a date, by entity, in aging columns (current, 1-30, 31-60, 61-90, over 90 days past due).</p>
+<h3 id="pg-rpt-brgy_collection_perf">Collection Performance by Barangay<a class="man-hash" href="#pg-rpt-brgy_collection_perf" aria-label="Link to this section"><i class="bi bi-link-45deg"></i></a></h3>
+<p>Per entity: billed, settled and the rate, cash, taxes withheld, number of payments, average days from billing and from submission to payment, returned checks and what is open now.</p>
+<h3 id="pg-rpt-brgy_change_orders">Change Order Register<a class="man-hash" href="#pg-rpt-brgy_change_orders" aria-label="Link to this section"><i class="bi bi-link-45deg"></i></a></h3>
+<p>Change orders with their amount, percentage of the original contract, days added, status, the entity's approval and when they were applied.</p>
+<h3 id="pg-rpt-brgy_retention">Retention and Warranty Tracker<a class="man-hash" href="#pg-rpt-brgy_retention" aria-label="Link to this section"><i class="bi bi-link-45deg"></i></a></h3>
+<p>Per contract: retention deducted, released and held (ledger), completion, warranty end, when the retention can be claimed, and the performance and warranty securities.</p>
+<h3 id="pg-rpt-brgy_profitability">Project Profitability<a class="man-hash" href="#pg-rpt-brgy_profitability" aria-label="Link to this section"><i class="bi bi-link-45deg"></i></a></h3>
+<p>Per contract: amount, estimated cost and margin, revenue and costs from the ledger, margin and its percentage, estimated cost to complete (View costs and margins permission).</p>
+<h3 id="pg-rpt-brgy_wht_credits">Taxes Withheld by Barangays (2307 Tracker)<a class="man-hash" href="#pg-rpt-brgy_wht_credits" aria-label="Link to this section"><i class="bi bi-link-45deg"></i></a></h3>
+<p>Collections with taxes withheld: withholding agent and TIN, quarter, amount settled, income tax and VAT withheld, any difference from the table, and whether the Form 2307 was received. Use it to collect the missing certificates before the quarterly and annual returns.</p>
+<h3 id="pg-rpt-brgy_doc_expiry">Document Expiry and Missing Papers<a class="man-hash" href="#pg-rpt-brgy_doc_expiry" aria-label="Link to this section"><i class="bi bi-link-45deg"></i></a></h3>
+<p>Papers expired or expiring within the days chosen, company papers not on file, and mandatory papers missing on open projects and contracts.</p>
+<h3 id="pg-rpt-brgy_cash_forecast">Cash Collection Forecast<a class="man-hash" href="#pg-rpt-brgy_cash_forecast" aria-label="Link to this section"><i class="bi bi-link-45deg"></i></a></h3>
+<p>The net cash expected by month: open invoices (dated by each entity's usual delay between billing and payment), what is still to be delivered and billed, and retention after the warranty. An estimate, not a promise.</p>
+<h3 id="pg-rpt-brgy_reconciliation">Contracts-to-Ledger Reconciliation<a class="man-hash" href="#pg-rpt-brgy_reconciliation" aria-label="Link to this section"><i class="bi bi-link-45deg"></i></a></h3>
+<p>Per contract, what the module says against the ledger: billed against invoiced, settled against applied, retention against the Retention Receivable on the job, and anything posted on the job outside the module. A contract that does not agree is shown in red with the difference; it usually means an invoice, payment or credit memo was voided or changed in the accounting pages.</p>
+<h3 id="pg-rpt-brgy_approval_log">Approval Log<a class="man-hash" href="#pg-rpt-brgy_approval_log" aria-label="Link to this section"><i class="bi bi-link-45deg"></i></a></h3>
+<p>Every maker, checker and approver step in the dates, by user and record, with the alternate who acted for someone away, the amount and the remarks.</p>
+<h3 id="pg-rpt-brgy_monitoring">Transaction Monitoring (SOP)<a class="man-hash" href="#pg-rpt-brgy_monitoring" aria-label="Link to this section"><i class="bi bi-link-45deg"></i></a></h3>
+<p>The monitoring of the SOP: each transaction from its transaction form to the signed transmittal, with its series number, date, barangay, purpose, type, process, where it stands, gross amount, taxes withheld, cheque number and amount, payment (waiting or released), SI and OR numbers, 2307, signed copies against papers, when it went to accounting, when and how it was released, and whether the signed transmittal came back. Filters: dates (of the transaction form), entity, process, where it stands (not finished, waiting for payment, transmittal not returned, closed).</p>
+<figure class="man-fig"><a class="man-zoom" href="assets/manual/img/brgy_rpt_monitoring.jpg" title="Click to enlarge"><img src="assets/manual/img/brgy_rpt_monitoring.jpg" alt="Transaction Monitoring (SOP)" width="1094" height="1344" loading="lazy" decoding="async"></a><figcaption>Transaction Monitoring (SOP)</figcaption></figure>
+
+<h2 id="s-brgy-messages">Messages you may meet<a class="man-hash" href="#s-brgy-messages" aria-label="Link to this section"><i class="bi bi-link-45deg"></i></a></h2>
+<div class="table-responsive man-table"><table class="table table-sm">
+<thead><tr><th>Message</th><th>What to do</th></tr></thead>
+<tbody>
+<tr><td>"The bid cannot go for review yet: ..."</td><td>Settle each point listed (papers, schedule, ABC, deadline, go decision)</td></tr>
+<tr><td>"You prepared this record; another person has to review it."</td><td>Segregation of duties: someone else reviews or approves</td></tr>
+<tr><td>"Only ... (named checker / approver of this project) or their alternate can do this."</td><td>The project names its checker or approver; they, or the alternate they named, take the step</td></tr>
+<tr><td>"The amount ... is above your approval limit ..."</td><td>An approver with a higher limit approves</td></tr>
+<tr><td>"Only the authorized submitter, ..., records the bid submission."</td><td>Name the right submitter on the project, or let them record it</td></tr>
+<tr><td>"A hand-carried or couriered bid needs its proof ..."</td><td>Attach the receiving copy, or enter who received it</td></tr>
+<tr><td>"The amount awarded ... does not agree with the approved price schedule ..."</td><td>If the entity corrected the bid, an approver reopens it, the schedule is corrected and approved again</td></tr>
+<tr><td>"... is more than the ... left on the contract."</td><td>Deliver within the contract, or apply an approved change order first</td></tr>
+<tr><td>"... only ... accepted and not yet billed."</td><td>Record the entity's acceptance first; bill only what was accepted</td></tr>
+<tr><td>"This billing already has its invoice ..."</td><td>The billing was already invoiced: nothing more to do</td></tr>
+<tr><td>"The taxes withheld ... differ from the Withholding Tax Table ..."</td><td>Correct the amounts, or explain the difference (the entity's 2307 shows other rates)</td></tr>
+<tr><td>"Someone else changed this record after you opened it."</td><td>Reload the page and make your change again</td></tr>
+<tr><td>"The contract cannot be closed yet: ..."</td><td>Settle each point listed; the ledger and receivables come first</td></tr>
+<tr><td>"Step N (...) is not finished: ..."</td><td>Settle each point listed under the step (papers, signed copies, checks, the data the step asks)</td></tr>
+<tr><td>"The steps are done in order: ... comes first."</td><td>Finish the earlier step, or have an approver skip it with the reason</td></tr>
+<tr><td>"The payment ... has not been released yet: the sales invoice, official receipt and BIR Form 2307 are not prepared until it is (special case F of the SOP)."</td><td>Record the cheque on the Process tab (<strong>Cheque ready</strong>) when the barangay releases it</td></tr>
+<tr><td>"The review is done by someone other than the person who prepared the billing documents."</td><td>Another person marks the review done</td></tr>
+<tr><td>"Attach the signed copy as a PDF, JPG or JPEG file ..."</td><td>Scan or photograph the signed paper and attach that file</td></tr>
+</tbody></table></div>

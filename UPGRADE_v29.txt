@@ -1,0 +1,140 @@
+G-SMaRT Integrated Accounting and Government Contracting System - version 29 (2026-11-12)
+=========================================================================================
+
+The Document Vault now shows Word, Excel, PowerPoint and Publisher files on the page of
+the document, from the oldest versions to the current ones, instead of a file icon and
+a Download button.
+
+This package holds ONLY the files that are new or changed since version 28, in the
+same folders. Copy them over your installation (folder government-contracting-system);
+every other file stays as it is.
+
+Upgrading an installation of version 28
+---------------------------------------
+1. Back up the program folder (storage/ and config/config.php too).
+2. Copy the files of this package over your installation. config/config.php is not
+   in the package; yours stays.
+3. There is NO database migration in this version: no table, column or row changes.
+   (The one new setting, the LibreOffice program of the page view, has its default in
+   the program.)
+4. Press Ctrl+F5 once in the browser so it loads the changed assets/js/brgy.js and
+   assets/css/app.css.
+5. Optional, for the page view: install LibreOffice on the server (below).
+
+Is PHP's zip extension on?
+--------------------------
+The files of Office 2007 and later (.docx, .xlsx, .pptx ...) are zip packages. Open
+Barangay Contracts > Contracting Settings: the card "Previews of Word, Excel,
+PowerPoint and Publisher files" warns when the extension is off. Then open
+C:\xampp\php\php.ini, remove the ; before   extension=zip   save the file, and restart
+Apache in the XAMPP Control Panel. (The older files .doc, .xls, .ppt, .pub do not need
+it.)
+
+The two views
+-------------
+Document Vault > a document: the file is shown at the left, with two buttons above it.
+
+ Quick view   Always there, nothing to install. The program reads the file itself:
+              - Word: a page with the headings, bold / italic / underlined text,
+                sizes, fonts and colours, alignment and indents, numbered and bulleted
+                lists, tables (merged cells, borders, cell colours), pictures, text
+                boxes, header and footer;
+              - Excel: every sheet under its tab, with the column letters and row
+                numbers, column widths and row heights, merged cells, fills, borders,
+                wrapped text, number / date / percent / currency formats, text running
+                over empty cells, hidden rows and columns, pictures on the sheet;
+              - PowerPoint: every slide in its proportions (background, titles,
+                bullets, text boxes, pictures, tables, the shapes of its master) with
+                the speaker notes;
+              - Publisher: its text and its pictures.
+ Page view    When LibreOffice is installed on the server: the file exactly as it
+              prints, page by page (a PDF made once, a few seconds the first time).
+              On a phone or tablet the pages open in its PDF viewer.
+
+The view chosen last is remembered in the browser. Opening a preview is recorded in
+the audit trail like an Open or a Download, and a confidential document stays closed
+to those who may not see it.
+
+Versions the quick view reads
+-----------------------------
+ Word        Word for DOS and Word 1.0 / 2.0 for Windows (the text), Word 6.0 and 95,
+             Word 97 to 2003 (.doc, .dot), Rich Text (.rtf), Word 2003 XML,
+             Word 2007 to 365 (.docx, .docm, .dotx, .dotm), and a Word file saved as a
+             web page under .doc
+ Excel       Excel 2.1, 3.0, 4.0, 5.0 and 95, Excel 97 to 2003 (.xls, .xlt),
+             Excel 2003 XML, Excel 2007 to 365 (.xlsx, .xlsm, .xltx, .xltm, .xlsb),
+             a workbook saved as a web page under .xls, and CSV
+ PowerPoint  PowerPoint 95 (the text of the slides), PowerPoint 97 to 2003 (.ppt, .pps,
+             .pot), PowerPoint 2007 to 365 (.pptx, .pptm, .ppsx, .potx, .potm)
+ Publisher   Publisher 98 to 365 (.pub): the text and the pictures
+ The page view (LibreOffice) shows all of these as laid out, and the OpenDocument files
+ (.odt, .ods, .odp) too.
+
+What the quick view leaves to the page view: pictures kept as Windows metafiles
+(WMF / EMF clip art; a metafile that only wraps a bitmap is shown) appear as grey
+boxes; formulas saved without their results (by programs other than Excel) show as
+formulas; charts show as grey boxes; Publisher pages are not laid out. A file protected
+with a password shows a note instead (download it and open it with its password).
+
+Installing LibreOffice for the page view (optional)
+---------------------------------------------------
+ Windows   Download LibreOffice from https://www.libreoffice.org and install it in its
+           usual folder (C:\Program Files\LibreOffice). Nothing else: the program finds
+           it there. Contracting Settings then says "Page view on".
+ Linux     sudo apt install libreoffice-writer libreoffice-calc libreoffice-impress libreoffice-draw
+ Elsewhere An administrator gives the program on Contracting Settings, for example
+           D:\Apps\LibreOffice\program\soffice.exe (only LibreOffice's soffice is
+           accepted; it is run without a command shell). "off" turns the page view off.
+ After installing it, press "Make the previews again" on Contracting Settings.
+
+The previews are kept in storage/contracts/previews (by the checksum of each file, so
+a file is converted once); they can be deleted at any time and are made again.
+
+Files the vault accepts
+-----------------------
+PDF, pictures (JPG, PNG, GIF, WEBP), Word (.doc .dot .docx .docm .dotx .dotm .rtf),
+Excel (.xls .xlt .xlsx .xlsm .xltx .xltm .xlsb), PowerPoint (.ppt .pps .pot .pptx .pptm
+.ppsx .potx .potm), Publisher (.pub), OpenDocument (.odt .ods .odp), CSV and text, up to
+the size set on Contracting Settings. Every Office file is checked for what it really is
+(a compound file or a zip package holding the right parts; a zip renamed .docx, a text
+renamed .ppt, a program or a script are refused), and a zip that would unpack to an
+enormous size is refused. The upload boxes offer all these types.
+
+Checking it
+-----------
+ php tools/test_brgy.php --yes        (on a TEST COPY of a database) now also checks the
+                                      previews of the sample files in tests/fixtures/office,
+                                      Excel 2.1, Excel and Word 2003 XML, web-page and CSV
+                                      files, that nothing active ever reaches the page, and
+                                      the upload check of Office files
+ cd tests/selenium
+ python run_tests.py --suite barangay --case "PowerPoint files"
+                                      uploads the six sample files to the vault and opens
+                                      them in the quick view
+
+Files in this package
+---------------------
+New     app/OfficePreview.php      the two views: dispatch, LibreOffice, number formats,
+                                   pictures of Office drawings
+        app/OfficeWord.php         Word 2007-365, Word 2003 XML, web pages, text; the page
+        app/OfficeWordDoc.php      Word 1.0 / 2.0, 6.0 / 95 and 97-2003 (.doc)
+        app/OfficeRtf.php          Rich Text
+        app/OfficeSheet.php        Excel 2.1 to 365, .xlsb, Excel 2003 XML, web pages, CSV
+        app/OfficeSlides.php       PowerPoint 2007-365; the slides
+        app/OfficeSlidesPpt.php    PowerPoint 95 and 97-2003 (.ppt)
+        app/OfficePublisher.php    Publisher 98-365
+        app/OleFile.php            the compound file of the Office 97-2003 files
+        app/OfficeLockedException.php
+        tests/fixtures/office/*    seven sample files for the tests
+        assets/manual/img/brgy_vault__word.jpg, brgy_vault__excel.jpg
+        UPGRADE_v29.txt
+Changed app/BrgyDocs.php           accepted types, checks of Office files, the preview
+        app/Brgy.php               the setting of the page view
+        modules/brgy/vault.php     the file shown on the document page; the two views
+        modules/brgy/settings.php  the card of the previews (LibreOffice, zip, make again)
+        modules/brgy/_ui.php       the upload boxes accept every type the vault takes
+        modules/brgy/_project_view.php   the hint of the upload box
+        assets/css/app.css, assets/js/brgy.js
+        tools/test_brgy.php, tests/selenium/suites/s50_barangay.py, tests/selenium/README.md
+        views/manual/chapters/11-barangay-contracts.html, views/manual/manual.json,
+        views/manual/search.json, README.md

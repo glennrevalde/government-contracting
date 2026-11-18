@@ -1,0 +1,109 @@
+G-SMaRT Integrated Accounting and Government Contracting System - version 27 (2026-11-03)
+=========================================================================================
+
+Barangay Contracts now follows the company's Standard Operating Procedure, and every
+form and proforma has a configurable format (like the passbooks of WaterBilling).
+
+This package holds ONLY the files that are new or changed since version 26, in the
+same folders. Copy them over your installation (folder government-contracting-system
+or accounting-system); every other file stays as it is.
+
+Upgrading an installation of version 26
+---------------------------------------
+1. Back up the database and the program folder (storage/ and config/config.php too).
+2. Copy the files of this package over your installation. config/config.php is not
+   in the package; yours stays.
+3. Run the new migration on your database (phpMyAdmin: select the database > Import;
+   Navicat: Execute SQL File):
+
+       database/migrations/2026_11_03_barangay_sop_forms.sql
+
+   It needs 2026_10_29_barangay_contracting.sql (version 26) to have been run first.
+   With several companies, run it on every company database (Super Admin: Companies >
+   Database updates > Update all companies). Until it is run, the program shows a page
+   naming it.
+4. Press Ctrl+F5 once in the browser so it loads the new assets/js/brgy.js and the
+   changed assets/css/app.css.
+
+The migration adds 51 columns to brgy_projects, brgy_project_lines, brgy_entities,
+brgy_templates, brgy_template_versions and brgy_forms, and five tables: brgy_sop_steps,
+brgy_sop_papers, brgy_project_steps, brgy_project_papers and brgy_canvass. It adds the
+page Barangay Contracts > SOP Steps & Papers and the report Transaction Monitoring (SOP)
+with the rights of the contracting roles, the 30 steps and 40 papers of the SOP, 19 kinds
+of documents, 24 templates, the number series TF- of the transaction form and the SOP
+settings. No column is changed or dropped, nothing is deleted and no amount changes;
+the projects already recorded keep the twelve phases. Written for MySQL 5.5 (every
+column is added through a check of information_schema), safe to run twice.
+
+New installation
+----------------
+Use the full version 26 package, copy this package over it, then import ONE of the two
+database files of this package in phpMyAdmin (Import):
+
+    database/government_contracting_system.sql        demo company with data
+    database/government_contracting_system_clean.sql  setup and users, no transactions
+
+Both already include this version. Log in as admin / Admin@12345 (a new password is
+asked at once). Do NOT import those two files over a live database: they drop every
+table.
+
+What is new
+-----------
+ 1. The SOP on every transaction. A new transaction chooses its process:
+      - Small value procurement (the SOP's "below 100K"): 1 receive the transaction
+        details (transaction form), 2 prepare the barangay's papers (PR, PO, IAR, RIS,
+        canvass forms, abstract, DV), 3 supplier canvassing (three quotations with
+        their signed forms), 4 billing documents (SI, OR, 2307), 5 review,
+        6 file and monitor, 7 forward to accounting, 8 transmittal, 9 release.
+      - Bidding: the 15 steps of the bidding process (bidding details, completeness,
+        PhilGEPS posting, pre-bid papers, authorized representative, legal papers,
+        eligibility papers, additional requirements, organize and label, signatures,
+        final verification, submission, post-bidding papers, completion, payment
+        schedule) and the 6 steps of the payment process flow.
+      - The twelve phases of version 26, without the SOP.
+    The Process tab of the transaction shows each step with what the SOP says, its
+    papers and checks; a step is done only when nothing is missing, in order (an
+    approver may skip a step or open it again, with the reason). Each step done goes
+    to the timeline and the audit trail.
+ 2. The company prepares the barangay's papers: Prepare makes each one from its
+    proforma, filled from the transaction (items, amounts, officials, taxes withheld,
+    the seals of the barangay and the city on the letterheads); they print clean,
+    without a review, blank fields as blank lines.
+ 3. Signed copies: every paper takes its signed copy as a PDF, JPG or JPEG file, filed
+    in the Document Vault under the project ("Signed copies" tab), with older versions
+    kept; Download signed copies gives all of a transaction's papers as one ZIP.
+ 4. Special case F: the SI, OR and 2307 are held while the payment is not released;
+    follow-ups are logged, and Cheque ready records the cheque. The canvass records
+    the award (or the loss), the signed IAR records the delivery and acceptance, and
+    the payment goes to the books as before (VAT 5% and EWT 1% withheld on the amount
+    net of VAT).
+ 5. Configurable forms. Every template (the 24 new ones and the 31 of version 26) has
+    a Format tab with a live preview: paper (A4, Letter, Folio, Legal, A5, half letter
+    or a size of your own), margins, font and sizes, line thickness and padding, blank
+    rows, "nothing follows", the columns of each item table (shown, title, width,
+    alignment), the parts printed, copies with their labels, printer offset, footer.
+ 6. Pre-printed paper: a template can print only its values on the barangay's pads,
+    each field placed in millimetres over a scan of the paper (the scan never prints),
+    with a test print on a millimetre grid. Formats and positions are kept with each
+    version of the template.
+ 7. Barangays & Procuring Entities: the seals of the barangay and of the city /
+    municipality, the officials the new forms use (Chairman, Committee on
+    Appropriations; bookkeeper; city / municipal accountant), and the "ABC and Aboitiz
+    requirements" switch for the offices that ask for them.
+ 8. SOP Steps & Papers (Setup): the steps, checks and papers of the SOP, as a flow,
+    editable by approvers. Contracting Settings has a new SOP card.
+ 9. Report Transaction Monitoring (SOP): each transaction from its transaction form to
+    the signed transmittal. The Contracting Dashboard shows the SOP transactions by
+    step, and those waiting for payment.
+
+Files
+-----
+ - storage/contracts/ also holds the signed copies, the seals (seal_*) and the scans of
+   pre-printed paper (tplbg_*). Include it in your file backups. The files whose names
+   start with d2026 are sample papers of the demo database; delete them on a live
+   installation.
+ - php tools/test_brgy.php --yes now also checks the steps and papers of the SOP and the
+   formats of the forms (on a TEST COPY of a database only).
+
+The user's manual, chapter 11, has the new sections The company's SOP, Format,
+Pre-printed paper, SOP Steps & Papers and Transaction Monitoring (SOP).
