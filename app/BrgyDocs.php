@@ -975,12 +975,13 @@ final class BrgyDocs
         }
         $profit = Access::viewCosts() && $t['cost'] > 0 ? r2($gross - $t['cost']) : 0.0;
         $c += [
-            'txn.series' => (string)$p['txn_form_no'], 'txn.date' => self::d($p['txn_date']), 'txn.tradename' => (string)($p['tradename'] ?: Brgy::setting('brgy_tradename') ?: Settings::get('company_name')),
+            'txn.series' => (string)$p['txn_form_no'], 'txn.date' => self::d($p['txn_date']), 'txn.tradename' => (string)($p['tradename'] ?: Brgy::defaultTradename()),
             'txn.types' => ['html' => '<div class="fx-types">' . $boxes . '</div>', 'text' => $types[$p['txn_type']] ?? ''], 'txn.type' => $types[$p['txn_type']] ?? '',
             'txn.barangay' => (string)$e['official_name'], 'txn.cheque_no' => (string)$p['cheque_no'], 'txn.gross' => self::money2($gross),
             'txn.wht' => self::money2($whtActual > 0 ? $whtActual : $w['total']), 'txn.cheque_amount' => self::money2((float)$p['cheque_amount']), 'txn.profit' => self::money2($profit),
-            'txn.requestor' => trim($p['requestor'] . ($p['requestor_position'] ? ', ' . $p['requestor_position'] : ''), ', '),
-            'txn.inspector' => trim($p['inspector'] . ($p['inspector_position'] ? ', ' . $p['inspector_position'] : ''), ', '),
+            // v33: the transaction form shows the requestor and the inspector without their positions
+            'txn.requestor' => trim((string)$p['requestor']),
+            'txn.inspector' => trim((string)$p['inspector']),
             'txn.purpose' => (string)$p['purpose'], 'txn.prepared_by' => Brgy::userName((int)$p['sales_rep_id']),
         ];
         // ---- the entity and its officials

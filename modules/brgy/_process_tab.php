@@ -134,8 +134,8 @@ $lt = Brgy::lineTotals($id);
               <dl class="dl-grid small mb-2">
                 <dt>Project title</dt><dd><?= h($p['title']) ?></dd>
                 <dt>Approved budget</dt><dd><?= (float)$p['abc_amount'] > 0 ? money($p['abc_amount']) : '<span class="text-danger">not entered</span>' ?></dd>
-                <dt>Requestor</dt><dd><?= h(trim($p['requestor'] . ($p['requestor_position'] ? ', ' . $p['requestor_position'] : ''), ', ')) ?: '<span class="text-danger">not entered</span>' ?></dd>
-                <dt>Inspector</dt><dd><?= h(trim($p['inspector'] . ($p['inspector_position'] ? ', ' . $p['inspector_position'] : ''), ', ')) ?: '<span class="text-danger">not entered</span>' ?></dd>
+                <dt>Requestor</dt><dd><?= h(trim((string)$p['requestor'])) ?: '<span class="text-danger">not entered</span>' ?></dd>
+                <dt>Inspector</dt><dd><?= h(trim((string)$p['inspector'])) ?: '<span class="text-danger">not entered</span>' ?></dd>
                 <dt>Items / particulars</dt><dd><?= $lt['lines'] ? $lt['lines'] . ' line(s), ' . money($lt['bid']) : '<span class="text-danger">none yet</span>' ?> <a href="<?= h($self(['tab' => 'lines'])) ?>">Price schedule</a></dd>
                 <dt>Purpose</dt><dd><?= h((string)$p['purpose']) ?></dd>
               </dl>
@@ -148,7 +148,7 @@ $lt = Brgy::lineTotals($id);
                   : '<div class="small mb-2">PhilGEPS ' . h($p['philgeps_ref'] ?: 'not posted') . ($p['posting_date'] ? ', ' . h(fdate($p['posting_date'])) : '') . '</div>' ?>
               <?php break;
             case 'representative': ?>
-              <?= $isCur && $canEdit ? $post('sop_save', '<div class="row g-2 align-items-end">' . brgy_user_select('submitter_id', 'Authorized representative', $p['submitter_id'], 'col-sm-8', 'Choose') . '<div class="col-sm-4"><button class="btn btn-sm btn-outline-primary w-100">Save</button></div></div>', 'mb-2', ['step' => $code])
+              <?= $isCur && $canEdit ? $post('sop_save', '<div class="row g-2 align-items-end">' . brgy_user_select('submitter_id', 'Authorized representative', $p['submitter_id'], 'col-sm-8', 'Choose', 'submitter') . '<div class="col-sm-4"><button class="btn btn-sm btn-outline-primary w-100">Save</button></div></div>', 'mb-2', ['step' => $code])
                   : '<div class="small mb-2">Representative: ' . h(Brgy::userName((int)$p['submitter_id']) ?: 'not named') . '</div>' ?>
               <?php break;
             case 'canvass':

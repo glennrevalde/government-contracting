@@ -271,15 +271,26 @@ if (in_array($a, ['new', 'edit'], true)) {
     <div class="card mb-3" data-process-only="svp bidding"><div class="card-header"><i class="bi bi-ui-checks"></i> Transaction form</div><div class="card-body row g-2">
       <?= input_field('txn_form_no', 'Series no.', fv('txn_form_no', $p), ['class' => 'col-md-3', 'extra' => 'maxlength="30" placeholder="' . ($p ? '' : 'Given on saving') . '"']) ?>
       <?= input_field('txn_date', 'Date', fv('txn_date', $p, today()), ['type' => 'date', 'class' => 'col-md-3']) ?>
-      <?= input_field('tradename', 'Tradename', fv('tradename', $p, Brgy::setting('brgy_tradename')), ['class' => 'col-md-3', 'extra' => 'maxlength="160"']) ?>
+      <?php
+      // v33: the tradename is chosen from the Tradenames list (the one saved on an older transaction stays on the list)
+      $tnValue = (string)fv('tradename', $p, $p ? '' : Brgy::defaultTradename());
+      $tnOpts = Brgy::tradenames();
+      if ($tnValue !== '' && !isset($tnOpts[$tnValue])) {
+          $tnOpts = [$tnValue => $tnValue] + $tnOpts;
+      }
+      $tnManage = Access::page('brgy.tradenames') ? ' <a class="form-label-link" href="' . h(url('brgy.tradenames')) . '" target="_blank" rel="noopener">Edit the list</a>' : '';
+      ?>
+      <div class="col-md-3 tn-field"><label class="form-label" for="f_tradename">Tradename</label><?= $tnManage ?>
+        <select class="form-select form-select-sm" id="f_tradename" name="tradename" data-no-combo>
+          <?php if (!$tnOpts): ?><option value=""><?= h((string)Settings::get('company_name')) ?> (no tradename on the list yet)</option><?php endif; ?>
+          <?php foreach ($tnOpts as $tn): ?><option value="<?= h($tn) ?>" <?= $tn === $tnValue ? 'selected' : '' ?>><?= h($tn) ?></option><?php endforeach; ?>
+        </select></div>
       <?= select_field('txn_type', 'Type', BrgySop::txnTypes(), fv('txn_type', $p, 'purchases'), ['class' => 'col-md-3', 'extra' => 'data-no-combo']) ?>
       <?= input_field('requestor', 'Requestor', fv('requestor', $p), ['class' => 'col-md-3', 'extra' => 'maxlength="120"']) ?>
-      <?= input_field('requestor_position', 'Position of the requestor', fv('requestor_position', $p), ['class' => 'col-md-3', 'extra' => 'maxlength="120" placeholder="Requisitioner"']) ?>
       <?= input_field('inspector', 'Inspector', fv('inspector', $p), ['class' => 'col-md-3', 'extra' => 'maxlength="120"']) ?>
-      <?= input_field('inspector_position', 'Position of the inspector', fv('inspector_position', $p), ['class' => 'col-md-3', 'extra' => 'maxlength="120"']) ?>
-      <?= input_field('purpose', 'Purpose', fv('purpose', $p), ['class' => 'col-md-6', 'extra' => 'maxlength="255" placeholder="For Barangay Office Use"']) ?>
-      <?= brgy_user_select('sales_rep_id', 'Sales representative', fv('sales_rep_id', $p), 'col-md-3', 'Choose') ?>
+      <?= brgy_user_select('sales_rep_id', 'Sales representative', fv('sales_rep_id', $p), 'col-md-3', 'Choose', 'sales_rep') ?>
       <?= input_field('fund', 'Fund', fv('fund', $p), ['class' => 'col-md-3', 'extra' => 'maxlength="60" placeholder="General Fund"']) ?>
+      <?= input_field('purpose', 'Purpose', fv('purpose', $p), ['class' => 'col-12', 'extra' => 'maxlength="255" placeholder="For Barangay Office Use"']) ?>
     </div></div>
 
     <div class="card mb-3" data-process-only="svp bidding"><div class="card-header"><i class="bi bi-files"></i> Numbers and dates of the barangay's papers</div><div class="card-body row g-2">
@@ -329,13 +340,13 @@ if (in_array($a, ['new', 'edit'], true)) {
     </div></div>
 
     <div class="card mb-3"><div class="card-header"><i class="bi bi-people"></i> People accountable for the project</div><div class="card-body row g-2">
-      <?= brgy_user_select('preparer_id', 'Preparer (maker)', fv('preparer_id', $p, Auth::id()), 'col-md-4') ?>
-      <?= brgy_user_select('checker_id', 'Checker / reviewer', fv('checker_id', $p), 'col-md-4', 'Anyone with the review right') ?>
-      <?= brgy_user_select('approver_id', 'Approver', fv('approver_id', $p), 'col-md-4', 'Anyone with the approve right') ?>
-      <?= brgy_user_select('submitter_id', 'Authorized submitter', fv('submitter_id', $p), 'col-md-4', 'Not named yet') ?>
-      <?= brgy_user_select('pm_id', 'Project manager', fv('pm_id', $p), 'col-md-4', '') ?>
-      <?= brgy_user_select('collector_id', 'Collector', fv('collector_id', $p), 'col-md-4', '') ?>
-      <div class="col-12 form-text">The preparer, checker and approver have to be three different people<?= Brgy::on('brgy_sod_strict') ? '' : ' (switched off on Contracting Settings)' ?>. Only the authorized submitter records the bid submission.</div>
+      <?= brgy_user_select('preparer_id', 'Preparer (maker)', fv('preparer_id', $p, Brgy::userAllowed('preparer', Auth::id()) ? Auth::id() : null), 'col-md-4', Brgy::functionRoles('preparer') ? 'Choose' : '', 'preparer') ?>
+      <?= brgy_user_select('checker_id', 'Checker / reviewer', fv('checker_id', $p), 'col-md-4', 'Anyone with the review right', 'checker') ?>
+      <?= brgy_user_select('approver_id', 'Approver', fv('approver_id', $p), 'col-md-4', 'Anyone with the approve right', 'approver') ?>
+      <?= brgy_user_select('submitter_id', 'Authorized submitter', fv('submitter_id', $p), 'col-md-4', 'Not named yet', 'submitter') ?>
+      <?= brgy_user_select('pm_id', 'Project manager', fv('pm_id', $p), 'col-md-4', '', 'pm') ?>
+      <?= brgy_user_select('collector_id', 'Collector', fv('collector_id', $p), 'col-md-4', '', 'collector') ?>
+      <div class="col-12 form-text">The preparer, checker and approver have to be three different people<?= Brgy::on('brgy_sod_strict') ? '' : ' (switched off on Contracting Settings)' ?>. Only the authorized submitter records the bid submission.<?= Access::page('brgy.accountable') ? ' Who may be chosen for each is set on ' . safe_link('brgy.accountable', [], 'People Accountable Set-up') . '.' : '' ?></div>
     </div></div>
 
     <div class="card mb-3"><div class="card-body row g-2">

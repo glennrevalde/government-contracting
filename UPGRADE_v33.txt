@@ -1,0 +1,141 @@
+G-SMaRT Integrated Accounting and Government Contracting System - version 33 (2026-11-20)
+=========================================================================================
+
+The requests of ADDITIONAL MODULE FOR GOVERNMENT CONTRUCTING SYSTEM v3:
+ - several tradenames, chosen on the transaction form, and added, changed or removed at any time;
+ - the positions of the requestor and of the inspector taken off the transaction form;
+ - the Sales representative list limited to the positions acting as sales representative;
+ - People Accountable Set-up: the user roles allowed as preparer, checker / reviewer, approver,
+   authorized submitter, project manager and collector;
+ - the Chart of Accounts menu renamed Financial;
+ - the Report Center taken out of Home and made a menu of its own, with Financial Reports,
+   Fixed Assets Reports, Customers Reports, Vendors Reports, Inventory Reports, POS Reports,
+   Banking Reports, BIR Reports, Barangay Contract Reports, System Administration Reports,
+   Memorized Reports and Saved Report Layouts.
+
+This package holds ONLY the files that are new or changed since version 32, in the
+same folders. Copy them over your installation (folder government-contracting-system);
+every other file stays as it is.
+
+Upgrading an installation of version 32
+---------------------------------------
+1. Back up the database and the program folder (storage/ and config/config.php too).
+2. Copy the files of this package over your installation. config/config.php is not
+   in the package; yours stays.
+3. Run the new migration on your database (phpMyAdmin: select the database > Import;
+   Navicat: Execute SQL File):
+
+       database/migrations/2026_11_20_tradenames_people_report_center.sql
+
+   It needs 2026_11_19_accounting_updates.sql (version 32) to have been run first.
+   With several companies, run it on every company database (Super Admin: Companies >
+   Database updates > Update all companies). Until it is run, the program shows a page
+   naming it. It is safe to run a second time.
+4. Press Ctrl+F5 once in the browser so it loads the changed assets/css/app.css.
+5. Open Barangay Contracts > Tradenames and check the list (see below), then
+   Barangay Contracts > People Accountable Set-up and tick the roles of each function.
+
+What the migration does
+-----------------------
+ - The table brgy_tradenames. It is filled with the tradename of Contracting Settings
+   (made the default) and every tradename already typed on a transaction, so nothing typed
+   before is lost. Remove or rename the ones you do not want on the list.
+ - The table brgy_function_roles (People Accountable Set-up). The roles named like
+   "Sales Representative" are ticked for the sales representative; the other functions
+   are left open (every active user, as before) until you tick their roles.
+ - The pages Tradenames (Barangay Contracts > Lists) and People Accountable Set-up
+   (Barangay Contracts > Setup), given to the roles that open Barangays & Procuring
+   Entities and Contracting Settings, with the same rights. Administrators see them as
+   always.
+ - The menus: the module Report Center (after Home) with the Report Center, Memorized
+   Reports and Saved Report Layouts pages; the Chart of Accounts menu renamed Financial;
+   the order of the menus. The rights of the pages do not change, and links, bookmarks and
+   memorized reports keep working (the pages keep their addresses).
+ - The description of the standard Accountant role names the Financial menu (only when it
+   was never changed).
+ - One line in the audit trail saying the migration was run.
+Nothing is deleted. The positions of the requestor and the inspector already saved stay in
+the database (brgy_projects.requestor_position and inspector_position).
+
+What is new
+-----------
+Tradenames (Barangay Contracts > Lists > Tradenames)
+ - Add a tradename (with an optional description), mark one as the default, make one
+   inactive, change one (and, if you like, the open transactions that use it), or remove
+   one. A transaction keeps the tradename it was saved with, so its papers do not change.
+ - The transaction form has a Tradename drop-down of the active tradenames, the default
+   first, with an "Edit the list" link. A tradename not on the list is refused, except the
+   one the transaction was already saved with.
+ - The printed transaction form and the company's line on the canvass use the tradename of
+   the transaction. With no tradename on the list, the company name is used.
+ - Contracting Settings shows the tradenames and links to the list (the single tradename
+   box is gone).
+The transaction form
+ - No Position of the requestor, no Position of the inspector. The printed transaction
+   form and the Process tab show the requestor and the inspector by name only.
+ - The boxes: Series no., Date, Tradename, Type; Requestor, Inspector, Sales
+   representative, Fund; Purpose.
+People Accountable Set-up (Barangay Contracts > Setup)
+ - For the sales representative (the positions acting as sales representative) and for the
+   preparer, checker / reviewer, approver, authorized submitter, project manager and
+   collector: the user roles allowed, and the users each drop-down lists now.
+ - The drop-downs of the transaction form, and the authorized representative step of the
+   SOP, list only the active users in those roles. Choosing someone outside them is refused
+   with a message naming the roles. A person already on a saved transaction stays on it.
+ - The roles stand for the positions: they are the roles of User Role Configuration, as
+   shown in the Roles column of User Accounts.
+Menus
+ - Home: Home Dashboard and Find.
+ - Report Center: one entry for the reports of each module (shown when your role may open
+   at least one of its reports), Memorized Reports and Saved Report Layouts. An entry opens
+   the Report Center with that module's reports in columns and the memorized reports made
+   from them; the list beside "Find a report by name" shows another group or All reports.
+   The Report Center button of the Home page still opens every card.
+ - Financial: what was the Chart of Accounts menu. The messages that named the menu
+   ("Set it under Financial > Module Default Accounts", ...) use the new name.
+Every page
+ - Every page and saved record (338 in all) was opened on a 390 px phone, a 360 px phone
+   and a computer: nothing runs past the screen. The Report Center, the new pages and the
+   tradename rows were laid out for phones; a select sized to its content no longer runs
+   past a narrow screen.
+The User's Manual has the sections of Tradenames and People Accountable Set-up, the new
+transaction form, the Report Center menu and the Financial menu (Help on each page).
+
+Tested
+------
+ - The migration on a copy of a version 32 database, twice; on a new installation; a new
+   company made with New company (the People Accountable Set-up is copied, the tradenames
+   are not: they are the company's own).
+ - php tools/test_v33.php --yes (35 checks: tradenames, the transaction form without the
+   positions, People Accountable Set-up, the menus). It WRITES test records: run it on a
+   copy, never on books in use.
+ - php tools/test_brgy.php --yes (172 checks) and php tools/test_accounting.php --yes
+   (75 checks).
+ - Every page of the menu and a saved transaction of every type opened as the
+   administrator: no PHP error.
+
+Files
+-----
+New:
+  modules/brgy/tradenames.php                Tradenames
+  modules/brgy/accountable.php               People Accountable Set-up
+  database/migrations/2026_11_20_tradenames_people_report_center.sql
+  tools/test_v33.php                         the checks above
+  UPGRADE_v33.txt                            this file
+  assets/manual/img/...                      the pictures of the new manual sections
+Changed:
+  app/registry.php                           the menus, the two pages, the Report Center names
+  app/Brgy.php                               tradenames, the roles of each function
+  app/BrgyOps.php, app/BrgySop.php, app/BrgyDocs.php
+  app/Schema.php, app/Provision.php
+  app/Accts.php, app/BrgyPost.php, app/Maintenance.php, app/reports/budgets.php   the menu name in messages
+  modules/brgy/projects.php, _process_tab.php, _ui.php, settings.php
+  modules/reports/center.php                 one module's reports, the switch list
+  views/layout.php                           the Report Center menu
+  assets/css/app.css
+  tools/seed.php, tools/brgy_seed.php
+  database/schema.sql, database/government_contracting_system.sql,
+  database/government_contracting_system_clean.sql
+  views/manual/...                           chapters 1, 2, 3, 5, 7, 8, 11, 12, 15, manual.json, search.json
+  tests/selenium/...                         the transaction form and menu checks
+  README.md

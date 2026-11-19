@@ -559,4 +559,24 @@ function seed_brgy_master_data(): void
     brgy_seed_templates();
     require_once __DIR__ . '/brgy_sop_seed.php';
     brgy_seed_sop();
+    brgy_seed_people_tradenames();
+}
+
+/**
+ * v33: the tradename list starts with the company name (the default), and the positions acting as sales
+ * representative are the roles named like "Sales Representative"; the other people of a transaction list
+ * every active user until People Accountable Set-up names their roles.
+ */
+function brgy_seed_people_tradenames(): void
+{
+    $name = trim((string)(Settings::get('brgy_tradename') ?: Settings::get('company_name')));
+    if ($name !== '' && !DB::value('SELECT COUNT(*) FROM brgy_tradenames')) {
+        DB::insert('brgy_tradenames', ['name' => mb_substr($name, 0, 160), 'is_default' => 1, 'sort_order' => 10]);
+        Settings::set('brgy_tradename', mb_substr($name, 0, 160));
+    }
+    if (!DB::value("SELECT COUNT(*) FROM brgy_function_roles WHERE function_code = 'sales_rep'")) {
+        foreach (DB::all("SELECT id FROM roles WHERE name LIKE '%sales rep%'") as $r) {
+            DB::insert('brgy_function_roles', ['function_code' => 'sales_rep', 'role_id' => (int)$r['id']]);
+        }
+    }
 }

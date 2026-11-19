@@ -60,11 +60,33 @@ function fv(string $key, $record = null, $default = '')
     return $default;
 }
 
+/**
+ * The Report Center menu (v33): one entry for the reports of each module the user can open, in menu order,
+ * each opening the Report Center on that module's reports ([module code => name]).
+ */
+function report_center_menu(array $defs, array $eff): array
+{
+    $has = [];
+    foreach ($defs as $k => $d) {
+        if ($d['type'] === 'report' && $d['menu'] && !empty($eff[$k]['allowed'])) {
+            $has[$d['module']] = true;
+        }
+    }
+    $out = [];
+    foreach (Access::modules() as $code => $_) {
+        if (isset($has[$code]) && !in_array($code, ['home', 'rc'], true)) {
+            $out[$code] = Access::reportCenterName($code);
+        }
+    }
+    return $out;
+}
+
 function build_menu(): array
 {
     $defs = Access::allPageDefs();
     $eff = Access::effective();
     $menu = [];
+    $current = $GLOBALS['CURRENT_PAGE'] ?? '';
     foreach (Access::modules() as $code => [$name, $icon, $sort]) {
         $groups = [];
         $keys = array_keys(array_filter($defs, fn($d) => $d['module'] === $code));
@@ -88,6 +110,15 @@ function build_menu(): array
             $group = $d['type'] === 'report' ? 'Reports' : $d['group'];
             if (in_array($k, Access::menuAliases()[$code] ?? [], true)) {
                 $group = 'Transactions';
+            }
+            // the Report Center menu lists the reports of each module rather than the Report Center page itself
+            if ($k === 'home.reports') {
+                $m = is_string($_GET['m'] ?? null) ? $_GET['m'] : '';
+                foreach (report_center_menu($defs, $eff) as $mod => $label) {
+                    $groups[$group][] = ['key' => $k, 'name' => $label, 'sub' => $d['group'], 'href' => url($k, ['m' => $mod]),
+                        'active' => $current === $k && $m === $mod];
+                }
+                continue;
             }
             $groups[$group][] = ['key' => $k, 'name' => $d['name'], 'sub' => $d['group']];
         }
@@ -123,6 +154,7 @@ function layout_start(string $title, array $opt = []): void
 <link rel="stylesheet" href="<?= h(vendor_asset('bootstrap.css')) ?>">
 <link rel="stylesheet" href="<?= h(vendor_asset('icons.css')) ?>">
 <link rel="stylesheet" href="<?= h(asset('css/app.css')) ?>">
+<?= Pwa::head() ?>
 <script src="<?= h(asset('js/fmt.js')) ?>"></script>
 <script src="<?= h(asset('js/wht.js')) ?>"></script>
 </head>
@@ -163,6 +195,7 @@ function layout_start(string $title, array $opt = []): void
     <?php if (Access::page('home.find')): ?>
     <a class="bell-btn find-btn" href="<?= h(url('home.find')) ?>" title="Find transactions: any module, any combination of filters" aria-label="Find"><i class="bi bi-funnel"></i><span class="find-btn-text">Find</span></a>
     <?php endif; ?>
+    <?= Pwa::installButton() ?>
     <?php
       // preventive maintenance reminders: they stay here until the tasks are acknowledged as complete
       $pmDue = Schema::ready() && AssetMaint::remindsUser() ? AssetMaint::reminders() : null;
@@ -222,13 +255,13 @@ function layout_start(string $title, array $opt = []): void
                 <summary class="menu-group">Reports (<?= count($items) ?>)</summary>
                 <?php $lastSub = null; foreach ($items as $it): ?>
                   <?php if ($it['sub'] !== 'Reports' && $it['sub'] !== $lastSub): $lastSub = $it['sub']; ?><div class="menu-sub"><?= h($it['sub']) ?></div><?php endif; ?>
-                  <a class="menu-link <?= $it['key'] === $current ? 'active' : '' ?>" href="<?= h(url($it['key'])) ?>"><?= h($it['name']) ?></a>
+                  <a class="menu-link <?= ($it['active'] ?? $it['key'] === $current) ? 'active' : '' ?>" href="<?= h($it['href'] ?? url($it['key'])) ?>"><?= h($it['name']) ?></a>
                 <?php endforeach; ?>
               </details>
             <?php else: ?>
               <?php if (count($m['groups']) > 1 && $gname !== 'Home'): ?><div class="menu-group"><?= h($gname) ?></div><?php endif; ?>
               <?php foreach ($items as $it): ?>
-                <a class="menu-link <?= $it['key'] === $current ? 'active' : '' ?>" href="<?= h(url($it['key'])) ?>"><?= h($it['name']) ?></a>
+                <a class="menu-link <?= ($it['active'] ?? $it['key'] === $current) ? 'active' : '' ?>" href="<?= h($it['href'] ?? url($it['key'])) ?>"<?= ($it['active'] ?? $it['key'] === $current) ? ' aria-current="page"' : '' ?>><?= h($it['name']) ?></a>
               <?php endforeach; ?>
             <?php endif; ?>
           <?php endforeach; ?>

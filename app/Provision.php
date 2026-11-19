@@ -22,7 +22,8 @@ declare(strict_types=1);
  *     terms, payment methods, price levels, units of measure, item and customer types, fixed asset categories, the roles with their
  *     page access and special permissions, the pages and modules, the numbering, the settings, and the
  *     Barangay Contracts lists: procurement modes, references, kinds of documents, the requirement library,
- *     the form templates and the company's SOP with its steps and papers);
+ *     the form templates, the company's SOP with its steps and papers, and the People Accountable Set-up;
+ *     the tradenames are the template company's own and are not copied);
  *   - one inventory site, "Main".
  * Nothing else: no customers, suppliers, items, employees or users, no transactions, balances, journals,
  * payments, budgets, audit trail or history. Its only user is the Company Owner created with it.
@@ -37,6 +38,7 @@ final class Provision
         'roles'                    => 'User roles (all sites allowed, since the template\'s sites are not copied)',
         'role_page_access'         => 'Which pages each role opens, and what it may do there',
         'role_special_permissions' => 'Special permissions of each role (costs, limits, report design, ...)',
+        'brgy_function_roles'      => 'Barangay Contracts: the roles allowed for each person of a transaction (People Accountable Set-up)',
         'sequences'                => 'Document numbering (every counter starts again from 1)',
         'accounts'                 => 'Chart of accounts (bank account numbers left blank; balances are never copied)',
         'default_accounts'         => 'Module default accounts',
@@ -72,7 +74,7 @@ final class Provision
     private const COMPANY_SETTINGS = ['company_name', 'company_address', 'company_tin', 'company_phone', 'company_email', 'company_logo', 'closing_date',
         'bir_zip_code', 'bir_signatory_name', 'bir_signatory_title', 'bir_signatory_tin',
         'brgy_company_reg_no', 'brgy_philgeps_no', 'brgy_philgeps_class', 'brgy_signatory_name', 'brgy_signatory_position', 'brgy_bank_details',
-        'brgy_delivered_site_id', 'brgy_alert_email'];
+        'brgy_delivered_site_id', 'brgy_alert_email', 'brgy_tradename'];   // v33: the tradenames are the company's own (not copied)
 
     // ================================================================== Company 1
 

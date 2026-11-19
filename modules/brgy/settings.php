@@ -65,7 +65,7 @@ if (is_post()) {
             $set($k, p($k) === '1' ? '1' : '0');
         }
         $set('brgy_svp_limit', (string)max(0, round(pnum('brgy_svp_limit'), 2)));
-        $set('brgy_tradename', mb_substr(trim((string)p('brgy_tradename')), 0, 160));
+        // v33: the tradenames are kept on Barangay Contracts > Tradenames (its default is copied to brgy_tradename)
         $set('brgy_accounting_dept', mb_substr(trim((string)p('brgy_accounting_dept')), 0, 120) ?: 'Accounting Department');
         $types = [];
         foreach (preg_split('/\R/', (string)p('brgy_txn_types')) as $line) {
@@ -208,7 +208,10 @@ layout_start('Contracting Settings', brgy_layout(['actions' => page_link('coa.de
       <?php endforeach; ?>
     </div></div>
     <div class="card mb-3"><div class="card-header"><i class="bi bi-signpost-split"></i> The SOP (Standard Operating Procedure)</div><div class="card-body row g-2">
-      <?= input_field('brgy_tradename', 'Tradename on the transaction form', $s('brgy_tradename'), ['class' => 'col-md-6', 'extra' => 'maxlength="160" ' . $ro]) ?>
+      <?php $tnList = Brgy::tradenames(); ?>
+      <div class="col-md-6"><label class="form-label">Tradenames on the transaction form</label>
+        <div class="form-control form-control-sm bg-body-tertiary text-truncate" title="<?= h(implode(', ', $tnList)) ?>"><?= $tnList ? h(Brgy::defaultTradename()) . (count($tnList) > 1 ? ' <span class="text-muted">and ' . (count($tnList) - 1) . ' more</span>' : '') : '<span class="text-muted">None yet: the company name is used</span>' ?></div>
+        <div class="form-text">Added, changed and removed on <?= safe_link('brgy.tradenames', [], 'Tradenames') ?>; each transaction picks one.</div></div>
       <?= input_field('brgy_svp_limit', 'Small value procurement below (amount)', $s('brgy_svp_limit'), ['class' => 'col-md-6', 'extra' => 'inputmode="decimal" ' . $ro]) ?>
       <?= input_field('brgy_accounting_dept', 'Papers are forwarded to', $s('brgy_accounting_dept'), ['class' => 'col-md-6', 'extra' => 'maxlength="120" ' . $ro]) ?>
       <div class="col-md-6"><label class="form-label">Types of transaction (code|name, one a line)</label><textarea class="form-control form-control-sm font-monospace" name="brgy_txn_types" rows="4" <?= $ro ?>><?= h($s('brgy_txn_types')) ?></textarea>
@@ -236,7 +239,7 @@ layout_start('Contracting Settings', brgy_layout(['actions' => page_link('coa.de
       <div class="col-12 form-text">Rates come from the Withholding Tax Table (Banking / BIR set-up); a collection's taxes are checked against it, and a difference needs an explanation.</div>
       <div class="col-12"><div class="table-responsive"><table class="table table-sm mb-0"><thead><tr><th>Default account</th><th>Account</th></tr></thead>
         <?php foreach ($defaults as $k => $lbl): $acc = Brgy::acct($k); ?><tr><td class="small"><?= h($lbl) ?></td><td class="small"><?= $acc ? h((string)DB::value("SELECT CONCAT(code, ' - ', name) FROM accounts WHERE id = :id", ['id' => $acc])) : '<span class="text-danger">not set</span>' ?></td></tr><?php endforeach; ?>
-      </table></div><div class="form-text">Change them on Chart of Accounts &gt; Module Default Accounts (Barangay Contracts).</div></div>
+      </table></div><div class="form-text">Change them on Financial &gt; Module Default Accounts (Barangay Contracts).</div></div>
     </div></div>
     <div class="card mb-3"><div class="card-header"><i class="bi bi-folder-check"></i> What a billing pack holds</div><div class="card-body">
       <textarea class="form-control form-control-sm font-monospace" name="brgy_billing_pack" rows="7" <?= $ro ?>><?= h($s('brgy_billing_pack')) ?></textarea>

@@ -40,6 +40,20 @@ final class Brgy
         'closeout'    => ['12', 'Closeout'],
     ];
 
+    /**
+     * v33: the people of a transaction and the column each is kept in. People Accountable Set-up names the user
+     * roles allowed for each (none named: every active user, as before); the drop-downs list only those users.
+     */
+    public const FUNCTIONS = [
+        'sales_rep' => ['Sales representative', 'sales_rep_id'],
+        'preparer'  => ['Preparer (maker)', 'preparer_id'],
+        'checker'   => ['Checker / reviewer', 'checker_id'],
+        'approver'  => ['Approver', 'approver_id'],
+        'submitter' => ['Authorized submitter', 'submitter_id'],
+        'pm'        => ['Project manager', 'pm_id'],
+        'collector' => ['Collector', 'collector_id'],
+    ];
+
     public const STATUSES = ['open' => 'Open', 'awarded' => 'Awarded', 'lost' => 'Lost', 'no_bid' => 'No bid', 'cancelled' => 'Cancelled', 'closed' => 'Closed'];
 
     public const CATEGORIES = ['goods' => 'Goods', 'services' => 'General services', 'works' => 'Infrastructure works', 'consultancy' => 'Consulting services'];
@@ -227,6 +241,106 @@ final class Brgy
     public static function users(): array
     {
         return DB::pairs("SELECT id, full_name FROM users WHERE status = 'active' AND is_platform = 0 AND approval_status = 'approved' ORDER BY full_name");
+    }
+
+    // ---------------------------------------------------------------- v33: people accountable and sales representatives
+
+    /** The role ids allowed for a function (People Accountable Set-up); none means every active user */
+    public static function functionRoles(string $fn): array
+    {
+        if (self::$fnRoles === null) {
+            self::$fnRoles = [];
+            if (self::v33Ready()) {
+                foreach (DB::all('SELECT function_code, role_id FROM brgy_function_roles') as $r) {
+                    self::$fnRoles[$r['function_code']][] = (int)$r['role_id'];
+                }
+            }
+        }
+        return self::$fnRoles[$fn] ?? [];
+    }
+
+    /** Reads People Accountable Set-up again (after it was changed in the same request) */
+    public static function forgetFunctionRoles(): void
+    {
+        self::$fnRoles = null;
+    }
+
+    private static ?array $fnRoles = null;
+
+    /** The users who may be chosen for a function: active users in one of its roles (every active user when no role is named) */
+    public static function usersFor(string $fn): array
+    {
+        $roles = self::functionRoles($fn);
+        if (!$roles) {
+            return self::users();
+        }
+        return DB::pairs("SELECT DISTINCT u.id, u.full_name FROM users u JOIN user_roles ur ON ur.user_id = u.id
+                           WHERE u.status = 'active' AND u.is_platform = 0 AND u.approval_status = 'approved' AND ur.role_id IN (" . implode(',', array_map('intval', $roles)) . ')
+                           ORDER BY u.full_name');
+    }
+
+    /** Whether a user may be chosen for a function */
+    public static function userAllowed(string $fn, ?int $userId): bool
+    {
+        if (!$userId) {
+            return true;
+        }
+        $roles = self::functionRoles($fn);
+        return !$roles || (bool)DB::value('SELECT 1 FROM user_roles WHERE user_id = :u AND role_id IN (' . implode(',', array_map('intval', $roles)) . ') LIMIT 1', ['u' => $userId]);
+    }
+
+    /** Stops a save when a user outside the roles of a function is newly chosen for it */
+    public static function assertUserAllowed(string $fn, ?int $userId, ?int $before = null): void
+    {
+        if ($userId && $userId !== $before && !self::userAllowed($fn, $userId)) {
+            $roles = DB::pairs('SELECT id, name FROM roles WHERE id IN (' . implode(',', array_map('intval', self::functionRoles($fn))) . ') ORDER BY name');
+            fail(self::userName($userId) . ' cannot be the ' . strtolower(self::FUNCTIONS[$fn][0]) . ': People Accountable Set-up allows only '
+                . implode(', ', $roles) . ' for it.');
+        }
+    }
+
+    // ---------------------------------------------------------------- v33: tradenames
+
+    /** The tables of version 33 exist (the 2026-11-20 migration has been run) */
+    public static function v33Ready(): bool
+    {
+        static $ok = null;
+        if ($ok === null) {
+            try {
+                DB::value('SELECT COUNT(*) FROM brgy_tradenames WHERE 1 = 0');
+                DB::value('SELECT COUNT(*) FROM brgy_function_roles WHERE 1 = 0');
+                $ok = true;
+            } catch (Throwable $e) {
+                $ok = false;
+            }
+        }
+        return $ok;
+    }
+
+    /** The tradenames of the company: [name => name], the default first */
+    public static function tradenames(bool $activeOnly = true): array
+    {
+        if (!self::v33Ready()) {
+            $one = self::setting('brgy_tradename');
+            return $one !== '' ? [$one => $one] : [];
+        }
+        $out = [];
+        foreach (DB::all('SELECT name FROM brgy_tradenames' . ($activeOnly ? ' WHERE is_active = 1' : '') . ' ORDER BY is_default DESC, sort_order, name') as $r) {
+            $out[$r['name']] = $r['name'];
+        }
+        return $out;
+    }
+
+    /** The tradename a new transaction starts with: the default on the Tradenames list, else the company name */
+    public static function defaultTradename(): string
+    {
+        if (self::v33Ready()) {
+            $d = (string)DB::value('SELECT name FROM brgy_tradenames WHERE is_default = 1 AND is_active = 1 ORDER BY id LIMIT 1');
+            if ($d !== '') {
+                return $d;
+            }
+        }
+        return self::setting('brgy_tradename') ?: (string)Settings::get('company_name');
     }
 
     public static function entities(bool $activeOnly = true): array

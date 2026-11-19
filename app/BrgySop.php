@@ -505,6 +505,7 @@ final class BrgySop
                     break;
                 case 'representative':
                     $set = ['submitter_id' => !empty($in['submitter_id']) ? (int)$in['submitter_id'] : null];
+                    Brgy::assertUserAllowed('submitter', $set['submitter_id'], (int)$p['submitter_id'] ?: null);   // v33
                     break;
                 case 'forward':
                     $set = ['forwarded_to' => $str('forwarded_to', 120) ?? Brgy::setting('brgy_accounting_dept'), 'forwarded_at' => ($d('forwarded_date') ?? today()) . ' ' . date('H:i:s')];
@@ -827,7 +828,7 @@ final class BrgySop
         $name = trim((string)($d['supplier_name'] ?? ''));
         $isCo = !empty($d['is_company']) ? 1 : 0;
         if ($isCo && $name === '') {
-            $name = Brgy::setting('brgy_tradename') ?: (string)Settings::get('company_name');
+            $name = (string)($p['tradename'] ?: Brgy::defaultTradename());   // v33: the tradename of this transaction
         }
         if ($name === '') {
             fail('Enter the name of the supplier.');

@@ -2,11 +2,13 @@
 declare(strict_types=1);
 
 /**
- * Report Center (Home > Report Center): every report the user may open, one card per module, and the
- * memorized reports (their own and the ones shared with them).
+ * Report Center: every report the user may open, one card per module, and the memorized reports (their own
+ * and the ones shared with them).
  *
  * v29: a module's card can carry a name of its own (registry 'report_center_names'): the reports of the
- * Chart of Accounts menu are listed under "Financial Reports". A search box narrows the list as you type.
+ * Financial menu are listed under "Financial Reports". A search box narrows the list as you type.
+ * v33: the Report Center is a menu of its own. Each of its entries (Financial Reports, Fixed Assets Reports ...)
+ * opens this page with ?m=<module>: that module's reports and the memorized reports made from them.
  */
 
 $pageKey = 'home.reports';
@@ -19,6 +21,7 @@ if (Access::page('home.memorized')) {
         if (!Access::pageDef($m['report_key']) || !Access::page($m['report_key'])) {
             continue;
         }
+        $m['module'] = Access::pageDef($m['report_key'])['module'] ?? '';
         parse_str((string)$m['query_string'], $q);
         unset($q['p']);
         $m['href'] = url($m['report_key'], $q);
@@ -41,14 +44,45 @@ foreach (Access::allPageDefs() as $key => $d) {
 $order = array_keys(Access::modules());
 uksort($cards, fn($a, $b) => array_search($a, $order, true) <=> array_search($b, $order, true));
 
-layout_start('Report Center', ['actions' => page_link('home.memorized', [], 'Memorized Reports', 'btn-outline-secondary', 'bookmark')]);
+// one module's reports (an entry of the Report Center menu), or all of them
+$only = is_string($_GET['m'] ?? null) ? (string)$_GET['m'] : '';
+if ($only !== '' && !isset($cards[$only])) {
+    $only = '';
+}
+$switch = ['' => 'All reports'];
+foreach (array_keys($cards) as $code) {
+    if ($code !== 'home') {
+        $switch[$code] = Access::reportCenterName($code);
+    }
+}
+if ($only !== '') {
+    $cards = [$only => $cards[$only]];
+    $count = array_sum(array_map('count', $cards[$only]));
+    foreach ($memorized as $grp => $list) {
+        $memorized[$grp] = array_values(array_filter($list, fn($m) => $m['module'] === $only));
+    }
+    $memorized = array_filter($memorized);
+}
+$title = $only !== '' ? Access::reportCenterName($only) : 'Report Center';
+
+layout_start($title, ['actions' => page_link('home.memorized', [], 'Memorized Reports', 'btn-outline-secondary', 'bookmark')]);
 ?>
 <div class="rc-intro">
-  <p class="text-muted mb-0">Every report can be filtered by date and other fields, customized (columns and sorting), drilled into, memorized, printed or saved as PDF, exported to a spreadsheet, and emailed. You only see the reports your role and page access allow.</p>
+  <p class="text-muted mb-0"><?= $only !== '' ? 'The reports of the ' . h(Access::modules()[$only][0] ?? $only) . ' menu that your role may open. Choose another group of reports, or All reports, in the list.' : 'Every report can be filtered by date and other fields, customized (columns and sorting), drilled into, memorized, printed or saved as PDF, exported to a spreadsheet, and emailed. You only see the reports your role and page access allow.' ?></p>
+  <div class="rc-tools">
+  <form class="rc-switch" method="get" action="<?= h(url('home.reports')) ?>">
+    <input type="hidden" name="p" value="home.reports">
+    <label class="visually-hidden" for="rcModule">Show the reports of</label>
+    <select class="form-select form-select-sm" id="rcModule" name="m" data-no-combo onchange="this.form.submit()">
+      <?php foreach ($switch as $code => $label): ?><option value="<?= h($code) ?>" <?= $code === $only ? 'selected' : '' ?>><?= h($label) ?></option><?php endforeach; ?>
+    </select>
+    <noscript><button class="btn btn-sm btn-outline-secondary">Show</button></noscript>
+  </form>
   <div class="rc-search">
     <i class="bi bi-search" aria-hidden="true"></i>
     <input class="form-control form-control-sm" type="search" id="rcSearch" placeholder="Find a report by name" aria-label="Find a report by name" autocomplete="off">
     <div class="small text-muted rc-count" id="rcCount"><?= (int)$count ?> report<?= $count === 1 ? '' : 's' ?></div>
+  </div>
   </div>
 </div>
 
@@ -77,7 +111,7 @@ layout_start('Report Center', ['actions' => page_link('home.memorized', [], 'Mem
 <div class="alert alert-info">Your role does not include any report. Ask your administrator for access.</div>
 <?php endif; ?>
 
-<div class="rc-grid" id="rcGrid">
+<div class="rc-grid<?= $only !== '' ? ' rc-grid-one' : '' ?>" id="rcGrid">
   <?php foreach ($cards as $code => $groups): ?>
   <section class="card rc-card" data-rc-card aria-label="<?= h(Access::reportCenterName($code)) ?>">
     <div class="card-header fw-semibold d-flex align-items-center gap-2">
@@ -86,7 +120,7 @@ layout_start('Report Center', ['actions' => page_link('home.memorized', [], 'Mem
     <div class="card-body">
       <?php foreach ($groups as $grp => $list): ?>
       <div class="rc-group" data-rc-group>
-        <?php if ($grp !== ''): ?><div class="rc-group-name"><?= h($grp) ?></div><?php endif; ?>
+        <?php if ($grp !== '' && $grp !== Access::reportCenterName($code)): ?><div class="rc-group-name"><?= h($grp) ?></div><?php endif; ?>
         <ul class="rc-list">
           <?php foreach ($list as $r): ?>
           <li data-rc-item data-rc-text="<?= h(mb_strtolower($r['name'] . ' ' . $grp)) ?>"><a href="<?= h(url($r['key'])) ?>"><?= h($r['name']) ?></a></li>

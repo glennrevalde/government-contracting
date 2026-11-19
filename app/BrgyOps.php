@@ -250,6 +250,18 @@ final class BrgyOps
         if ($row['posting_date'] && $row['bid_deadline'] && substr($row['bid_deadline'], 0, 10) < $row['posting_date']) {
             fail('The bid deadline is before the posting date.');
         }
+        // v33: the people chosen have to be in the roles People Accountable Set-up allows (a person already on the record may stay)
+        $before = $id ? Brgy::project($id) : null;
+        foreach (Brgy::FUNCTIONS as $fn => [, $col]) {
+            if (array_key_exists($col, $row)) {
+                Brgy::assertUserAllowed($fn, $row[$col], $before ? ((int)$before[$col] ?: null) : null);
+            }
+        }
+        // v33: the tradename comes from the Tradenames list (the one already on the record may stay)
+        if (!empty($row['tradename']) && Brgy::v33Ready() && !isset(Brgy::tradenames()[$row['tradename']])
+            && (!$before || (string)$before['tradename'] !== $row['tradename'])) {
+            fail('Choose a tradename from the list (Barangay Contracts > Tradenames).');
+        }
         return DB::tx(function () use ($row, $id, $lockVersion) {
             if ($id) {
                 Brgy::checkVersion('brgy_projects', $id, $lockVersion);
@@ -291,11 +303,13 @@ final class BrgyOps
             }
             if (BrgySop::uses($row)) {
                 $row['txn_date'] ??= today();
-                $row['tradename'] ??= Brgy::setting('brgy_tradename') ?: null;
+                $row['tradename'] = ($row['tradename'] ?? '') !== '' ? $row['tradename'] : (Brgy::defaultTradename() ?: null);
             }
             $row['project_no'] = Seq::next('brgy_project');
             $row['created_by'] = Auth::id();
-            $row['preparer_id'] ??= Auth::id();
+            if (Brgy::userAllowed('preparer', Auth::id())) {
+                $row['preparer_id'] ??= Auth::id();
+            }
             $id = DB::insert('brgy_projects', $row);
             Brgy::buildChecklist($id);
             BrgySop::ensure(Brgy::mustProject($id));

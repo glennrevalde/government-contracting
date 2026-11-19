@@ -2597,4 +2597,34 @@ CREATE TABLE voucher_document_chunks (
   CONSTRAINT fk_vdc_doc FOREIGN KEY (document_id) REFERENCES voucher_documents(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- ---------------------------------------------------------------------
+--  Barangay Contracts, version 33: tradenames and the people of a transaction
+-- ---------------------------------------------------------------------
+
+-- the tradenames the company does business under; a transaction picks one (brgy_projects.tradename keeps the name)
+DROP TABLE IF EXISTS brgy_tradenames;
+CREATE TABLE brgy_tradenames (
+  id           INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  name         VARCHAR(160) NOT NULL,
+  description  VARCHAR(255) NULL,
+  is_default   TINYINT(1)   NOT NULL DEFAULT 0,
+  is_active    TINYINT(1)   NOT NULL DEFAULT 1,
+  sort_order   INT          NOT NULL DEFAULT 100,
+  created_by   INT UNSIGNED NULL,
+  created_at   TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_by   INT UNSIGNED NULL,
+  updated_at   DATETIME     NULL,
+  UNIQUE KEY uq_brgy_tradenames_name (name)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- People Accountable Set-up: the user roles allowed for each person of a transaction (none: every active user)
+DROP TABLE IF EXISTS brgy_function_roles;
+CREATE TABLE brgy_function_roles (
+  function_code VARCHAR(20)  NOT NULL,          -- sales_rep, preparer, checker, approver, submitter, pm, collector
+  role_id       INT UNSIGNED NOT NULL,
+  PRIMARY KEY (function_code, role_id),
+  KEY ix_bfr_role (role_id),
+  CONSTRAINT fk_bfr_role FOREIGN KEY (role_id) REFERENCES roles(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 SET FOREIGN_KEY_CHECKS = 1;

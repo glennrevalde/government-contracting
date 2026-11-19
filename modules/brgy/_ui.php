@@ -58,9 +58,18 @@ function brgy_file_field(string $name, string $label, string $hint = '', string 
         . ($hint !== '' ? '<div class="form-text">' . h($hint) . '</div>' : '') . '</div>';
 }
 
-function brgy_user_select(string $name, string $label, $value, string $cls = 'col-md-4', string $blank = ''): string
+/**
+ * A drop-down of users. With a function (Brgy::FUNCTIONS), only the users in the roles People Accountable Set-up
+ * allows for it are listed; the person already chosen stays on the list so an older record shows as saved.
+ */
+function brgy_user_select(string $name, string $label, $value, string $cls = 'col-md-4', string $blank = '', ?string $fn = null): string
 {
-    return select_field($name, $label, Brgy::users(), $value, ['blank' => $blank, 'class' => $cls, 'extra' => 'data-no-combo']);
+    $users = $fn ? Brgy::usersFor($fn) : Brgy::users();
+    if ($value && !isset($users[(int)$value]) && ($n = Brgy::userName((int)$value)) !== '') {
+        $users[(int)$value] = $n;
+    }
+    $note = $fn && Brgy::functionRoles($fn) ? ['data-fn-limited="1" title="Only the roles set on People Accountable Set-up"'] : [];
+    return select_field($name, $label, $users, $value, ['blank' => $blank, 'class' => $cls, 'extra' => trim('data-no-combo ' . implode(' ', $note))]);
 }
 
 /** Link to a vault document (shown as text when the user cannot open the vault) */

@@ -538,14 +538,14 @@ final class BrgyPost
                 if ((float)$c['retention_amount'] > 0) {
                     $ret = Brgy::acct('retention_receivable');
                     if (!$ret) {
-                        fail('Set the "Retention Receivable" account under Chart of Accounts > Module Default Accounts (Barangay Contracts).');
+                        fail('Set the "Retention Receivable" account under Financial > Module Default Accounts (Barangay Contracts).');
                     }
                     $dl[] = $mk($ret, (float)$c['retention_amount'], 'Retention (' . pct($p['retention_pct']) . ')');
                 }
                 if ((float)$c['ld_amount'] > 0) {
                     $ld = Brgy::acct('liquidated_damages');
                     if (!$ld) {
-                        fail('Set the "Liquidated Damages" account under Chart of Accounts > Module Default Accounts (Barangay Contracts).');
+                        fail('Set the "Liquidated Damages" account under Financial > Module Default Accounts (Barangay Contracts).');
                     }
                     $dl[] = $mk($ld, (float)$c['ld_amount'], 'Liquidated damages');
                 }
@@ -577,7 +577,7 @@ final class BrgyPost
         }
         $ret = Brgy::acct('retention_receivable');
         if (!$ret) {
-            fail('Set the "Retention Receivable" account under Chart of Accounts > Module Default Accounts (Barangay Contracts).');
+            fail('Set the "Retention Receivable" account under Financial > Module Default Accounts (Barangay Contracts).');
         }
         $bank = (int)$c['deposit_account_id'];
         if (!$bank || DB::value('SELECT account_type FROM accounts WHERE id = :id', ['id' => $bank]) !== 'Bank') {
@@ -690,7 +690,7 @@ final class BrgyPost
         }
         $dep = Brgy::acct('security_deposits');
         if (!$dep) {
-            fail('Set the "Bid and Performance Security Deposits" account under Chart of Accounts > Module Default Accounts (Barangay Contracts).');
+            fail('Set the "Bid and Performance Security Deposits" account under Financial > Module Default Accounts (Barangay Contracts).');
         }
         if (!$s['pay_account_id']) {
             fail('Choose the bank or cash account the security was paid from.');

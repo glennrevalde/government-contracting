@@ -299,9 +299,12 @@ def svp_new(t):
     a.assert_healthy('new transaction form')
     t.check(a.find('input[name=process][value=svp]').is_selected(), 'small value procurement is chosen by default')
     t.check(a.exists('[data-process-only] input[name=requestor]', visible=True), 'the transaction form card shows for small value')
+    # v33: no positions of the requestor and the inspector; the tradename is chosen from the Tradenames list
+    t.check(not a.exists('[name=requestor_position]') and not a.exists('[name=inspector_position]'), 'no position of the requestor or of the inspector')
+    t.check(a.exists('select[name=tradename]', visible=True), 'the tradename is a drop-down of the Tradenames list')
     values = {
-        'txn_date': today, 'txn_type': '=purchases', 'requestor': 'Liza M. Tumulak', 'requestor_position': 'Requisitioner',
-        'inspector': 'Engr. Ramon P. Ybanez', 'inspector_position': 'Inspector', 'purpose': 'For Barangay Office Use',
+        'txn_date': today, 'txn_type': '=purchases', 'requestor': 'Liza M. Tumulak',
+        'inspector': 'Engr. Ramon P. Ybanez', 'purpose': 'For Barangay Office Use',
         'sales_rep_id': 'Maria Santos', 'fund': 'General Fund',
         'reference_no': 'PR-' + c, 'pr_date': today, 'po_no': 'PO-' + c, 'po_date': today, 'ris_no': 'RIS-' + c, 'ris_date': today,
         'iar_no': 'IAR-' + c, 'iar_date': today, 'dv_no': 'DV-' + c, 'dv_date': today, 'delivery_date': today, 'delivery_term': 'Within 7 calendar days',
@@ -1422,8 +1425,9 @@ def settings(t):
     a.go('brgy.settings')
     a.assert_healthy('Contracting Settings')
     sop = a.xfind("//div[contains(@class,'card')][.//div[contains(@class,'card-header')][contains(., 'The SOP')]]")
-    for k in ('brgy_tradename', 'brgy_svp_limit', 'brgy_accounting_dept', 'brgy_txn_types', 'brgy_sop_hold_billing', 'brgy_sop_need_scans', 'brgy_sop_review_other'):
+    for k in ('brgy_svp_limit', 'brgy_accounting_dept', 'brgy_txn_types', 'brgy_sop_hold_billing', 'brgy_sop_need_scans', 'brgy_sop_review_other'):
         t.check(a.finds(f'[name="{k}"]', sop), f'{k} on the SOP card')
+    t.contains(sop.text, 'Tradenames', 'the tradenames are kept on the Tradenames list (v33)')
     t.check(a.find('#t_brgy_sop_hold_billing').is_selected(), 'the payment hold (special case F) is on')
     t.contains(a.value('brgy_txn_types'), 'cash_out|Cash Out (purchases)', 'Cash Out among the types')
     t.contains(a.value('brgy_txn_types'), 'kaliwaan|Kaliwaan (purchases)', 'Kaliwaan among the types')

@@ -8,7 +8,7 @@ declare(strict_types=1);
  */
 final class Schema
 {
-    private const FLAG = 'schema_ok_2026_11_19';
+    private const FLAG = 'schema_ok_2026_11_20';
 
     /**
      * file => one cheap probe.
@@ -113,6 +113,13 @@ final class Schema
                        + (SELECT COUNT(*) FROM clearing_settlements WHERE 1 = 0) + (SELECT COUNT(*) FROM txn_attachments WHERE 1 = 0) + (SELECT COUNT(*) FROM txn_attachment_chunks WHERE 1 = 0)
                        + (SELECT COUNT(*) FROM voucher_sign_requests WHERE 1 = 0) + (SELECT COUNT(*) FROM voucher_signatures WHERE 1 = 0)
                        + (SELECT COUNT(*) FROM voucher_documents WHERE 1 = 0) + (SELECT COUNT(*) FROM voucher_document_chunks WHERE 1 = 0)', 7],
+        // tradenames, people accountable and the Report Center menu: the two tables (the query fails without them),
+        // the two pages, the Report Center module and the Report Center page moved into it
+        'database/migrations/2026_11_20_tradenames_people_report_center.sql' =>
+            ['SELECT (SELECT COUNT(*) FROM pages WHERE page_key IN (\'brgy.tradenames\', \'brgy.accountable\'))
+                       + (SELECT COUNT(*) FROM modules WHERE code = \'rc\')
+                       + (SELECT COUNT(*) FROM pages p JOIN modules m ON m.id = p.module_id WHERE p.page_key = \'home.reports\' AND m.code = \'rc\')
+                       + (SELECT COUNT(*) FROM brgy_tradenames WHERE 1 = 0) + (SELECT COUNT(*) FROM brgy_function_roles WHERE 1 = 0)', 4],
     ];
 
     private static ?array $pending = null;

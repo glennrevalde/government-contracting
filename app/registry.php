@@ -9,26 +9,28 @@ return [
     'modules' => [
         // code => [name, icon, sort]
         'home'  => ['Home', 'house', 1],
-        'coa'   => ['Chart of Accounts', 'journal-bookmark', 2],
-        'fa'    => ['Fixed Assets', 'building', 3],
-        'cust'  => ['Customers', 'people', 4],
-        'vend'  => ['Vendors', 'truck', 5],
-        'inv'   => ['Inventory', 'box-seam', 6],
-        'pos'   => ['Point of Sale', 'cart', 7],
-        'bank'  => ['Banking', 'bank', 8],
-        'bir'   => ['BIR Reports', 'file-earmark-ruled', 9],
-        'brgy'  => ['Barangay Contracts', 'briefcase', 10],
-        'admin' => ['System Administration', 'shield-lock', 11],
-        'company' => ['Company', 'buildings', 12],
+        'rc'    => ['Report Center', 'bar-chart-line', 2],      // v33: its own menu (it was under Home)
+        'coa'   => ['Financial', 'journal-bookmark', 3],        // v33: was "Chart of Accounts" (the list itself keeps that name)
+        'fa'    => ['Fixed Assets', 'building', 4],
+        'cust'  => ['Customers', 'people', 5],
+        'vend'  => ['Vendors', 'truck', 6],
+        'inv'   => ['Inventory', 'box-seam', 7],
+        'pos'   => ['Point of Sale', 'cart', 8],
+        'bank'  => ['Banking', 'bank', 9],
+        'bir'   => ['BIR Reports', 'file-earmark-ruled', 10],
+        'brgy'  => ['Barangay Contracts', 'briefcase', 11],
+        'admin' => ['System Administration', 'shield-lock', 12],
+        'company' => ['Company', 'buildings', 13],
     ],
 
     // key => [module, name, type, group, file, params, show_in_menu]
     'pages' => [
         // ---------------- Home
         'home.dashboard'   => ['home', 'Home Dashboard', 'center', 'Home', 'home/dashboard.php', [], 1],
-        'home.reports'     => ['home', 'Report Center', 'center', 'Home', 'reports/center.php', [], 1],
-        'home.memorized'   => ['home', 'Memorized Reports', 'list', 'Home', 'reports/memorized.php', [], 1],
-        'home.report_layouts' => ['home', 'Saved Report Layouts', 'list', 'Home', 'reports/layouts.php', [], 1],
+        // ---------------- Report Center (v33: its own menu; the page keys stay as they were, so links, rights and memorized reports keep working)
+        'home.reports'     => ['rc', 'Report Center', 'center', 'Report Center', 'reports/center.php', [], 1],
+        'home.memorized'   => ['rc', 'Memorized Reports', 'list', 'Report Center', 'reports/memorized.php', [], 1],
+        'home.report_layouts' => ['rc', 'Saved Report Layouts', 'list', 'Report Center', 'reports/layouts.php', [], 1],
         'home.search'      => ['home', 'Search', 'center', 'Home', 'home/search.php', [], 0],
         'home.find'        => ['home', 'Find', 'center', 'Home', 'home/find.php', [], 1],
         'rpt.find'         => ['home', 'Find Results', 'report', 'Reports', 'reports/run.php', ['report' => 'find'], 0],
@@ -238,11 +240,13 @@ return [
         'brgy.forms'        => ['brgy', 'Forms & Proformas', 'transaction', 'Transactions', 'brgy/forms.php', [], 1],
         'brgy.vault'        => ['brgy', 'Document Vault', 'center', 'Transactions', 'brgy/vault.php', [], 1],
         'brgy.entities'     => ['brgy', 'Barangays & Procuring Entities', 'list', 'Lists', 'brgy/entities.php', [], 1],
+        'brgy.tradenames'   => ['brgy', 'Tradenames', 'list', 'Lists', 'brgy/tradenames.php', [], 1],
         'brgy.templates'    => ['brgy', 'Proforma & Form Templates', 'setup', 'Setup', 'brgy/templates.php', [], 1],
         'brgy.requirements' => ['brgy', 'Compliance Requirement Library', 'setup', 'Setup', 'brgy/requirements.php', [], 1],
         'brgy.modes'        => ['brgy', 'Procurement Modes', 'setup', 'Setup', 'brgy/modes.php', [], 1],
         'brgy.references'   => ['brgy', 'Regulatory References', 'setup', 'Setup', 'brgy/references.php', [], 1],
         'brgy.settings'     => ['brgy', 'Contracting Settings', 'setup', 'Setup', 'brgy/settings.php', [], 1],
+        'brgy.accountable'  => ['brgy', 'People Accountable Set-up', 'setup', 'Setup', 'brgy/accountable.php', [], 1],
         'brgy.process'      => ['brgy', 'SOP Steps & Papers', 'setup', 'Setup', 'brgy/process.php', [], 1],
         'rpt.brgy_bid_register'      => ['brgy', 'Bid Register', 'report', 'Barangay Contract Reports', 'reports/run.php', ['report' => 'brgy_bid_register'], 1],
         'rpt.brgy_win_loss'          => ['brgy', 'Won and Lost Opportunities', 'report', 'Barangay Contract Reports', 'reports/run.php', ['report' => 'brgy_win_loss'], 1],
@@ -293,10 +297,18 @@ return [
         'inv' => ['vend.purchase_orders', 'vend.receive_items'],
     ],
 
-    // A module's card on the Report Center may carry a name of its own: the reports of the
-    // Chart of Accounts menu are the "Financial Reports"
+    // The name of a module's reports on the Report Center (its card and its entry in the Report Center menu)
     'report_center_names' => [
-        'coa' => 'Financial Reports',
+        'coa'   => 'Financial Reports',
+        'fa'    => 'Fixed Assets Reports',
+        'cust'  => 'Customers Reports',
+        'vend'  => 'Vendors Reports',
+        'inv'   => 'Inventory Reports',
+        'pos'   => 'POS Reports',
+        'bank'  => 'Banking Reports',
+        'bir'   => 'BIR Reports',
+        'brgy'  => 'Barangay Contract Reports',
+        'admin' => 'System Administration Reports',
     ],
 
     // Pages that any logged-in user can open (not access-controlled)

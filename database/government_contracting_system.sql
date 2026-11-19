@@ -1,7 +1,7 @@
 -- =====================================================================
 --  G-SMaRT Integrated Accounting and Government Contracting System - complete database
---  Generated 2026-11-19 23:11:44 +08:00 from database `government_contracting_system`
---  114 tables, 4351 rows (105 transactions)
+--  Generated 2026-11-20 00:30:38 +08:00 from database `government_contracting_system`
+--  116 tables, 4364 rows (105 transactions)
 --
 --  Import:  phpMyAdmin > Import > choose this file > Go
 --      or:  mysql -u root -p < government_contracting_system.sql
@@ -2621,6 +2621,36 @@ CREATE TABLE voucher_document_chunks (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ---------------------------------------------------------------------
+--  Barangay Contracts, version 33: tradenames and the people of a transaction
+-- ---------------------------------------------------------------------
+
+-- the tradenames the company does business under; a transaction picks one (brgy_projects.tradename keeps the name)
+DROP TABLE IF EXISTS brgy_tradenames;
+CREATE TABLE brgy_tradenames (
+  id           INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  name         VARCHAR(160) NOT NULL,
+  description  VARCHAR(255) NULL,
+  is_default   TINYINT(1)   NOT NULL DEFAULT 0,
+  is_active    TINYINT(1)   NOT NULL DEFAULT 1,
+  sort_order   INT          NOT NULL DEFAULT 100,
+  created_by   INT UNSIGNED NULL,
+  created_at   TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_by   INT UNSIGNED NULL,
+  updated_at   DATETIME     NULL,
+  UNIQUE KEY uq_brgy_tradenames_name (name)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- People Accountable Set-up: the user roles allowed for each person of a transaction (none: every active user)
+DROP TABLE IF EXISTS brgy_function_roles;
+CREATE TABLE brgy_function_roles (
+  function_code VARCHAR(20)  NOT NULL,          -- sales_rep, preparer, checker, approver, submitter, pm, collector
+  role_id       INT UNSIGNED NOT NULL,
+  PRIMARY KEY (function_code, role_id),
+  KEY ix_bfr_role (role_id),
+  CONSTRAINT fk_bfr_role FOREIGN KEY (role_id) REFERENCES roles(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ---------------------------------------------------------------------
 --  2. DATA
 -- ---------------------------------------------------------------------
 
@@ -2739,7 +2769,7 @@ INSERT INTO `users` (`id`,`username`,`password_hash`,`full_name`,`email`,`employ
 -- roles (15 rows)
 INSERT INTO `roles` (`id`,`name`,`description`,`is_admin`,`is_system`,`all_sites`,`created_at`,`updated_at`) VALUES
 (1,'Administrator','Everything in every module, including user accounts, roles, page access, the closing date, and the audit trail.',1,1,1,'2026-11-10 02:59:41',NULL),
-(2,'Accountant','Chart of Accounts, Fixed Assets, Banking and reconciliation, the BIR Reports and Withholding Tax Table, all module reports, and the financial statements.',0,1,1,'2026-11-10 02:59:41',NULL),
+(2,'Accountant','Financial (Chart of Accounts), Fixed Assets, Banking and reconciliation, the BIR Reports and Withholding Tax Table, all module reports, and the financial statements.',0,1,1,'2026-11-10 02:59:41',NULL),
 (3,'A/R Clerk','Customers module transactions and the Customer and Receivables reports.',0,1,1,'2026-11-10 02:59:41',NULL),
 (4,'A/P Clerk','Vendors module transactions, Pay Bills, advances to suppliers, the Vendors and Payables reports, and BIR Form 2307 for suppliers.',0,1,1,'2026-11-10 02:59:41',NULL),
 (5,'Inventory Clerk','Items, sites, receiving, adjustments, assembly builds, disassembly and processing orders, stock counts, and inventory quantity reports.',0,1,1,'2026-11-10 02:59:41',NULL),
@@ -2772,27 +2802,28 @@ INSERT INTO `user_roles` (`user_id`,`role_id`) VALUES
 (14,13),
 (15,14);
 
--- modules (12 rows)
+-- modules (13 rows)
 INSERT INTO `modules` (`id`,`code`,`name`,`icon`,`sort_order`) VALUES
 (1,'home','Home','house',1),
-(2,'coa','Chart of Accounts','journal-bookmark',2),
-(3,'fa','Fixed Assets','building',3),
-(4,'cust','Customers','people',4),
-(5,'vend','Vendors','truck',5),
-(6,'inv','Inventory','box-seam',6),
-(7,'pos','Point of Sale','cart',7),
-(8,'bank','Banking','bank',8),
-(9,'bir','BIR Reports','file-earmark-ruled',9),
-(10,'brgy','Barangay Contracts','briefcase',10),
-(11,'admin','System Administration','shield-lock',11),
-(12,'company','Company','buildings',12);
+(2,'coa','Financial','journal-bookmark',3),
+(3,'fa','Fixed Assets','building',4),
+(4,'cust','Customers','people',5),
+(5,'vend','Vendors','truck',6),
+(6,'inv','Inventory','box-seam',7),
+(7,'pos','Point of Sale','cart',8),
+(8,'bank','Banking','bank',9),
+(9,'bir','BIR Reports','file-earmark-ruled',10),
+(10,'brgy','Barangay Contracts','briefcase',11),
+(11,'admin','System Administration','shield-lock',12),
+(12,'company','Company','buildings',13),
+(13,'rc','Report Center','bar-chart-line',2);
 
--- pages (238 rows)
+-- pages (240 rows)
 INSERT INTO `pages` (`id`,`page_key`,`module_id`,`name`,`page_type`,`menu_group`,`sort_order`,`show_in_menu`,`description`) VALUES
 (1,'home.dashboard',1,'Home Dashboard','center','Home',10,1,NULL),
-(2,'home.reports',1,'Report Center','center','Home',20,1,NULL),
-(3,'home.memorized',1,'Memorized Reports','list','Home',30,1,NULL),
-(4,'home.report_layouts',1,'Saved Report Layouts','list','Home',40,1,NULL),
+(2,'home.reports',13,'Report Center','center','Report Center',20,1,NULL),
+(3,'home.memorized',13,'Memorized Reports','list','Report Center',30,1,NULL),
+(4,'home.report_layouts',13,'Saved Report Layouts','list','Report Center',40,1,NULL),
 (5,'home.search',1,'Search','center','Home',50,0,NULL),
 (6,'home.find',1,'Find','center','Home',60,1,NULL),
 (7,'rpt.find',1,'Find Results','report','Reports',70,0,NULL),
@@ -3028,9 +3059,11 @@ INSERT INTO `pages` (`id`,`page_key`,`module_id`,`name`,`page_type`,`menu_group`
 (235,'rpt.cmp_bs_custom',2,'Comparative Balance Sheet by Custom Date','report','Reports',258,1,NULL),
 (236,'rpt.avg_cost_changes',6,'Average Cost Changes','report','Inventory Reports',1235,1,NULL),
 (237,'rpt.trial_balance_class',2,'Trial Balance by Class','report','Reports',165,1,NULL),
-(238,'rpt.cash_flow_class',2,'Statement of Cash Flows by Class','report','Reports',265,1,NULL);
+(238,'rpt.cash_flow_class',2,'Statement of Cash Flows by Class','report','Reports',265,1,NULL),
+(239,'brgy.tradenames',10,'Tradenames','list','Lists',1821,1,NULL),
+(240,'brgy.accountable',10,'People Accountable Set-up','setup','Setup',1871,1,NULL);
 
--- role_page_access (703 rows)
+-- role_page_access (710 rows)
 INSERT INTO `role_page_access` (`role_id`,`page_id`,`allowed`,`can_create`,`can_edit`,`can_delete`,`can_print`,`can_approve`) VALUES
 (2,1,1,0,0,0,1,0),
 (2,2,1,0,0,0,1,0),
@@ -3222,6 +3255,7 @@ INSERT INTO `role_page_access` (`role_id`,`page_id`,`allowed`,`can_create`,`can_
 (2,236,1,0,0,0,1,0),
 (2,237,1,0,0,0,1,0),
 (2,238,1,0,0,0,1,0),
+(2,239,1,0,0,0,1,0),
 (3,1,1,0,0,0,1,0),
 (3,2,1,0,0,0,1,0),
 (3,3,1,0,0,0,1,0),
@@ -3231,9 +3265,9 @@ INSERT INTO `role_page_access` (`role_id`,`page_id`,`allowed`,`can_create`,`can_
 (3,7,1,0,0,0,1,0),
 (3,48,1,1,1,0,1,0),
 (3,49,1,1,1,0,1,0),
-(3,50,1,1,1,0,1,0),
-(3,51,1,1,1,0,1,0);
+(3,50,1,1,1,0,1,0);
 INSERT INTO `role_page_access` (`role_id`,`page_id`,`allowed`,`can_create`,`can_edit`,`can_delete`,`can_print`,`can_approve`) VALUES
+(3,51,1,1,1,0,1,0),
 (3,52,1,1,1,0,1,0),
 (3,53,1,1,1,0,1,0),
 (3,54,1,1,1,0,1,0),
@@ -3332,9 +3366,9 @@ INSERT INTO `role_page_access` (`role_id`,`page_id`,`allowed`,`can_create`,`can_
 (6,6,1,0,0,0,1,0),
 (6,7,1,0,0,0,1,0),
 (6,48,1,0,0,0,1,0),
-(6,49,1,1,1,0,1,0),
-(6,50,1,1,1,0,1,0);
+(6,49,1,1,1,0,1,0);
 INSERT INTO `role_page_access` (`role_id`,`page_id`,`allowed`,`can_create`,`can_edit`,`can_delete`,`can_print`,`can_approve`) VALUES
+(6,50,1,1,1,0,1,0),
 (6,51,1,1,1,0,1,0),
 (6,71,1,0,0,0,1,0),
 (6,72,1,0,0,0,1,0),
@@ -3399,6 +3433,7 @@ INSERT INTO `role_page_access` (`role_id`,`page_id`,`allowed`,`can_create`,`can_
 (9,192,1,0,0,0,1,0),
 (9,203,1,0,0,0,1,0),
 (9,207,1,0,0,0,1,0),
+(9,239,1,1,1,0,1,0),
 (10,1,1,0,0,0,1,0),
 (10,2,1,0,0,0,1,0),
 (10,3,1,0,0,0,1,0),
@@ -3432,10 +3467,10 @@ INSERT INTO `role_page_access` (`role_id`,`page_id`,`allowed`,`can_create`,`can_
 (10,194,1,0,0,0,1,0),
 (10,195,1,0,0,0,1,0),
 (10,196,1,0,0,0,1,0),
-(10,197,1,0,0,0,1,0),
-(10,198,1,0,0,0,1,0),
-(10,199,1,0,0,0,1,0);
+(10,197,1,0,0,0,1,0);
 INSERT INTO `role_page_access` (`role_id`,`page_id`,`allowed`,`can_create`,`can_edit`,`can_delete`,`can_print`,`can_approve`) VALUES
+(10,198,1,0,0,0,1,0),
+(10,199,1,0,0,0,1,0),
 (10,200,1,0,0,0,1,0),
 (10,201,1,0,0,0,1,0),
 (10,202,1,0,0,0,1,0),
@@ -3448,6 +3483,8 @@ INSERT INTO `role_page_access` (`role_id`,`page_id`,`allowed`,`can_create`,`can_
 (10,229,1,0,0,0,1,0),
 (10,230,1,0,0,0,1,0),
 (10,231,1,0,0,0,1,0),
+(10,239,1,0,1,0,1,0),
+(10,240,1,0,1,0,1,0),
 (11,1,1,0,0,0,1,0),
 (11,2,1,0,0,0,1,0),
 (11,3,1,0,0,0,1,0),
@@ -3469,6 +3506,7 @@ INSERT INTO `role_page_access` (`role_id`,`page_id`,`allowed`,`can_create`,`can_
 (11,195,1,0,0,0,1,0),
 (11,199,1,0,0,0,1,0),
 (11,207,1,0,0,0,1,0),
+(11,239,1,0,0,0,1,0),
 (12,1,1,0,0,0,0,0),
 (12,120,1,0,0,0,1,0),
 (12,175,1,0,0,0,1,0),
@@ -3530,13 +3568,13 @@ INSERT INTO `role_page_access` (`role_id`,`page_id`,`allowed`,`can_create`,`can_
 (15,13,1,0,0,0,1,0),
 (15,14,1,0,0,0,1,0),
 (15,15,1,0,0,0,1,0),
-(15,16,1,0,0,0,1,0),
+(15,16,1,0,0,0,1,0);
+INSERT INTO `role_page_access` (`role_id`,`page_id`,`allowed`,`can_create`,`can_edit`,`can_delete`,`can_print`,`can_approve`) VALUES
 (15,17,1,0,0,0,1,0),
 (15,18,1,0,0,0,1,0),
 (15,19,1,0,0,0,1,0),
 (15,20,1,0,0,0,1,0),
-(15,21,1,0,0,0,1,0);
-INSERT INTO `role_page_access` (`role_id`,`page_id`,`allowed`,`can_create`,`can_edit`,`can_delete`,`can_print`,`can_approve`) VALUES
+(15,21,1,0,0,0,1,0),
 (15,22,1,0,0,0,1,0),
 (15,23,1,0,0,0,1,0),
 (15,24,1,0,0,0,1,0),
@@ -3631,13 +3669,13 @@ INSERT INTO `role_page_access` (`role_id`,`page_id`,`allowed`,`can_create`,`can_
 (15,113,1,0,0,0,1,0),
 (15,114,1,0,0,0,1,0),
 (15,115,1,0,0,0,1,0),
-(15,116,1,0,0,0,1,0),
+(15,116,1,0,0,0,1,0);
+INSERT INTO `role_page_access` (`role_id`,`page_id`,`allowed`,`can_create`,`can_edit`,`can_delete`,`can_print`,`can_approve`) VALUES
 (15,117,1,0,0,0,1,0),
 (15,118,1,0,0,0,1,0),
 (15,119,1,0,0,0,1,0),
 (15,120,1,0,0,0,1,0),
-(15,121,1,0,0,0,1,0);
-INSERT INTO `role_page_access` (`role_id`,`page_id`,`allowed`,`can_create`,`can_edit`,`can_delete`,`can_print`,`can_approve`) VALUES
+(15,121,1,0,0,0,1,0),
 (15,122,1,0,0,0,1,0),
 (15,123,1,0,0,0,1,0),
 (15,124,1,0,0,0,1,0),
@@ -3732,16 +3770,18 @@ INSERT INTO `role_page_access` (`role_id`,`page_id`,`allowed`,`can_create`,`can_
 (15,227,1,0,0,0,1,0),
 (15,228,1,0,0,0,1,0),
 (15,229,1,0,0,0,1,0),
-(15,230,1,0,0,0,1,0),
+(15,230,1,0,0,0,1,0);
+INSERT INTO `role_page_access` (`role_id`,`page_id`,`allowed`,`can_create`,`can_edit`,`can_delete`,`can_print`,`can_approve`) VALUES
 (15,231,1,0,0,0,1,0),
 (15,232,1,0,0,0,1,0),
 (15,233,1,0,0,0,1,0),
 (15,234,1,0,0,0,1,0),
-(15,235,1,0,0,0,1,0);
-INSERT INTO `role_page_access` (`role_id`,`page_id`,`allowed`,`can_create`,`can_edit`,`can_delete`,`can_print`,`can_approve`) VALUES
+(15,235,1,0,0,0,1,0),
 (15,236,1,0,0,0,1,0),
 (15,237,1,0,0,0,1,0),
-(15,238,1,0,0,0,1,0);
+(15,238,1,0,0,0,1,0),
+(15,239,1,0,0,0,1,0),
+(15,240,1,0,0,0,1,0);
 
 -- user_page_overrides (2 rows)
 INSERT INTO `user_page_overrides` (`user_id`,`page_id`,`allowed`,`can_create`,`can_edit`,`can_delete`,`can_print`,`can_approve`,`reason`,`created_by`,`created_at`) VALUES
@@ -3794,7 +3834,7 @@ INSERT INTO `role_special_permissions` (`role_id`,`perm_key`,`perm_value`) VALUE
 (15,'view_bank_balances','1'),
 (15,'view_costs','1');
 
--- audit_trail (673 rows)
+-- audit_trail (674 rows)
 INSERT INTO `audit_trail` (`id`,`created_at`,`user_id`,`username`,`user_roles`,`ip_address`,`workstation`,`site_id`,`terminal_id`,`module`,`page_key`,`action`,`record_type`,`record_id`,`record_ref`,`amount`,`changes`,`snapshot`,`reason`,`approved_by`) VALUES
 (1,'2026-11-10 02:59:42',1,'admin','Administrator','cli','CLI',NULL,NULL,'coa','coa.journal','create','transaction',1,'Opening Balance OB-0001','3320000.00',NULL,'{\"txn_type\":\"opening_balance\",\"txn_no\":\"OB-0001\",\"txn_date\":\"2026-08-22\",\"due_date\":null,\"ref_no\":null,\"payee_name\":null,\"site_id\":null,\"site2_id\":null,\"terms_id\":null,\"sales_rep_id\":null,\"memo\":\"Opening balances\",\"subtotal\":\"0.00\",\"tax_total\":\"0.00\",\"discount_amount\":\"0.00\",\"withholding_amount\":\"0.00\",\"total\":\"3320000.00\",\"status\":\"open\",\"is_pending\":0,\"is_voided\":0,\"receipt_no\":null,\"process_type\":null,\"alloc_method\":null,\"process_formula_id\":null,\"process_batches\":null,\"customer\":null,\"vendor\":null,\"account\":null,\"class\":null,\"other_name\":null,\"lines\":[{\"line_kind\":\"journal\",\"item\":null,\"account\":\"1010\",\"description\":\"BDO checking opening balance\",\"qty\":\"0.0000\",\"rate\":\"0.0000\",\"discount_amount\":\"0.00\",\"amount\":\"2500000.00\",\"tax_amount\":\"0.00\",\"site_id\":null,\"is_billable\":0,\"output_role\":null,\"alloc_basis\":\"0.0000\",\"class\":null},{\"line_kind\":\"journal\",\"item\":null,\"account\":\"1020\",\"description\":\"BPI savings opening balance\",\"qty\":\"0.0000\",\"rate\":\"0.0000\",\"discount_amount\":\"0.00\",\"amount\":\"800000.00\",\"tax_amount\":\"0.00\",\"site_id\":null,\"is_billable\":0,\"output_role\":null,\"alloc_basis\":\"0.0000\",\"class\":null},{\"line_kind\":\"journal\",\"item\":null,\"account\":\"1005\",\"description\":\"Petty cash fund\",\"qty\":\"0.0000\",\"rate\":\"0.0000\",\"discount_amount\":\"0.00\",\"amount\":\"10000.00\",\"tax_amount\":\"0.00\",\"site_id\":null,\"is_billable\":0,\"output_role\":null,\"alloc_basis\":\"0.0000\",\"class\":null},{\"line_kind\":\"journal\",\"item\":null,\"account\":\"1001\",\"description\":\"Register cash funds\",\"qty\":\"0.0000\",\"rate\":\"0.0000\",\"discount_amount\":\"0.00\",\"amount\":\"10000.00\",\"tax_amount\":\"0.00\",\"site_id\":null,\"is_billable\":0,\"output_role\":null,\"alloc_basis\":\"0.0000\",\"class\":null},{\"line_kind\":\"journal\",\"item\":null,\"account\":\"3000\",\"description\":\"Owner\'s capital\",\"qty\":\"0.0000\",\"rate\":\"0.0000\",\"discount_amount\":\"0.00\",\"amount\":\"-3320000.00\",\"tax_amount\":\"0.00\",\"site_id\":null,\"is_billable\":0,\"output_role\":null,\"alloc_basis\":\"0.0000\",\"class\":null}]}',NULL,NULL),
 (2,'2026-11-10 02:59:42',1,'admin','Administrator','cli','CLI',NULL,NULL,'bank','bank.write_checks','create','transaction',2,'Check 1001','500000.00',NULL,'{\"txn_type\":\"check\",\"txn_no\":\"1001\",\"txn_date\":\"2026-09-01\",\"due_date\":null,\"ref_no\":null,\"payee_name\":null,\"site_id\":null,\"site2_id\":null,\"terms_id\":null,\"sales_rep_id\":null,\"memo\":\"Purchase of Packaging Machine PM-500\",\"subtotal\":\"500000.00\",\"tax_total\":\"0.00\",\"discount_amount\":\"0.00\",\"withholding_amount\":\"0.00\",\"total\":\"500000.00\",\"status\":\"open\",\"is_pending\":0,\"is_voided\":0,\"receipt_no\":null,\"process_type\":null,\"alloc_method\":null,\"process_formula_id\":null,\"process_batches\":null,\"customer\":null,\"vendor\":\"Industrial Machines Corp.\",\"account\":\"Cash in Bank - BDO Checking\",\"class\":null,\"other_name\":null,\"lines\":[{\"line_kind\":\"expense\",\"item\":null,\"account\":\"1520\",\"description\":\"Packaging Machine PM-500\",\"qty\":\"0.0000\",\"rate\":\"0.0000\",\"discount_amount\":\"0.00\",\"amount\":\"500000.00\",\"tax_amount\":\"0.00\",\"site_id\":null,\"is_billable\":0,\"output_role\":null,\"alloc_basis\":\"0.0000\",\"class\":null}]}',NULL,NULL),
@@ -4474,7 +4514,8 @@ INSERT INTO `audit_trail` (`id`,`created_at`,`user_id`,`username`,`user_roles`,`
 (670,'2026-11-10 02:59:45',10,'bidofficer','Contracts - Bid & Compliance Officer','cli','CLI',NULL,NULL,'brgy','brgy.vault','upload','document',103,'Omnibus sworn statement (signed) - BCP-00011 v1',NULL,NULL,'{\"scope\":\"project\",\"project_id\":11,\"entity_id\":null,\"vendor_id\":null,\"doc_type\":\"omnibus\",\"title\":\"Omnibus sworn statement (signed) - BCP-00011\",\"doc_no\":null,\"issued_by\":\"Barangay Lahug\",\"issue_date\":\"2026-11-10\",\"valid_until\":null,\"original_name\":\"signed_oss_11.pdf\",\"mime_type\":\"application\\/pdf\",\"file_size\":834,\"sha256\":\"89cd520fb207d813d31cb520b1d0f8cf90e47f03aecc592449790a8a69535645\",\"version_no\":1,\"parent_id\":null,\"is_current\":1,\"status\":\"approved\",\"is_locked\":0,\"confidential\":0,\"related_type\":\"paper\",\"related_id\":177,\"tags\":null,\"notes\":\"Signed copy (SOP)\",\"scan_status\":\"Type checked (application\\/pdf), no virus\",\"uploaded_by\":10}',NULL,NULL),
 (671,'2026-11-10 02:59:45',10,'bidofficer','Contracts - Bid & Compliance Officer','cli','CLI',NULL,NULL,'brgy','brgy.projects','attach','project',11,'BCP-00011 Omnibus sworn statement',NULL,NULL,NULL,'Signed copy (document #103)',NULL),
 (672,'2026-11-10 02:59:45',10,'bidofficer','Contracts - Bid & Compliance Officer','cli','CLI',NULL,NULL,'brgy','brgy.projects','sop_step','project',11,'BCP-00011 bid6 Prepare legal documents',NULL,NULL,NULL,NULL,NULL),
-(673,'2026-11-19 23:11:44',NULL,'system','Database migration','127.0.0.1','SQL migration',NULL,NULL,'admin','admin.page_access','access_change','page',NULL,'Accounting updates',NULL,NULL,NULL,'Migration 2026_11_19: item groups, receiving lists, comparative statements, class reports, average cost, settlements, attachments, voucher signatures',NULL);
+(673,'2026-11-19 23:11:44',NULL,'system','Database migration','127.0.0.1','SQL migration',NULL,NULL,'admin','admin.page_access','access_change','page',NULL,'Accounting updates',NULL,NULL,NULL,'Migration 2026_11_19: item groups, receiving lists, comparative statements, class reports, average cost, settlements, attachments, voucher signatures',NULL),
+(674,'2026-11-20 00:30:38',NULL,'system','Database migration','127.0.0.1','SQL migration',NULL,NULL,'admin','admin.page_access','access_change','page',NULL,'Tradenames, people accountable, Report Center',NULL,NULL,NULL,'Migration 2026_11_20: tradenames, roles allowed for the people of a transaction, Report Center menu, Financial menu',NULL);
 
 -- sequences (34 rows)
 INSERT INTO `sequences` (`seq_key`,`prefix`,`next_no`,`pad`) VALUES
@@ -7289,6 +7330,14 @@ INSERT INTO `brgy_canvass` (`id`,`project_id`,`supplier_name`,`is_company`,`vend
 (4,10,'Sample Trading Company',1,NULL,NULL,NULL,NULL,'29750.00','120 calendar days',NULL,NULL,'passed','2026-10-21',91,NULL,10,10,'2026-11-10 02:59:45','2026-11-10 02:59:45'),
 (5,10,'Northpoint Consumer Goods Trading',0,NULL,NULL,NULL,NULL,'29500.00','120 calendar days',NULL,NULL,'failed','2026-10-21',92,NULL,20,10,'2026-11-10 02:59:45','2026-11-10 02:59:45'),
 (6,10,'Bluewave Office Depot',0,NULL,NULL,NULL,NULL,'31200.00','120 calendar days',NULL,NULL,'passed','2026-10-21',93,NULL,30,10,'2026-11-10 02:59:45','2026-11-10 02:59:45');
+
+-- brgy_tradenames (1 rows)
+INSERT INTO `brgy_tradenames` (`id`,`name`,`description`,`is_default`,`is_active`,`sort_order`,`created_by`,`created_at`,`updated_by`,`updated_at`) VALUES
+(1,'Sample Trading Company',NULL,1,1,10,NULL,'2026-11-20 00:30:38',NULL,NULL);
+
+-- brgy_function_roles (1 rows)
+INSERT INTO `brgy_function_roles` (`function_code`,`role_id`) VALUES
+('sales_rep',6);
 
 -- ---------------------------------------------------------------------
 --  3. AUDIT TRAIL PROTECTION (created after the data is loaded)

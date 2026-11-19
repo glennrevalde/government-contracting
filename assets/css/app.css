@@ -2352,6 +2352,13 @@ button.app-install-btn:focus-visible { outline: 2px solid rgba(110, 168, 254, .8
 .rc-search .bi-search { position: absolute; left: .65rem; top: .55rem; color: #98a2ad; font-size: .8rem; pointer-events: none; }
 .rc-search input { padding-left: 1.9rem; box-shadow: var(--inset); }
 .rc-count { margin-top: .25rem; text-align: right; white-space: nowrap; }
+.rc-tools { display: flex; flex-wrap: wrap; align-items: flex-start; gap: .75rem; flex: 0 1 600px; }
+.rc-tools .rc-search { flex: 1 1 300px; min-width: 220px; }
+.rc-switch { flex: 0 1 240px; min-width: 200px; }
+.rc-grid.rc-grid-one { grid-template-columns: 1fr; }
+.rc-grid-one .rc-list { columns: 3 250px; column-gap: 2.25rem; }
+.rc-grid-one .rc-list li { break-inside: avoid; }
+.rc-switch .form-select { box-shadow: var(--inset); font-weight: 500; }
 .rc-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 1rem; align-items: start; }
 .rc-card { box-shadow: var(--raise-1); border-color: var(--line); }
 .rc-card .card-header { background: linear-gradient(180deg, var(--surface), var(--surface-2)); }
@@ -2368,7 +2375,7 @@ button.app-install-btn:focus-visible { outline: 2px solid rgba(110, 168, 254, .8
 .rpt-sort select[name="sort"] { min-width: 150px; }
 .rpt-sort .rpt-sort-dir { max-width: 130px; }
 @media (max-width: 575.98px) {
-  .rc-search { flex-basis: 100%; }
+  .rc-tools, .rc-search, .rc-switch, .rc-tools .rc-search { flex-basis: 100%; }
   .rc-count { text-align: left; }
   .rc-grid { grid-template-columns: 1fr; }
   .rpt-sort { width: 100%; }
@@ -2673,3 +2680,36 @@ body.sig-public { background: #eef1f5; min-height: 100vh; display: flex; flex-di
   .sig-card, .sig-top, .sig-foot, .sig-panel { display: none !important; }
   .signatures .sig-mark svg path { stroke: #0f1f55; }
 }
+
+/* =====================================================================
+   Version 33: Tradenames, People Accountable Set-up, Report Center menu
+   ===================================================================== */
+.form-label-link { font-size: .75rem; font-weight: 500; line-height: 1; white-space: nowrap; }
+.tn-field { position: relative; }
+.tn-field .form-label-link { position: absolute; top: .3rem; right: calc(var(--bs-gutter-x, 1.5rem) * .5); }
+.acc-row { display: grid; grid-template-columns: minmax(200px, 1.1fr) minmax(220px, 1fr) minmax(220px, 1.3fr); gap: .5rem 1.25rem; align-items: start; padding: .85rem 0; }
+.acc-row + .acc-row { border-top: 1px solid var(--line, #e3e7ec); }
+.acc-list .acc-row:first-child { padding-top: 0; }
+.acc-row .acc-roles .form-label { margin-bottom: .2rem; }
+.acc-who { padding-top: 1.55rem; line-height: 1.45; color: var(--ink, #212529); }
+.tn-table td:first-child { min-width: 220px; }
+.tn-phone { display: none; }
+@media (max-width: 991.98px) {
+  .acc-row { grid-template-columns: 1fr 1fr; }
+  .acc-row .acc-fn { grid-column: 1 / -1; }
+  .acc-who { padding-top: 1.55rem; }
+}
+@media (max-width: 575.98px) {
+  .acc-row { grid-template-columns: 1fr; }
+  .acc-who { padding-top: 0; }
+  /* the tradenames stack on a phone: the name, then its status, its transactions and the buttons */
+  .tn-table thead { display: none; }
+  .tn-table tr { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: .3rem .9rem; padding: .7rem .9rem; border-bottom: 1px solid var(--line); }
+  .tn-table.table > tbody > tr > td { display: block; border: 0; padding: 0; min-width: 0; }
+  .tn-table td:first-child { grid-column: 1 / -1; }
+  .tn-table td.num { text-align: left; }
+  .tn-table td.num > div { display: inline; }
+  .tn-phone { display: inline; }
+}
+/* a select or box sized to its content (w-auto) never runs past a narrow screen */
+.form-select.w-auto, .form-control.w-auto { max-width: 100%; }
