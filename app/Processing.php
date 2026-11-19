@@ -61,6 +61,45 @@ final class Processing
         return self::ROLES[(string)$r] ?? self::ROLES['co_product'];
     }
 
+    /** v35: the largest difference allowed between the outputs and the cost of the inputs and labor, in % */
+    public static function tolerance(): float
+    {
+        return max(0.0, (float)Settings::get('processing_cost_tolerance', '2'));
+    }
+
+    /**
+     * v35: the outputs' cost against the cost of the inputs (inventory plus labor and other costs): the difference, its
+     * percentage of the input cost, and whether it is within the tolerance. [diff, pct, ok]
+     */
+    public static function reconcile(float $pool, float $outputs): array
+    {
+        $diff = r2($outputs - $pool);
+        if (abs($diff) < 0.005) {
+            return [0.0, 0.0, true];
+        }
+        $pct = $pool > 0.004 ? $diff / $pool * 100 : ($outputs > 0 ? 100.0 : 0.0);
+        return [$diff, round($pct, 2), abs($pct) <= self::tolerance() + 0.000001];
+    }
+
+    /**
+     * v35: refuses a processing order whose outputs cost more or less than its inputs and labor beyond the tolerance (2%),
+     * asking for the output costs to be revised. Allocation methods that share out the input cost always reconcile; the
+     * "Current average cost" and "Manual amounts" methods value the outputs themselves and can be far off.
+     */
+    public static function assertReconciled(float $pool, float $outputs, float $materials, float $extra): void
+    {
+        [$diff, $pct, $ok] = self::reconcile($pool, $outputs);
+        if ($ok) {
+            return;
+        }
+        fail(sprintf(
+            'The outputs are costed at %s, but the inputs cost %s (inventory %s plus labor and other costs %s): a difference of %s (%s%%). '
+            . 'The outputs may differ from the input cost by at most %s%%. Revise the Allocated cost or Unit cost of the outputs (or their Basis) '
+            . 'so they add up to the input cost, or choose an allocation method that shares out the input cost, such as Relative sales value, Weight / measure or Fixed percentages.',
+            money($outputs), money($pool), money($materials), money($extra), money($diff), number_format($pct, 2), rtrim(rtrim(number_format(self::tolerance(), 2), '0'), '.')
+        ));
+    }
+
     public static function isValueMethod(?string $m): bool
     {
         return (self::METHODS[(string)$m][2] ?? '') === 'value';
@@ -469,7 +508,35 @@ final class Processing
     // ------------------------------------------------------------------ stock checks
 
     /** Inputs that are short at the site: list of "CODE (need x, have y)" */
-    public static function shortInputs(array $inputs, int $siteId, ?int $excludeTxnId = null): array
+    /**
+     * What a processing order dated $date can take of an item at a site without the stock going below zero on that
+     * date or on any later one (v30): the lowest balance from that date on, the day's receipts counted first
+     * (Stock::history). A back-dated order can not use stock that only arrived later. $excludeTxnId: an order being
+     * edited, whose own movements are left out.
+     */
+    public static function availableFrom(int $itemId, int $siteId, string $date, ?int $excludeTxnId = null): float
+    {
+        $bal = 0.0;
+        $min = null;
+        $cut = null;
+        foreach (Stock::history($itemId, $siteId) as $m) {
+            if ($excludeTxnId && (int)$m['txn_id'] === $excludeTxnId) {
+                continue;
+            }
+            $after = $m['txn_date'] > $date || ($m['txn_date'] === $date && (int)$m['rank'] >= 1);
+            if ($after && $cut === null) {
+                $cut = $bal;                      // the balance the order would take from
+                $min = $bal;
+            }
+            $bal += (float)$m['qty'];
+            if ($after) {
+                $min = min($min, $bal);
+            }
+        }
+        return round($cut === null ? $bal : (float)$min, 4);
+    }
+
+    public static function shortInputs(array $inputs, int $siteId, ?int $excludeTxnId = null, ?string $date = null): array
     {
         $need = [];
         foreach ($inputs as $in) {
@@ -487,6 +554,15 @@ final class Processing
             }
             if ($have + 0.00001 < $q) {
                 $short[] = self::item($itemId)['code'] . ' (need ' . qty($q) . ', have ' . qty($have) . ')';
+                continue;
+            }
+            // v30: a back-dated order may not take stock that only came in after its date
+            if ($date !== null && $date < today()) {
+                $from = self::availableFrom($itemId, $siteId, $date, $excludeTxnId);
+                if ($from + 0.00001 < $q) {
+                    $short[] = self::item($itemId)['code'] . ' (need ' . qty($q) . ', have ' . qty(max(0.0, $from)) . ' on ' . fdate($date)
+                        . ' without going below zero on a later date; the rest came in after it)';
+                }
             }
         }
         return $short;

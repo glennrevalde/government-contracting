@@ -73,7 +73,63 @@ final class Report
         foreach ($def['extra_filters'] ?? [] as $k => $_) {
             $f[$k] = is_string(g($k)) ? g($k) : '';
         }
+        // report-specific tick boxes: 'checks' => [name => label]
+        foreach ($def['checks'] ?? [] as $k => $_) {
+            $f[$k] = g($k) === '1' ? '1' : '';
+        }
+        // report-specific dates: 'date_inputs' => [name => [label, default date or fn() => date, or null for none]] (v29)
+        foreach ($def['date_inputs'] ?? [] as $k => $spec) {
+            $dflt = $spec[1] ?? null;
+            if (is_callable($dflt)) {
+                $dflt = $dflt();
+            }
+            // a box emptied on purpose stays empty; a box never sent takes its default
+            $f[$k] = array_key_exists($k, $_GET) ? (gdate($k) ?? '') : (string)($dflt ?? '');
+        }
+        // a time after each date ('times' => true): from the start of the From minute to the end of the To minute
+        if (!empty($def['times']) && isset($f['from'])) {
+            $f['from_time'] = self::timeValue(g('from_time'));
+            $f['to_time'] = self::timeValue(g('to_time'));
+        }
+        // the report's own last word on its filters (a POS shift sets the dates, times, site and cashier)
+        if (isset($def['filter_hook']) && is_callable($def['filter_hook'])) {
+            $f = ($def['filter_hook'])($f);
+        }
+        if (!empty($def['times']) && isset($f['from'])) {
+            self::stampTimes($f);
+        }
         return $f;
+    }
+
+    /** "HH:MM" or "HH:MM:SS" as typed in a time box, or '' */
+    public static function timeValue($v): string
+    {
+        $v = is_string($v) ? trim($v) : '';
+        if (!preg_match('/^([01]\d|2[0-3]):([0-5]\d)(?::([0-5]\d))?$/', $v, $m)) {
+            return '';
+        }
+        return $m[1] . ':' . $m[2] . (isset($m[3]) && $m[3] !== '' ? ':' . $m[3] : '');
+    }
+
+    /**
+     * from_dt / to_dt for a report with times: the From time counts from the start of its minute, the To time to
+     * the end of its minute, so 12:01 AM - 8:00 AM and 8:01 AM - 2:00 PM follow each other without a gap. 'timed'
+     * says a time was given (a report without one keeps to whole days).
+     */
+    public static function stampTimes(array &$f): void
+    {
+        $ft = (string)($f['from_time'] ?? '');
+        $tt = (string)($f['to_time'] ?? '');
+        $f['from_dt'] = $f['from'] . ' ' . ($ft === '' ? '00:00:00' : (strlen($ft) === 5 ? $ft . ':00' : $ft));
+        $f['to_dt'] = $f['to'] . ' ' . ($tt === '' ? '23:59:59' : (strlen($tt) === 5 ? $tt . ':59' : $tt));
+        $f['timed'] = $ft !== '' || $tt !== '';
+    }
+
+    /** "10/15/2026 08:00 AM" for a date and time of a report with times */
+    public static function fdt(string $dt): string
+    {
+        $t = strtotime($dt);
+        return $t ? date('m/d/Y h:i' . ((int)date('s', $t) !== 0 && (int)date('s', $t) !== 59 ? ':s' : '') . ' A', $t) : '';
     }
 
     public static function preset(string $p): array
@@ -416,9 +472,13 @@ final class Report
 
     public static function render(string $key, array $def, array $pageDef): void
     {
+        $pageKey = $pageDef['key'];
+        // a report can start with a layout of its own (signature captions, a subtitle) until one is saved
+        if (!empty($def['layout_defaults'])) {
+            ReportLayout::$reportDefaults[$pageKey] = (array)$def['layout_defaults'];
+        }
         $f = self::filters($def);
         [$rows, $cols, $allCols, $data] = self::prepare($def, $f);
-        $pageKey = $pageDef['key'];
         $print = g('print') === '1';
         $canDesign = ReportLayout::canDesign();
 
@@ -429,16 +489,13 @@ final class Report
         // the related fields that were added are looked up only now, and only the ones that print
         $rows = ReportFields::fill($rows, $visible);
         $sort = g('sort');
-        if ($sort !== '' && ($def['sortable'] ?? true) && empty($data['grouped'])) {
-            $dir = g('dir') === 'desc' ? -1 : 1;
-            usort($rows, function ($a, $b) use ($sort, $dir) {
-                $x = $a[$sort] ?? '';
-                $y = $b[$sort] ?? '';
-                if (is_numeric($x) && is_numeric($y)) {
-                    return $dir * ((float)$x <=> (float)$y);
-                }
-                return $dir * strcasecmp((string)$x, (string)$y);
-            });
+        // 'sort_by' => [column => label]: the report offers a Sort by box (Increasing / Decreasing), also on grouped reports (v29)
+        $sortBy = self::sortChoices($def, $allCols);
+        $headSort = ($def['sortable'] ?? true) && empty($data['grouped']);
+        if ($sort !== '' && (isset($sortBy[$sort]) || ($headSort && in_array($sort, array_column($allCols, 'key'), true)))) {
+            $rows = self::sortRows($rows, $sort, g('dir') === 'desc' ? -1 : 1, !empty($data['grouped']));
+            // the heading says so on the reports that offer Sort by
+            self::$sortedBy = $sortBy[$sort] ?? null;
         }
         // the rows that print: zeros, detail or summary, subtotals, words to look for, rows taken out
         [$rows, $rowInfo] = ReportLayout::rows($rows, $cols, $opt);
@@ -467,10 +524,49 @@ final class Report
             Audit::log('print', $pageDef['module'], 'report', null, $title, ['page_key' => $pageKey, 'reason' => self::basis($def, $f)]);
         }
 
+        // v39: Save as PDF: the report written straight to a PDF file (a report can draw its own: 'pdf' => fn(...))
+        if (g('pdf') === '1') {
+            Access::require($pageKey, 'print');
+            Audit::log('export', $pageDef['module'], 'report', null, $title, ['page_key' => $pageKey, 'reason' => 'PDF: ' . self::basis($def, $f)]);
+            $file = preg_replace('/\W+/', '_', strtolower($title)) . '_' . date('Ymd_His') . '.pdf';
+            if (isset($def['pdf']) && is_callable($def['pdf'])) {
+                ($def['pdf'])($f, $rows, $data, $title, $file);
+            }
+            $st = Settings::all();
+            ReportPdf::send($file, [
+                'company' => !empty($opt['show_company']) ? (string)$st['company_name'] : '',
+                'company_lines' => array_values(array_filter([
+                    !empty($opt['show_address']) ? trim((string)$st['company_address']) : '',
+                    !empty($opt['show_tin']) && trim((string)$st['company_tin']) !== '' ? 'TIN ' . trim((string)$st['company_tin']) : '',
+                ])),
+                'title' => $title, 'subtitle' => (string)($opt['subtitle'] ?? ''), 'lines' => ReportLayout::lines($opt['header_lines'] ?? ''),
+                'basis' => !empty($opt['show_basis']) ? $basis : '',
+                'printed' => 'Printed ' . date('m/d/Y h:i A') . ' by ' . (Auth::user()['full_name'] ?? ''),
+            ], $visible, $rows, $showTotal ? $data['totals'] : null, $opt,
+                !empty($opt['prepared_by']) ? (ReportLayout::lines($opt['sign_labels'] ?? '') ?: ['Prepared by', 'Checked by', 'Approved by']) : [],
+                ReportLayout::lines($opt['sign_names'] ?? ''));
+        }
+
+        // a report that also prints on a POS roll printer ('pos_print' => fn(...) that writes the slip)
+        if (g('print') === 'pos' && isset($def['pos_print']) && is_callable($def['pos_print'])) {
+            Access::require($pageKey, 'print');
+            Audit::log('print', $pageDef['module'], 'report', null, $title, ['page_key' => $pageKey, 'reason' => 'POS printer: ' . self::basis($def, $f)]);
+            $btOn = Receipt::btEnabled();
+            layout_start($title, ['bare' => true, 'no_title' => true, 'js' => $btOn ? ['js/btprint.js'] : []]);
+            ($def['pos_print'])($f, $rows, $visible, $data, $opt, $title, $btOn);
+            layout_end();
+            return;
+        }
+
         $saved = ReportLayout::forReport($pageKey);
         $actions = '';
+        if (Access::can($pageKey, 'print') && isset($def['pos_print'])) {
+            $actions .= btn_link(current_url(['print' => 'pos']), 'Print to POS printer', 'btn-outline-secondary', 'receipt') . ' ';
+        }
         if (Access::can($pageKey, 'print')) {
-            $actions .= btn_link(current_url(['print' => '1']), 'Print / PDF', 'btn-outline-secondary', 'printer') . ' '
+            // v39: Print and Save as PDF are two buttons
+            $actions .= btn_link(current_url(['print' => '1']), 'Print', 'btn-outline-secondary', 'printer') . ' '
+                . btn_link(current_url(['pdf' => '1', 'print' => null]), 'Save as PDF', 'btn-outline-secondary', 'file-earmark-pdf') . ' '
                 . btn_link(current_url(['export' => 'csv']), 'Export to spreadsheet', 'btn-outline-secondary', 'file-earmark-spreadsheet') . ' '
                 . '<a class="btn btn-sm btn-outline-secondary" href="mailto:?subject=' . rawurlencode($title) . '&body=' . rawurlencode(($_SERVER['HTTP_HOST'] ?? '') ? 'http://' . $_SERVER['HTTP_HOST'] . current_url() : current_url()) . '"><i class="bi bi-envelope"></i> Email link</a> ';
         }
@@ -490,11 +586,20 @@ final class Report
         if (Access::page('home.memorized')) {
             $actions .= '<button class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#memModal"><i class="bi bi-bookmark-plus"></i> Memorize</button>';
         }
+        // v39: a report with a printed page of its own ('print_view' => fn(...), the Cash Count Sheet on a quarter sheet)
+        if ($print && isset($def['print_view']) && is_callable($def['print_view'])) {
+            layout_start($title, ['bare' => true, 'no_title' => true]);
+            ($def['print_view'])($f, $rows, $data, $title);
+            layout_end();
+            return;
+        }
         layout_start($title, ['actions' => $actions, 'bare' => $print, 'no_title' => $print,
             'body_class' => ($opt['orientation'] ?? 'portrait') === 'landscape' ? 'print-landscape' : '']);
         echo ReportLayout::pageCss($opt, $title);
         if ($print) {
-            echo '<div class="no-print text-center mb-2"><button class="btn btn-primary btn-sm" onclick="window.print()">Print / Save as PDF</button> <a class="btn btn-outline-secondary btn-sm" href="' . h(current_url(['print' => null])) . '">Back</a></div>';
+            echo '<div class="no-print text-center mb-2 print-bar"><button class="btn btn-primary btn-sm" type="button" onclick="window.print()"><i class="bi bi-printer"></i> Print</button> '
+                . '<a class="btn btn-outline-primary btn-sm" href="' . h(current_url(['print' => null, 'pdf' => '1'])) . '"><i class="bi bi-file-earmark-pdf"></i> Save as PDF</a> '
+                . '<a class="btn btn-outline-secondary btn-sm" href="' . h(current_url(['print' => null])) . '">Back</a></div>';
         } else {
             self::filterForm($def, $f, $pageKey, $allCols, $hidden, $canDesign);
             if ($canDesign) {
@@ -560,7 +665,7 @@ final class Report
         foreach ($visible as $c) {
             $num = in_array($c['type'] ?? 'text', ['money', 'qty', 'pct', 'int'], true);
             $label = h($c['label']);
-            if (!$print && ($def['sortable'] ?? true) && empty($data['grouped'])) {
+            if (!$print && ($headSort || isset($sortBy[$c['key']]))) {
                 $dir = ($sort === $c['key'] && g('dir') !== 'desc') ? 'desc' : 'asc';
                 $label = '<a class="text-reset text-decoration-none" href="' . h(current_url(['sort' => $c['key'], 'dir' => $dir])) . '">' . $label . ($sort === $c['key'] ? (g('dir') === 'desc' ? ' ▼' : ' ▲') : '') . '</a>';
             }
@@ -612,6 +717,98 @@ final class Report
                 . '</div><div class="modal-footer"><button class="btn btn-primary">Save</button></div></form></div></div>';
         }
         layout_end();
+    }
+
+    /** The Sort by label of the sort applied to the report on screen, for its heading (v29) */
+    private static ?string $sortedBy = null;
+
+    /** The Sort by choices of a report ('sort_by'), less the columns this user may not see (costs) */
+    public static function sortChoices(array $def, array $cols): array
+    {
+        $out = [];
+        $byKey = array_column($cols, null, 'key');
+        foreach ((array)($def['sort_by'] ?? []) as $k => $label) {
+            // a column the report does not have for this user (a cost column without the cost permission) is not offered
+            if (!isset($byKey[$k]) || !self::maySee($byKey[$k])) {
+                continue;
+            }
+            $out[$k] = $label;
+        }
+        return $out;
+    }
+
+    /**
+     * Rows sorted on one column ($dir 1 increasing, -1 decreasing); empty figures go last either way.
+     * A grouped report keeps its groups: a heading row (group-row) with no figure of its own keeps its place and its
+     * lines are sorted under it, above its subtotal; a heading row that carries the figure (an item group with its
+     * items under it) moves with everything under it, down to its subtotal.
+     */
+    public static function sortRows(array $rows, string $key, int $dir, bool $grouped): array
+    {
+        $blank = fn($v) => $v === '' || $v === null;
+        $cmp = function (array $a, array $b) use ($key, $dir, $blank): int {
+            $x = $a[$key] ?? '';
+            $y = $b[$key] ?? '';
+            if ($blank($x) || $blank($y)) {
+                return $blank($x) <=> $blank($y);
+            }
+            if (is_numeric($x) && is_numeric($y)) {
+                return $dir * ((float)$x <=> (float)$y);
+            }
+            return $dir * strcasecmp((string)$x, (string)$y);
+        };
+        $has = fn(array $r, string $c) => str_contains(' ' . ($r['_class'] ?? '') . ' ', ' ' . $c . ' ');
+        if (!$grouped) {
+            $fixed = array_filter($rows, fn($r) => $has($r, 'total-row'));
+            $body = array_values(array_filter($rows, fn($r) => !$has($r, 'total-row')));
+            usort($body, $cmp);
+            return array_merge($body, array_values($fixed));
+        }
+        // cut the rows into units: single lines, and blocks from a heading down to its subtotal
+        $units = [];
+        $n = count($rows);
+        for ($i = 0; $i < $n; $i++) {
+            $r = $rows[$i];
+            if (!$has($r, 'group-row')) {
+                $units[] = ['rows' => [$r], 'sort' => !$has($r, 'total-row') && !$has($r, 'subtotal-row'), 'head' => $r];
+                continue;
+            }
+            $block = [$r];
+            $j = $i + 1;
+            while ($j < $n && !$has($rows[$j], 'group-row') && !$has($rows[$j], 'total-row')) {
+                $block[] = $rows[$j];
+                if ($has($rows[$j], 'subtotal-row')) {
+                    $j++;
+                    break;
+                }
+                $j++;
+            }
+            $i = $j - 1;
+            if (!$blank($r[$key] ?? '')) {
+                $units[] = ['rows' => $block, 'sort' => true, 'head' => $r];
+                continue;
+            }
+            // a heading only: sort its lines, keep the heading on top and the subtotal at the foot
+            $tail = [];
+            if (count($block) > 1 && $has(end($block), 'subtotal-row')) {
+                $tail[] = array_pop($block);
+            }
+            $head = array_shift($block);
+            usort($block, $cmp);
+            $units[] = ['rows' => array_merge([$head], $block, $tail), 'sort' => false, 'head' => $r];
+        }
+        // the units that may move are sorted among themselves; the others keep their places
+        $movable = array_values(array_filter($units, fn($u) => $u['sort']));
+        usort($movable, fn($a, $b) => $cmp($a['head'], $b['head']));
+        $out = [];
+        $m = 0;
+        foreach ($units as $u) {
+            $use = $u['sort'] ? $movable[$m++] : $u;
+            foreach ($use['rows'] as $r) {
+                $out[] = $r;
+            }
+        }
+        return $out;
     }
 
     /** The width and alignment classes of a column, from the layout */
@@ -711,7 +908,9 @@ final class Report
             $parts[] = 'As of ' . fdate($f['asof']);
         }
         if (isset($f['from'])) {
-            $parts[] = fdate($f['from']) . ' through ' . fdate($f['to']);
+            $parts[] = !empty($f['timed'])
+                ? self::fdt($f['from_dt']) . ' through ' . self::fdt($f['to_dt'])
+                : fdate($f['from']) . ' through ' . fdate($f['to']);
         }
         foreach (['customer_id' => 'customers', 'vendor_id' => 'vendors', 'item_id' => 'items', 'site_id' => 'sites', 'account_id' => 'accounts', 'terminal_id' => 'pos_terminals'] as $k => $tbl) {
             if (!empty($f[$k])) {
@@ -736,13 +935,24 @@ final class Report
             $parts[] = 'Customer type ' . DB::value('SELECT name FROM customer_types WHERE id = :id', ['id' => $f['customer_type_id']]);
         }
         if (!empty($f['user_id'])) {
-            $parts[] = (in_array('cashier', $def['filters'] ?? [], true) ? 'Cashier ' : 'User ')
-                . DB::value('SELECT username FROM users WHERE id = :id', ['id' => $f['user_id']]);
+            // v38: a cashier by name (Cashier Ella Ramos), a user by user name
+            $parts[] = in_array('cashier', $def['filters'] ?? [], true)
+                ? 'Cashier ' . DB::value("SELECT COALESCE(NULLIF(full_name, ''), username) FROM users WHERE id = :id", ['id' => $f['user_id']])
+                : 'User ' . DB::value('SELECT username FROM users WHERE id = :id', ['id' => $f['user_id']]);
         }
-        foreach ($def['extra_filters'] ?? [] as $k => [$label, $opts]) {
-            if (($f[$k] ?? '') !== '') {
+        foreach ($def['extra_filters'] ?? [] as $k => $spec) {
+            [$label, $opts] = $spec;
+            if (($f[$k] ?? '') !== '' && empty($spec[3])) {
                 $parts[] = $label . ': ' . ($opts()[$f[$k]] ?? $f[$k]);
             }
+        }
+        foreach ($def['checks'] ?? [] as $k => $label) {
+            if (($f[$k] ?? '') === '1') {
+                $parts[] = $label;
+            }
+        }
+        if (self::$sortedBy !== null) {
+            $parts[] = 'Sorted by ' . self::$sortedBy . (g('dir') === 'desc' ? ', decreasing' : ', increasing');
         }
         return implode(', ', array_filter($parts));
     }
@@ -750,17 +960,37 @@ final class Report
     private static function filterForm(array $def, array $f, string $pageKey, array $cols, array $hidden, bool $canDesign = false): void
     {
         $want = $def['filters'];
-        echo '<form class="card card-body mb-3 filters" method="get"><input type="hidden" name="p" value="' . h($pageKey) . '"><div class="row g-2 align-items-end">';
+        echo '<form class="card card-body mb-3 filters" method="get"><input type="hidden" name="p" value="' . h($pageKey) . '">';
+        foreach ((array)($f['_hidden'] ?? []) as $hk => $hv) {
+            echo '<input type="hidden" name="' . h((string)$hk) . '" value="' . h((string)$hv) . '">';
+        }
+        echo '<div class="row g-2 align-items-end">';
         if (in_array('asof', $want, true)) {
             echo '<div class="col-auto"><label class="form-label">As of</label><input class="form-control form-control-sm" type="date" name="asof" value="' . h($f['asof']) . '"></div>';
         }
         if (in_array('range', $want, true)) {
-            echo '<div class="col-auto"><label class="form-label">Dates</label><select class="form-select form-select-sm" name="dates" onchange="this.form.from.value=\'\';this.form.to.value=\'\';this.form.submit()">'
+            $timed = !empty($def['times']);
+            echo '<div class="col-auto"><label class="form-label">Dates</label><select class="form-select form-select-sm" name="dates" onchange="this.form.from.value=\'\';this.form.to.value=\'\';'
+                . ($timed ? 'this.form.from_time.value=\'\';this.form.to_time.value=\'\';if(this.form.shift_id)this.form.shift_id.value=\'\';' : '') . 'this.form.submit()">'
                 . options(['today' => 'Today', 'this_week' => 'This week', 'this_month' => 'This month', 'last_month' => 'Last month', 'this_quarter' => 'This quarter', 'last_quarter' => 'Last quarter',
                     'this_year' => 'This fiscal year', 'year_to_date' => 'Fiscal year to date', 'last_year' => 'Last fiscal year', 'all' => 'All dates', 'custom' => 'Custom'], g('dates', $def['default_dates'] ?? 'this_month'))
                 . '</select></div>';
-            echo '<div class="col-auto"><label class="form-label">From</label><input class="form-control form-control-sm" type="date" name="from" value="' . h($f['from']) . '"></div>';
-            echo '<div class="col-auto"><label class="form-label">To</label><input class="form-control form-control-sm" type="date" name="to" value="' . h($f['to']) . '"></div>';
+            if ($timed) {
+                // a date and a time: shifts of a 24-hour business (12:01 AM - 8:00 AM, 8:01 AM - 2:00 PM, ...)
+                foreach (['from' => 'From', 'to' => 'To'] as $k => $lab) {
+                    $tv = (string)($f[$k . '_time'] ?? '');
+                    echo '<div class="col-12 col-sm-auto"><label class="form-label">' . $lab . ' date and time</label><div class="input-group input-group-sm rpt-datetime">'
+                        . '<input class="form-control" type="date" name="' . $k . '" value="' . h($f[$k]) . '" aria-label="' . $lab . ' date">'
+                        . '<input class="form-control rpt-time" type="time" name="' . $k . '_time" value="' . h($tv) . '"' . (strlen($tv) === 8 ? ' step="1"' : '')
+                        . ' aria-label="' . $lab . ' time" title="' . ($k === 'from' ? 'Leave empty for the start of the day' : 'Leave empty for the end of the day') . '"></div></div>';
+                }
+            } else {
+                echo '<div class="col-auto"><label class="form-label">From</label><input class="form-control form-control-sm" type="date" name="from" value="' . h($f['from']) . '"></div>';
+                echo '<div class="col-auto"><label class="form-label">To</label><input class="form-control form-control-sm" type="date" name="to" value="' . h($f['to']) . '"></div>';
+            }
+        }
+        foreach ($def['date_inputs'] ?? [] as $k => $spec) {
+            echo '<div class="col-6 col-sm-auto"><label class="form-label">' . h($spec[0]) . '</label><input class="form-control form-control-sm" type="date" name="' . h($k) . '" value="' . h((string)($f[$k] ?? '')) . '"></div>';
         }
         $selects = [
             'customer' => ['customer_id', 'Customer', fn() => Lookup::customers()],
@@ -797,8 +1027,25 @@ final class Report
             $blank = array_key_exists(2, $spec) ? $spec[2] : 'All';   // third element: blank choice label, or null for none
             $choices = $opts();
             // a short list of its own (a number of days, a yes/no) stays a plain drop-down
-            echo '<div class="col-auto"><label class="form-label">' . h($label) . '</label><select class="form-select form-select-sm" name="' . h($k) . '" style="max-width:240px"' . (count($choices) <= 8 ? ' data-no-combo' : '') . '>'
+            // fifth element: choosing a value submits the form at once (a POS shift fills in the dates and times)
+            $submit = !empty($spec[4]) ? ' onchange="this.form.submit()"' : '';
+            echo '<div class="col-auto"><label class="form-label">' . h($label) . '</label><select class="form-select form-select-sm" name="' . h($k) . '" style="max-width:' . (!empty($spec[4]) ? '300' : '240') . 'px"' . (count($choices) <= 8 ? ' data-no-combo' : '') . $submit . '>'
                 . options($choices, $f[$k] ?? '', $blank) . '</select></div>';
+        }
+        foreach ($def['checks'] ?? [] as $k => $label) {
+            echo '<div class="col-auto"><label class="form-check rpt-check mb-1"><input class="form-check-input" type="checkbox" name="' . h($k) . '" value="1" ' . checked(($f[$k] ?? '') === '1')
+                . ' onchange="this.form.submit()"> <span class="form-check-label">' . h($label) . '</span></label></div>';
+        }
+        $sortBy = self::sortChoices($def, $cols);
+        if ($sortBy) {
+            $sv = (string)g('sort');
+            echo '<div class="col-auto rpt-sort"><label class="form-label">Sort by</label><div class="input-group input-group-sm">'
+                . '<select class="form-select form-select-sm" name="sort" data-no-combo onchange="this.form.submit()" aria-label="Sort by">' . options($sortBy, isset($sortBy[$sv]) ? $sv : '', 'Default order') . '</select>'
+                . '<select class="form-select form-select-sm rpt-sort-dir" name="dir" data-no-combo onchange="if(this.form.sort.value)this.form.submit()" aria-label="Order">'
+                . options(['asc' => 'Increasing', 'desc' => 'Decreasing'], g('dir') === 'desc' ? 'desc' : 'asc') . '</select></div></div>';
+        } elseif (in_array((string)g('sort'), array_column($cols, 'key'), true)) {
+            // a column heading clicked: keep it while the filters change
+            echo '<input type="hidden" name="sort" value="' . h((string)g('sort')) . '"><input type="hidden" name="dir" value="' . (g('dir') === 'desc' ? 'desc' : 'asc') . '">';
         }
         if (in_array('module', $want, true)) {
             echo '<div class="col-auto"><label class="form-label">Module</label><select class="form-select form-select-sm" name="module">' . options(DB::pairs('SELECT code, name FROM modules ORDER BY sort_order') + ['security' => 'Security'], $f['module'], 'All') . '</select></div>';

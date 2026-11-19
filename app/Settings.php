@@ -29,6 +29,16 @@ final class Settings
         'pos_posting_mode'        => 'per_sale',
         'costing_method'          => 'weighted_average',
         'allow_negative_stock'    => '1',
+        // item groups: their sales kept apart (item_group_sales, Sales by Item Group) and the group price followed on sales
+        'track_group_sales'       => '1',
+        'adopt_group_price'       => '1',
+        'block_zero_cost_sales'   => '1',   // v29: no sale of an inventory part or item group item with no unit cost
+        'block_zero_cost_processing' => '1', // v29: no processing order posted with an input or output at no unit cost
+        // v35: the outputs of a processing order must cost what its inputs cost, within this percentage
+        'processing_cost_tolerance' => '2',
+        // v35: a back-dated, edited, voided or deleted inventory transaction has the later ones costed again in date order
+        'auto_recost_scope'       => 'process',
+        'auto_recost_limit'       => '2000',
         'large_discount_pct'      => '10',
         // wording printed on POS receipts (System Administration > Company, Security & Closing Date)
         'pos_receipt_title'         => 'OFFICIAL RECEIPT',

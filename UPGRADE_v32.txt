@@ -1,0 +1,194 @@
+G-SMaRT Integrated Accounting and Government Contracting System - version 32 (2026-11-19)
+=========================================================================================
+
+Accounting updates. The accounting features of G-SMaRT Accounting (its versions 26 to 42)
+are brought into this system: comparative statements, reports by class, Print and Save
+as PDF on every report, card and e-wallet settlements on Make Deposits, a supplier on
+expense lines, attachments, voucher signatures, item group pricing and the inventory
+costing fixes. They were adapted to this system's files, not copied over them, so
+Barangay Contracts, the several-company platform, the installable app (version 30) and
+the New company fix (version 31) keep working as before.
+
+This package holds ONLY the files that are new or changed since version 31, in the
+same folders. Copy them over your installation (folder government-contracting-system);
+every other file stays as it is.
+
+Upgrading an installation of version 31
+---------------------------------------
+1. Back up the database and the program folder (storage/ and config/config.php too).
+2. Copy the files of this package over your installation. config/config.php is not
+   in the package; yours stays.
+3. Run the one new migration on your database (phpMyAdmin: select the database >
+   Import; Navicat: Execute SQL File):
+
+       database/migrations/2026_11_19_accounting_updates.sql
+
+   With several companies, run it on every company database (Super Admin: Companies >
+   Database updates > Update all companies). Until it is run, the program shows a page
+   naming it. It is safe to run a second time.
+4. Log in as the administrator and run System Administration > Utilities:
+   Verify & Rebuild Data > Rebuild data once, so the average costs of the past
+   inventory transactions follow the new costing (step 4 of the migration explains why).
+5. Press Ctrl+F5 once in the browser so it loads the changed assets/css/app.css,
+   assets/js/app.js and the new assets/js/signature.js.
+6. Optional, only if people outside your office will sign vouchers through a link: the
+   link starts with the address the program was opened with. Open the program through
+   its public address before making links, or add this line inside the 'app' settings
+   of config/config.php:
+
+       'public_url' => 'https://accounts.example.com/government-contracting-system',
+
+A new installation needs no migration: database/schema.sql, the installer and the two
+importable files (database/government_contracting_system.sql with the sample data,
+database/government_contracting_system_clean.sql without transactions) already hold
+everything.
+
+What the migration does
+-----------------------
+ - Item groups: an empty Price variance GL account column on items, five empty group
+   columns on transaction_lines, the table item_group_sales, the account 4070 Item Group
+   Price Variance (Income; the next free code if 4070 is taken) with its module default
+   account, and the report Sales by Item Group.
+ - Receiving lists: an empty column received_via on transactions, filled in for the item
+   receipts and the bills entered with Receive Items and Enter Bills.
+ - The eight comparative income statements and balance sheets, Trial Balance by Class
+   and Statement of Cash Flows by Class, given to the roles that may already open the
+   Income Statement, the Balance Sheet, the Trial Balance and the Statement of Cash Flows.
+ - Average cost on the books: each quantity on hand by site is set to the total of the
+   inventory movements at that site, and each average cost to the remaining value
+   divided by the remaining quantity. These are the figures the program works out
+   from the movements; no transaction, ledger line or amount posted changes. Plus the
+   report Average Cost Changes, given to the roles that open Inventory Valuation Detail.
+ - The tables clearing_settlements (card and e-wallet receipts ticked on a deposit),
+   txn_attachments and txn_attachment_chunks (attached files), voucher_sign_requests,
+   voucher_signatures, voucher_documents and voucher_document_chunks (signatures and
+   the signed PDF copies).
+ - One line in the audit trail saying the migration was run.
+Nothing is deleted. Users, roles and the log-in are not changed: the new reports are
+only given to the roles that already open the matching report.
+
+What is new
+-----------
+Chart of Accounts > Reports (the Financial Reports card of the Report Center)
+ - Comparative Income Statement by Month, by Quarter, by Year and by Custom Range;
+   Comparative Balance Sheet by Month, by Quarter, by Year and by Custom Date. One
+   column per period, a Total and the change from the period before; click an amount
+   for its entries in the General Ledger.
+ - Trial Balance by Class and Statement of Cash Flows by Class.
+ - General Ledger: a Cashier filter.
+Every report
+ - Print and Save as PDF side by side; the print page has Print, Save as PDF and Back.
+ - Sort by (Increasing or Decreasing) on Income by Customer Summary, Sales by Item
+   Summary, Inventory Sales by Site and Sales by Item Group.
+ - Home > Report Center: Find a report by name.
+Banking
+ - Make Deposits lists the journal entries to Undeposited Funds with the payments: a
+   debit adds to the deposit, a credit deducts from it.
+ - Card and e-wallet settlements: Unsettled is the balance of the clearing account in
+   the General Ledger on the deposit date (the same as the Trial Balance). Details
+   explains each balance (what it is made of, the sales by payment method, the receipts
+   not yet settled and the latest settlements) and lets you tick Settle on the receipts
+   the provider paid; their total goes into Gross settled.
+ - The POS: a card or e-wallet payment taken on account now goes to its clearing
+   account, like a card sale.
+ - Write Checks, Cash Voucher and Enter Bills: the Expenses tab has Customer / Supplier.
+   A supplier puts the line on that supplier's subsidiary ledger.
+Vouchers and documents
+ - Sign Voucher and Request Signature on check vouchers, cash vouchers and journal
+   entries (Signatures box on the voucher page). A signature link (sign.php) works once,
+   for one line, without an account. Every signature saves a new signed PDF; the
+   original unsigned voucher is kept. A signed voucher cannot be edited, voided or
+   deleted until a user with the Delete/Void right resets its signatures.
+ - Attachments on journal entries, checks, cash vouchers, bills, purchase orders, sales
+   orders and invoices: on the form and on the page of the saved document, with a paper
+   clip in the lists. Files are kept in the database, so Backup & Restore carries them.
+Item groups
+ - The form of a group has Group price, Consolidated price, Price variance and the
+   Price variance GL account, and Sold as a group at its foot.
+ - On estimates, sales orders, invoices, sales receipts, statement charges and credit
+   memos the group is one line at its group price; its items are recorded at their own
+   prices plus one price variance line. The invoice page has View by item group and
+   View item details.
+ - Report Sales by Item Group (Customers > Reports).
+ - Settings (Company, Security & Closing Date > Inventory and POS): Track Item Group
+   Sales transactions, Adopt the Group Price in the Item Group.
+Inventory costing
+ - Stock sold below zero is settled at the cost of the goods received for it.
+ - The average cost is always the remaining value divided by the remaining quantity.
+ - A back-dated, edited, voided or deleted inventory transaction costs the later ones
+   again, in date order.
+ - Report Average Cost Changes; the Inventory Center has the transaction history of the
+   item (Latest 100 / 500 / All, per site) and an Average cost changes button.
+ - Settings: Block sales of items with no unit cost; Block posting processing orders
+   with no unit cost; Disassemble / Process Items: largest difference allowed between
+   the cost of the outputs and of the inputs (2%).
+Vendors
+ - Receipt Management has a Receipt List; Receive Items and Receive Items and Enter
+   Bills each have the list of what was entered on them.
+The User's Manual has the sections of every new page and report (Help on each page).
+
+Left out on purpose
+-------------------
+These parts of G-SMaRT Accounting are not in this update: the POS changes (FB POS,
+Cash Count, item groups sold at the POS and POS Sales by Item Group, Ending Inventory -
+POS Cashier, dates with times and shifts on the inventory movement reports), Community,
+the Add new entries in the drop-downs, the renaming of the Chart of Accounts menu to
+Financial, and the Exclude zero filters of the inventory reports. The only POS change is
+the clearing account of card and e-wallet payments on account, because it is an
+accounting fix.
+
+Member-related integrations: this system has none, and this update adds none.
+
+Tested
+------
+ - The migration on a copy of a version 31 database, twice, and through Update all
+   companies on two company databases; a new company made with New company.
+ - php tools/test_accounting.php --yes (75 checks: the comparative and class reports
+   against the plain reports, the clearing balances against the ledger, item groups,
+   unit cost blocks, costing below zero, Rebuild and Verify, attachments, signatures,
+   Save as PDF and Sort by) on the demo database, a fresh installation and a new
+   company. It WRITES test records: run it on a copy, never on books in use.
+ - php tools/test_brgy.php --yes (172 checks, Barangay Contracts unchanged).
+ - Every page of the menu and a saved transaction of every type opened as the
+   administrator: no PHP error. The new pages checked in a browser on a computer and on
+   a phone (no sideways scrolling).
+
+Files
+-----
+New:
+  sign.php                                   the page of a signature link
+  app/Attachments.php                        attached files of a transaction
+  app/Clearing.php                           card and e-wallet clearing balances and settlements
+  app/ItemGroups.php                         item groups: lines, price variance, group sales
+  app/Recost.php                             costing later inventory transactions again
+  app/ReportPdf.php, app/SimplePdf.php       Save as PDF of a report
+  app/Signatures.php, app/VoucherPdf.php     voucher signatures and the voucher PDFs
+  app/reports/comparative.php                the comparative statements
+  app/reports/item_groups.php                Sales by Item Group
+  assets/js/signature.js                     the signature pad
+  modules/files/attachment.php               view and download an attached file
+  modules/txn/_signatures.php                the Signatures box
+  database/migrations/2026_11_19_accounting_updates.sql
+  tools/test_accounting.php                  the checks above
+  UPGRADE_v32.txt                            this file
+  assets/manual/img/...                      the screenshots of the new manual sections
+Changed:
+  app/Access.php, Accts.php, Backup.php, Lookup.php, Maintenance.php, Memorized.php,
+  Posting.php, Processing.php, Report.php, ReportDesigner.php, ReportLayout.php,
+  Schema.php, Settings.php, Stock.php, Txn.php, helpers.php, registry.php
+  app/reports/customers.php, finance.php, income_expense.php, inventory.php, processing.php
+  assets/css/app.css, assets/js/app.js
+  modules/admin/settings.php
+  modules/banking/cash_voucher.php, deposits.php
+  modules/coa/classes.php, journal.php
+  modules/inventory/center.php, items.php, process.php
+  modules/pos/register.php                   only the clearing of card and e-wallet payments on account
+  modules/reports/center.php
+  modules/txn/_common.php, _grids.php, page.php
+  modules/vendors/bill_received.php, receipts.php, receive.php
+  tools/seed.php                             the account 4070 and its module default
+  database/schema.sql, database/government_contracting_system.sql,
+  database/government_contracting_system_clean.sql
+  views/manual/chapters/01, 02, 03, 04, 05, 06, 07, 09, 12 and 15, views/manual/manual.json,
+  views/manual/search.json
+  README.md

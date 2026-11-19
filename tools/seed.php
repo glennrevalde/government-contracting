@@ -96,6 +96,7 @@ function seed_master_data(): void
         ['4020', 'Delivery Income', 'Income', null, null],
         ['4050', 'Sales Returns and Allowances', 'Income', 'Debit', null],
         ['4060', 'Sales Discounts', 'Income', 'Debit', null],
+        ['4070', 'Item Group Price Variance', 'Income', null, null],
         ['4110', 'Reimbursable Expense Income', 'Income', null, null],
         ['4100', 'Finance Charge Income', 'Other Income', null, null],
         ['4200', 'Interest Income', 'Other Income', null, null],
@@ -144,6 +145,7 @@ function seed_master_data(): void
         'cvat_withheld' => '1315', 'wht_payable' => '2110', 'vat_withheld_payable' => '2115', 'vendor_advances' => '1410',
         'gov_goods_income' => '4000', 'gov_services_income' => '4010', 'gov_works_income' => '4015', 'retention_receivable' => '1160',
         'security_deposits' => '1420', 'liquidated_damages' => '6085', 'forfeited_security' => '7010',
+        'group_price_variance' => '4070',
     ];
     foreach (Accts::KEYS as $key => [$label, $module]) {
         DB::insert('default_accounts', ['setting_key' => $key, 'label' => $label, 'module' => $module, 'account_id' => $acct[$defaults[$key]]]);
@@ -528,7 +530,7 @@ function seed_master_data(): void
     $mk(['item_type' => 'discount', 'code' => 'DISC-AMT', 'name' => 'Fixed Discount', 'description' => 'Discount', 'sales_price' => 100,
         'income_account_id' => $acct['4060'], 'cat' => 'Charges']);
     $mk(['item_type' => 'subtotal', 'code' => 'SUBTOTAL', 'name' => 'Subtotal', 'description' => 'Subtotal', 'tax_code_id' => null]);
-    $mk(['item_type' => 'group', 'code' => 'GRP-WFH', 'name' => 'Work-from-Home Bundle', 'description' => 'Laptop + mouse + backpack', 'tax_code_id' => null, 'cat' => 'Bundles']);
+    $mk(['item_type' => 'group', 'code' => 'GRP-WFH', 'name' => 'Work-from-Home Bundle', 'description' => 'Laptop + mouse + backpack', 'tax_code_id' => null, 'cat' => 'Bundles', 'sales_price' => 40000]);
     foreach ([['LAP-001', 1], ['MOU-001', 1], ['BAG-001', 1]] as [$c, $q]) {
         DB::insert('item_components', ['parent_item_id' => $item['GRP-WFH'], 'component_item_id' => $item[$c], 'qty' => $q]);
     }

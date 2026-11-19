@@ -18,6 +18,23 @@ function grid_row_buttons(bool $removable = true, string $removeHtml = ''): stri
         . ($removeHtml !== '' ? $removeHtml : ($removable ? '<button type="button" class="btn btn-sm btn-link text-danger p-0" data-remove-row title="Remove" aria-label="Remove the line"><i class="bi bi-x-lg"></i></button>' : '')) . '</td>';
 }
 
+/**
+ * The hidden fields that keep a line in its item group: on a group shown as one line, which group of the document it
+ * is and the ids of its saved lines; on a line of a group shown as the items in it, its group, price and role.
+ */
+function grid_group_fields(array $l, callable $n): string
+{
+    if (empty($l['group_ref'])) {
+        return '';
+    }
+    $f = fn(string $k, $v) => '<input type="hidden" name="' . $n($k) . '" value="' . h((string)$v) . '">';
+    if (!empty($l['_group']) || isset($l['group_line_ids'])) {
+        return $f('group_ref', $l['group_ref']) . $f('group_line_ids', $l['group_line_ids'] ?? '') . $f('group_src_ids', $l['group_src_ids'] ?? '');
+    }
+    return $f('group_ref', $l['group_ref']) . $f('group_item_id', $l['group_item_id'] ?? '') . $f('group_qty', $l['group_qty'] ?? '')
+        . $f('group_rate', $l['group_rate'] ?? '') . $f('group_role', $l['group_role'] ?? '');
+}
+
 function grid_item_options(array $items, $selected): string
 {
     $out = '<option value=""></option>';
@@ -68,6 +85,7 @@ function item_grid(array $lines, array $opt): string
         $html .= '<td class="col-item"><input type="hidden" name="' . $n('id') . '" value="' . h($l['id'] ?? '') . '">'
             . '<input type="hidden" name="' . $n('source_line_id') . '" value="' . h($l['source_line_id'] ?? '') . '">'
             . '<input type="hidden" name="' . $n('account_id') . '" value="' . h($l['account_id'] ?? '') . '">'
+            . grid_group_fields($l, $n)
             . '<select class="form-select form-select-sm" data-f="item_id" name="' . $n('item_id') . '">' . grid_item_options($items, $l['item_id'] ?? '') . '</select></td>';
         $html .= '<td class="col-desc"><input class="form-control form-control-sm" data-f="description" name="' . $n('description') . '" value="' . h($l['description'] ?? '') . '">'
             . ($isSub ? '<span class="small text-muted">Subtotal: <span data-subtotal></span></span>' : '<span data-subtotal class="d-none"></span>') . '</td>';
@@ -140,6 +158,32 @@ function item_grid(array $lines, array $opt): string
         . grid_add_buttons($id);
 }
 
+/**
+ * The names an expense line can be for (v36): the customers and jobs, and the suppliers, so a cost can be put on
+ * a supplier's subsidiary ledger as well as on a customer's. Code => label ("c12", "v5"), customers first, each
+ * searchable by name. A name already on the lines stays in the list even when it is no longer active.
+ */
+function expense_name_options(array $lines = []): array
+{
+    $out = [];
+    foreach (Lookup::customers() as $id => $label) {
+        $out['c' . $id] = $label . ' (Customer)';
+    }
+    foreach (Lookup::vendors() as $id => $label) {
+        $out['v' . $id] = $label . ' (Supplier)';
+    }
+    foreach ($lines as $l) {
+        $code = expense_name_code($l);
+        if ($code !== '' && !isset($out[$code]) && in_array($code[0], ['c', 'v'], true)) {
+            $label = Names::label(Names::parse($code));
+            if ($label !== '') {
+                $out[$code] = $label . ($code[0] === 'c' ? ' (Customer, inactive)' : ' (Supplier, inactive)');
+            }
+        }
+    }
+    return $out;
+}
+
 /** Expense-account grid (bills, checks, vendor credits) */
 function expense_grid(array $lines, array $opt = []): string
 {
@@ -147,10 +191,11 @@ function expense_grid(array $lines, array $opt = []): string
     $name = $opt['name'] ?? 'expenses';
     $accounts = Accts::all();
     $taxOpts = Lookup::taxCodes();
-    $jobs = Lookup::customers();
+    $jobs = expense_name_options($lines);
     $group = $opt['total_group'] ?? 'main';
     $row = function (array $l, string $i) use ($name, $accounts, $taxOpts, $jobs) {
         $n = fn($f) => h($name . '[' . $i . '][' . $f . ']');
+        $sel = expense_name_code($l);
         return '<tr>'
             . '<td class="col-item"><input type="hidden" name="' . $n('id') . '" value="' . h($l['id'] ?? '') . '">'
             . '<select class="form-select form-select-sm" name="' . $n('account_id') . '">' . options($accounts, $l['account_id'] ?? '', '') . '</select></td>'
@@ -158,8 +203,8 @@ function expense_grid(array $lines, array $opt = []): string
             . '<td class="col-num"><select class="form-select form-select-sm" data-f="tax_code_id" name="' . $n('tax_code_id') . '">' . options($taxOpts, $l['tax_code_id'] ?? '', '') . '</select>'
             . '<input type="hidden" data-f="tax_amount" value="' . h(number_format((float)($l['tax_amount'] ?? 0), 2, '.', '')) . '"></td>'
             . '<td class="col-desc"><input class="form-control form-control-sm" name="' . $n('description') . '" value="' . h($l['description'] ?? '') . '"></td>'
-            . '<td class="col-item"><select class="form-select form-select-sm" name="' . $n('customer_id') . '">' . options($jobs, $l['customer_id'] ?? '', '') . '</select></td>'
-            . '<td class="text-center"><input type="checkbox" class="form-check-input" name="' . $n('is_billable') . '" value="1"' . checked(!empty($l['is_billable'])) . '></td>'
+            . '<td class="col-item"><select class="form-select form-select-sm" data-combo data-combo-placeholder="Type a customer or supplier" data-f="exp_name" name="' . $n('name') . '" aria-label="Customer or supplier">' . options($jobs, $sel, '') . '</select></td>'
+            . '<td class="text-center"><input type="checkbox" class="form-check-input" data-f="exp_billable" name="' . $n('is_billable') . '" value="1"' . checked(!empty($l['is_billable'])) . ($sel !== '' && $sel[0] === 'v' ? ' disabled title="Only a cost for a customer can be billed"' : '') . '></td>'
             . grid_row_buttons(true, !empty($l['billed_txn_id']) ? '<span class="small text-success ms-1">billed</span>' : '')
             . '</tr>';
     };
@@ -170,7 +215,7 @@ function expense_grid(array $lines, array $opt = []): string
     }
     return '<div class="table-responsive"><table class="table table-sm line-grid mb-1" id="' . h($id) . '" data-template="tpl-' . h($id) . '" data-mode="expense"'
         . ' data-total-group="' . h($group) . '" data-min-rows="' . (int)($opt['min_rows'] ?? 2) . '" data-taxes="' . h(json_encode(Lookup::taxRates())) . '">'
-        . '<thead><tr><th>Account</th><th class="num">Amount</th><th>Tax</th><th>Memo</th><th>Customer:Job</th><th>Billable</th><th></th></tr></thead>'
+        . '<thead><tr><th>Account</th><th class="num">Amount</th><th>Tax</th><th>Memo</th><th>Customer / Supplier</th><th>Billable</th><th></th></tr></thead>'
         . '<tbody>' . $body . '</tbody></table></div>'
         . '<template id="tpl-' . h($id) . '">' . $row([], '__i__') . '</template>'
         . grid_add_buttons($id);

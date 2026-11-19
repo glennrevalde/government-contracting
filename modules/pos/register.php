@@ -154,7 +154,10 @@ if (is_post()) {
                 fail('Choose the customer, amount and payment method.');
             }
             $method = DB::row('SELECT * FROM payment_methods WHERE id = :id', ['id' => $pm]);
-            $acct = $method['method_type'] === 'cash' ? (int)$terminal['cash_account_id'] : (int)($method['clearing_account_id'] ?: Accts::get('undeposited_funds'));
+            // cash goes to the drawer; a card or e-wallet payment to the clearing account of its method, or to the module default
+            // Card Clearing / E-wallet Clearing like a POS sale paid that way (it went to Undeposited Funds); others to Undeposited Funds
+            $acct = $method['method_type'] === 'cash' ? (int)$terminal['cash_account_id'] : (int)($method['clearing_account_id']
+                ?: (in_array($method['method_type'], ['card', 'ewallet'], true) ? Accts::get($method['method_type'] === 'ewallet' ? 'ewallet_clearing' : 'card_clearing') : Accts::get('undeposited_funds')));
             $apps = [];
             $left = $amt;
             foreach (Balances::openReceivables($cid) as $d) {

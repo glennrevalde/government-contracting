@@ -8,7 +8,7 @@ declare(strict_types=1);
  */
 final class Schema
 {
-    private const FLAG = 'schema_ok_2026_11_10';
+    private const FLAG = 'schema_ok_2026_11_19';
 
     /**
      * file => one cheap probe.
@@ -103,6 +103,16 @@ final class Schema
         'database/migrations/2026_11_10_letterheads_bid_forms_types.sql' =>
             ['SELECT (SELECT COUNT(txn_types) FROM brgy_sop_steps WHERE 1 = 0) + (SELECT COUNT(txn_types) FROM brgy_sop_papers WHERE 1 = 0)
                        + (SELECT COUNT(*) FROM brgy_sop_papers WHERE code = \'post_qual_notice\') + (SELECT COUNT(*) FROM brgy_templates WHERE code = \'notice_of_post_qualification\')', 2],
+        // the accounting updates: the new columns and tables (the query fails without them), the seven new report pages
+        // and the module default account of the item group price variance
+        'database/migrations/2026_11_19_accounting_updates.sql' =>
+            ['SELECT (SELECT COUNT(*) FROM pages WHERE page_key IN (\'rpt.sales_item_group\', \'rpt.cmp_is_month\', \'rpt.cmp_bs_custom\', \'rpt.trial_balance_class\', \'rpt.cash_flow_class\', \'rpt.avg_cost_changes\'))
+                       + (SELECT COUNT(*) FROM default_accounts WHERE setting_key = \'group_price_variance\')
+                       + (SELECT COUNT(group_variance_account_id) FROM items WHERE 1 = 0) + (SELECT COUNT(group_item_id) + COUNT(group_role) FROM transaction_lines WHERE 1 = 0)
+                       + (SELECT COUNT(received_via) FROM transactions WHERE 1 = 0) + (SELECT COUNT(*) FROM item_group_sales WHERE 1 = 0)
+                       + (SELECT COUNT(*) FROM clearing_settlements WHERE 1 = 0) + (SELECT COUNT(*) FROM txn_attachments WHERE 1 = 0) + (SELECT COUNT(*) FROM txn_attachment_chunks WHERE 1 = 0)
+                       + (SELECT COUNT(*) FROM voucher_sign_requests WHERE 1 = 0) + (SELECT COUNT(*) FROM voucher_signatures WHERE 1 = 0)
+                       + (SELECT COUNT(*) FROM voucher_documents WHERE 1 = 0) + (SELECT COUNT(*) FROM voucher_document_chunks WHERE 1 = 0)', 7],
     ];
 
     private static ?array $pending = null;

@@ -492,6 +492,7 @@ CREATE TABLE items (
   asset_account_id     INT UNSIGNED NULL,
   expense_account_id   INT UNSIGNED NULL,
   tax_code_id          INT UNSIGNED NULL,
+  group_variance_account_id INT UNSIGNED NULL,             -- group items: account of the group price less the consolidated price
   preferred_vendor_id  INT UNSIGNED NULL,
   reorder_point        DECIMAL(15,4) NOT NULL DEFAULT 0,
   max_stock            DECIMAL(15,4) NOT NULL DEFAULT 0,
@@ -507,6 +508,7 @@ CREATE TABLE items (
   CONSTRAINT fk_items_asset  FOREIGN KEY (asset_account_id) REFERENCES accounts(id),
   CONSTRAINT fk_items_exp    FOREIGN KEY (expense_account_id) REFERENCES accounts(id),
   CONSTRAINT fk_items_tax    FOREIGN KEY (tax_code_id) REFERENCES tax_codes(id),
+  CONSTRAINT fk_items_gvar   FOREIGN KEY (group_variance_account_id) REFERENCES accounts(id),
   CONSTRAINT fk_items_vendor FOREIGN KEY (preferred_vendor_id) REFERENCES vendors(id),
   CONSTRAINT fk_items_uom    FOREIGN KEY (uom_set_id) REFERENCES uom_sets(id),
   CONSTRAINT fk_items_suom   FOREIGN KEY (sales_uom_id) REFERENCES uom_units(id),
@@ -648,6 +650,7 @@ CREATE TABLE transactions (
   process_batches    DECIMAL(15,4) NULL,                  -- item processing: formula batches run
   class_id           INT UNSIGNED NULL,                   -- class of the whole transaction (lines may override it)
   other_name_id      INT UNSIGNED NULL,                   -- payee from Employees & Other Names
+  received_via       VARCHAR(12)  NULL,                   -- receipt = Receive Items, bill = Receive Items and Enter Bills
   created_by         INT UNSIGNED NULL,
   created_at         TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_by         INT UNSIGNED NULL,
@@ -716,7 +719,13 @@ CREATE TABLE transaction_lines (
   planned_qty     DECIMAL(15,4) NULL,                     -- item processing: quantity expected by the formula
   class_id        INT UNSIGNED NULL,                      -- class of this line (blank = the transaction's class)
   other_name_id   INT UNSIGNED NULL,                      -- subsidiary ledger: employee / other name
+  group_item_id   INT UNSIGNED NULL,                      -- item group sold: the group this line belongs to
+  group_ref       INT UNSIGNED NULL,                      -- which group of the document (several of the same group can be on it)
+  group_qty       DECIMAL(15,4) NULL,                     -- groups sold on the line's group
+  group_rate      DECIMAL(15,4) NULL,                     -- price of one group
+  group_role      VARCHAR(10)  NULL,                      -- member = an item of the group, variance = group price less consolidated price
   KEY ix_tl_txn (txn_id),
+  KEY ix_tl_group (group_item_id),
   KEY ix_tl_item (item_id),
   KEY ix_tl_ref (ref_txn_id),
   KEY ix_tl_shift (pos_shift_id),
@@ -793,6 +802,51 @@ CREATE TABLE payment_withholdings (
   CONSTRAINT fk_pw_payment FOREIGN KEY (payment_txn_id) REFERENCES transactions(id) ON DELETE CASCADE,
   CONSTRAINT fk_pw_target  FOREIGN KEY (target_txn_id) REFERENCES transactions(id) ON DELETE SET NULL,
   CONSTRAINT fk_pw_wht     FOREIGN KEY (wht_id) REFERENCES withholding_taxes(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Item group sales (System Administration > Track Item Group Sales transactions): one row per group sold on a document
+DROP TABLE IF EXISTS item_group_sales;
+CREATE TABLE item_group_sales (
+  id             BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  txn_id         BIGINT UNSIGNED NOT NULL,
+  group_ref      INT UNSIGNED NOT NULL DEFAULT 0,
+  group_item_id  INT UNSIGNED NOT NULL,
+  txn_type       VARCHAR(30)  NOT NULL,
+  txn_date       DATE         NOT NULL,
+  customer_id    INT UNSIGNED NULL,
+  site_id        INT UNSIGNED NULL,
+  terminal_id    INT UNSIGNED NULL,
+  class_id       INT UNSIGNED NULL,
+  sales_rep_id   INT UNSIGNED NULL,
+  created_by     INT UNSIGNED NULL,
+  qty            DECIMAL(15,4) NOT NULL DEFAULT 0,   -- groups sold
+  group_price    DECIMAL(15,4) NOT NULL DEFAULT 0,   -- price of one group
+  amount         DECIMAL(15,2) NOT NULL DEFAULT 0,   -- what the groups sold for (before tax)
+  consolidated   DECIMAL(15,2) NOT NULL DEFAULT 0,   -- the items of the groups at their own prices
+  variance       DECIMAL(15,2) NOT NULL DEFAULT 0,   -- amount less consolidated (to the price variance account)
+  tax_amount     DECIMAL(15,2) NOT NULL DEFAULT 0,
+  created_at     TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  KEY ix_igs_txn (txn_id),
+  KEY ix_igs_group (group_item_id, txn_date),
+  KEY ix_igs_date (txn_type, txn_date),
+  CONSTRAINT fk_igs_txn   FOREIGN KEY (txn_id) REFERENCES transactions(id) ON DELETE CASCADE,
+  CONSTRAINT fk_igs_group FOREIGN KEY (group_item_id) REFERENCES items(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Card and e-wallet receipts ticked to settle on Make Deposits (v32, Details > Settle)
+DROP TABLE IF EXISTS clearing_settlements;
+CREATE TABLE clearing_settlements (
+  id              BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  deposit_txn_id  BIGINT UNSIGNED NOT NULL,                -- the deposit that holds the settlement
+  account_id      INT UNSIGNED    NOT NULL,                -- the card / e-wallet clearing account
+  receipt_txn_id  BIGINT UNSIGNED NOT NULL,                -- the POS sale, payment or sales receipt settled
+  amount          DECIMAL(15,2)   NOT NULL DEFAULT 0,      -- what of it was settled
+  created_at      TIMESTAMP       NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  KEY ix_cs_deposit (deposit_txn_id),
+  KEY ix_cs_receipt (account_id, receipt_txn_id),
+  KEY ix_cs_receipt_txn (receipt_txn_id),
+  CONSTRAINT fk_cs_deposit FOREIGN KEY (deposit_txn_id) REFERENCES transactions(id) ON DELETE CASCADE,
+  CONSTRAINT fk_cs_receipt FOREIGN KEY (receipt_txn_id) REFERENCES transactions(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- General ledger (generated automatically by the posting engine)
@@ -2435,6 +2489,112 @@ CREATE TABLE brgy_canvass (
   CONSTRAINT fk_bcn_project FOREIGN KEY (project_id) REFERENCES brgy_projects(id) ON DELETE CASCADE,
   CONSTRAINT fk_bcn_vendor  FOREIGN KEY (vendor_id) REFERENCES vendors(id),
   CONSTRAINT fk_bcn_doc     FOREIGN KEY (document_id) REFERENCES brgy_documents(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+DROP TABLE IF EXISTS txn_attachment_chunks;
+DROP TABLE IF EXISTS txn_attachments;
+CREATE TABLE txn_attachments (
+  id              INT UNSIGNED    NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  transaction_id  BIGINT UNSIGNED NULL,                 -- empty while the form is not saved yet
+  stage_key       VARCHAR(40)     NULL,                 -- the form session of a file not saved yet
+  file_name       VARCHAR(255)    NOT NULL,
+  mime_type       VARCHAR(150)    NOT NULL DEFAULT 'application/octet-stream',
+  file_size       BIGINT UNSIGNED NOT NULL DEFAULT 0,
+  sha1            CHAR(40)        NULL,
+  chunks          INT UNSIGNED    NOT NULL DEFAULT 0,
+  uploaded_by     INT UNSIGNED    NULL,
+  uploaded_at     TIMESTAMP       NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  KEY ix_ta_txn (transaction_id),
+  KEY ix_ta_stage (stage_key),
+  CONSTRAINT fk_ta_txn FOREIGN KEY (transaction_id) REFERENCES transactions(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE txn_attachment_chunks (
+  attachment_id  INT UNSIGNED NOT NULL,
+  seq            INT UNSIGNED NOT NULL,
+  data           MEDIUMBLOB   NOT NULL,
+  PRIMARY KEY (attachment_id, seq),
+  CONSTRAINT fk_tac_att FOREIGN KEY (attachment_id) REFERENCES txn_attachments(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- v42: digital voucher signatures (migration 2027_02_11)
+
+DROP TABLE IF EXISTS voucher_sign_requests;
+CREATE TABLE voucher_sign_requests (
+  id               INT UNSIGNED    NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  transaction_id   BIGINT UNSIGNED NOT NULL,
+  slot             VARCHAR(12)     NOT NULL,                 -- prepared, checked, approved, received
+  signer_name      VARCHAR(120)    NOT NULL,
+  signer_email     VARCHAR(160)    NULL,
+  message          VARCHAR(255)    NULL,
+  token_hash       CHAR(64)        NOT NULL,                 -- SHA-256 of the secret part of the link
+  token_enc        VARCHAR(255)    NULL,                     -- the link, encrypted, so it can be copied again
+  status           VARCHAR(10)     NOT NULL DEFAULT 'pending', -- pending, signed, revoked, expired
+  expires_at       DATETIME        NOT NULL,
+  created_by       INT UNSIGNED    NULL,
+  created_at       DATETIME        NOT NULL,
+  first_opened_at  DATETIME        NULL,
+  last_opened_at   DATETIME        NULL,
+  open_count       INT UNSIGNED    NOT NULL DEFAULT 0,
+  revoked_by       INT UNSIGNED    NULL,
+  revoked_at       DATETIME        NULL,
+  revoke_reason    VARCHAR(255)    NULL,
+  signed_at        DATETIME        NULL,
+  signature_id     INT UNSIGNED    NULL,
+  UNIQUE KEY uq_vsr_token (token_hash),
+  KEY ix_vsr_txn (transaction_id, status),
+  CONSTRAINT fk_vsr_txn FOREIGN KEY (transaction_id) REFERENCES transactions(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+DROP TABLE IF EXISTS voucher_signatures;
+CREATE TABLE voucher_signatures (
+  id               INT UNSIGNED    NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  transaction_id   BIGINT UNSIGNED NOT NULL,
+  slot             VARCHAR(12)     NOT NULL,
+  signer_name      VARCHAR(120)    NOT NULL,
+  signer_user_id   INT UNSIGNED    NULL,                     -- signed in the system
+  request_id       INT UNSIGNED    NULL,                     -- signed through a link
+  method           VARCHAR(8)      NOT NULL DEFAULT 'internal', -- internal, link
+  strokes          MEDIUMTEXT      NOT NULL,                 -- the drawing: {"w":..,"h":..,"s":[[x,y,x,y,...],...]}
+  doc_hash         CHAR(64)        NOT NULL,                 -- SHA-256 of the voucher content that was signed
+  ip_address       VARCHAR(45)     NULL,
+  user_agent       VARCHAR(255)    NULL,
+  signed_at        DATETIME        NOT NULL,
+  is_active        TINYINT(1)      NULL DEFAULT 1,           -- 1 = on the voucher; empty once reset
+  cleared_by       INT UNSIGNED    NULL,
+  cleared_at       DATETIME        NULL,
+  clear_reason     VARCHAR(255)    NULL,
+  UNIQUE KEY uq_vs_slot (transaction_id, slot, is_active),  -- one active signature per line
+  KEY ix_vs_user (signer_user_id),
+  CONSTRAINT fk_vs_txn FOREIGN KEY (transaction_id) REFERENCES transactions(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+DROP TABLE IF EXISTS voucher_documents;
+CREATE TABLE voucher_documents (
+  id               INT UNSIGNED    NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  transaction_id   BIGINT UNSIGNED NOT NULL,
+  kind             VARCHAR(8)      NOT NULL,                 -- original, signed
+  version          INT UNSIGNED    NOT NULL DEFAULT 1,
+  file_name        VARCHAR(160)    NOT NULL,
+  file_size        INT UNSIGNED    NOT NULL DEFAULT 0,
+  sha256           CHAR(64)        NOT NULL,
+  doc_hash         CHAR(64)        NULL,
+  signature_count  TINYINT UNSIGNED NOT NULL DEFAULT 0,
+  chunks           INT UNSIGNED    NOT NULL DEFAULT 0,
+  created_by       INT UNSIGNED    NULL,
+  created_note     VARCHAR(160)    NULL,
+  created_at       DATETIME        NOT NULL,
+  KEY ix_vd_txn (transaction_id, kind, version),
+  CONSTRAINT fk_vd_txn FOREIGN KEY (transaction_id) REFERENCES transactions(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+DROP TABLE IF EXISTS voucher_document_chunks;
+CREATE TABLE voucher_document_chunks (
+  document_id  INT UNSIGNED NOT NULL,
+  seq          INT UNSIGNED NOT NULL,
+  data         MEDIUMBLOB   NOT NULL,
+  PRIMARY KEY (document_id, seq),
+  CONSTRAINT fk_vdc_doc FOREIGN KEY (document_id) REFERENCES voucher_documents(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 SET FOREIGN_KEY_CHECKS = 1;

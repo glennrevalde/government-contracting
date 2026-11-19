@@ -6,6 +6,8 @@ declare(strict_types=1);
  * void / delete / email handling.
  */
 
+require_once __DIR__ . '/_signatures.php';   // v42: voucher signatures
+
 const SALES_TYPES = ['estimate', 'sales_order', 'invoice', 'sales_receipt', 'statement_charge', 'credit_memo', 'finance_charge', 'pos_sale', 'pos_return'];
 const PURCHASE_TYPES = ['purchase_order', 'bill', 'vendor_credit', 'item_receipt', 'check'];
 
@@ -59,6 +61,12 @@ function parse_item_lines(array $rows, string $mode, array $ctx = []): array
 {
     $out = [];
     $prevAmount = 0.0;
+    // item groups: a new group on the form takes the next group number of the document
+    $groupsOn = $mode === 'sales' && ItemGroups::ready();
+    $groupRef = 0;
+    foreach ($rows as $r) {
+        $groupRef = max($groupRef, (int)($r['group_ref'] ?? 0));
+    }
     foreach ($rows as $r) {
         $itemId = !empty($r['item_id']) ? (int)$r['item_id'] : null;
         $accountId = !empty($r['account_id']) ? (int)$r['account_id'] : null;
@@ -117,8 +125,31 @@ function parse_item_lines(array $rows, string $mode, array $ctx = []): array
         if ($base['id'] === null) {
             unset($base['id']);
         }
+        // a line of an item group shown as the items in it ("View item details"): it stays part of its group
+        if ($groupsOn && !empty($r['group_ref']) && !empty($r['group_item_id']) && in_array($r['group_role'] ?? '', ['member', 'variance'], true)) {
+            $base += ['group_item_id' => (int)$r['group_item_id'], 'group_ref' => (int)$r['group_ref'], 'group_qty' => to_num($r['group_qty'] ?? 0),
+                'group_rate' => to_num($r['group_rate'] ?? 0), 'group_role' => (string)$r['group_role']];
+        }
         $type = $item['item_type'] ?? null;
 
+        if ($type === 'group' && $groupsOn) {
+            // one group line: the items of the group at their own prices, and the price variance (ItemGroups::expand)
+            $gq = $qtyEntered != 0.0 ? $qtyEntered : 1.0;
+            $grate = trim((string)($r['rate'] ?? '')) === '' ? ItemGroups::price($itemId, $ctx['customer_id'] ?? null) : $rateEntered;
+            $gross = r2($gq * $grate);
+            $discAmt = $discKind === 'amt' ? min(abs($discEntered), abs($gross)) : r2($gross * $disc / 100);
+            $ref = (int)($r['group_ref'] ?? 0) ?: ++$groupRef;
+            $keep = ItemGroups::keepIds((string)($r['group_line_ids'] ?? ''));
+            $src = array_map('intval', array_filter(explode(',', (string)($r['group_src_ids'] ?? '')), 'strlen'));
+            unset($base['id']);
+            $base['source_line_id'] = null;
+            $expanded = ItemGroups::expand($item, $base, $gq, $grate, $discAmt, $taxId, $ctx['customer_id'] ?? null, $ref, $keep, $src);
+            foreach ($expanded as $e) {
+                $out[] = $e;
+            }
+            $prevAmount = r2($gross - $discAmt);
+            continue;
+        }
         if ($type === 'group') {
             $members = DB::all('SELECT ic.qty, i.* FROM item_components ic JOIN items i ON i.id = ic.component_item_id WHERE ic.parent_item_id = :p', ['p' => $itemId]);
             foreach ($members as $m) {
@@ -183,6 +214,21 @@ function parse_item_lines(array $rows, string $mode, array $ctx = []): array
     return $out;
 }
 
+/** The name code of an expense line: from the form ("name"), else from its saved customer or supplier */
+function expense_name_code(array $l): string
+{
+    if (isset($l['name']) && is_string($l['name']) && preg_match('/^[cv]\d+$/', $l['name'])) {
+        return $l['name'];
+    }
+    if (!empty($l['customer_id'])) {
+        return 'c' . (int)$l['customer_id'];
+    }
+    if (!empty($l['vendor_id'])) {
+        return 'v' . (int)$l['vendor_id'];
+    }
+    return '';
+}
+
 /** Expense-tab lines (bills, checks, vendor credits) */
 function parse_expense_lines(array $rows): array
 {
@@ -204,9 +250,21 @@ function parse_expense_lines(array $rows): array
             'amount'      => $amount,
             'tax_code_id' => $taxId,
             'tax_amount'  => r2($amount * tax_rate($taxId) / 100),
-            'customer_id' => !empty($r['customer_id']) ? (int)$r['customer_id'] : null,
-            'is_billable' => !empty($r['is_billable']) && !empty($r['customer_id']) ? 1 : 0,
+            'customer_id' => null,
+            'vendor_id'   => null,
+            'is_billable' => 0,
         ];
+        // the Customer / Supplier box: a customer (job costing, billable) or a supplier (its subsidiary ledger)
+        $code = expense_name_code($r);
+        if ($code !== '') {
+            $id = (int)substr($code, 1);
+            $table = $code[0] === 'c' ? 'customers' : 'vendors';
+            if (!DB::value("SELECT 1 FROM $table WHERE id = :id", ['id' => $id])) {
+                fail('Choose the customer or supplier of every expense line from the list.');
+            }
+            $line[$code[0] === 'c' ? 'customer_id' : 'vendor_id'] = $id;
+            $line['is_billable'] = $code[0] === 'c' && !empty($r['is_billable']) ? 1 : 0;
+        }
         if (!empty($r['id']) && ctype_digit((string)$r['id'])) {
             $line['id'] = (int)$r['id'];
         }
@@ -220,9 +278,10 @@ function price_checks(array $lines, ?int $customerId): string
 {
     $maxDisc = Access::limit('max_discount_pct');
     $maxOverride = Access::limit('max_price_override_pct');
-    $needs = [];
+    // item groups are checked as groups: their discount and their price against the group's own
+    $needs = ItemGroups::ready() ? ItemGroups::priceChecks($lines, $customerId, $maxDisc, $maxOverride) : [];
     foreach ($lines as $l) {
-        if (!$l['item_id']) {
+        if (!$l['item_id'] || !empty($l['group_ref'])) {
             continue;
         }
         $item = item_cache((int)$l['item_id']);
@@ -265,7 +324,16 @@ function grid_rows(string $key): array
 function txn_common_actions(string $pageKey, array $types): bool
 {
     $a = g('a');
-    if (!in_array($a, ['view', 'print', 'void', 'delete', 'email', 'close', 'reopen'], true)) {
+    // v42: a signed voucher is not opened for editing (Txn::save refuses it as well)
+    if ($a === 'edit' && (int)g('id') && Signatures::ready()) {
+        $t = Txn::load((int)g('id'));
+        if ($t && in_array($t['txn_type'], $types, true) && Signatures::supports($t['txn_type']) && Signatures::locked((int)$t['id'])) {
+            flash('warning', Txn::ref($t) . ' is signed and cannot be edited. Reset its signatures first (Signatures box).');
+            redirect(Txn::url($t));
+        }
+        return false;
+    }
+    if (!in_array($a, ['view', 'print', 'void', 'delete', 'email', 'close', 'reopen', 'sign', 'sign_request', 'sign_revoke', 'sign_reset', 'sign_pdf'], true)) {
         return false;
     }
     $id = (int)g('id');
@@ -276,6 +344,9 @@ function txn_common_actions(string $pageKey, array $types): bool
     }
     if (!Access::siteAllowed($t['site_id'] ? (int)$t['site_id'] : null)) {
         Access::denyPage($pageKey, 'open a transaction of another site on');
+    }
+    if (str_starts_with($a, 'sign')) {
+        return voucher_sign_actions($pageKey, $t, $a);
     }
     switch ($a) {
         case 'view':
@@ -432,17 +503,29 @@ function render_txn_view(array $t, string $pageKey): void
     $type = $t['txn_type'];
     $lines = Txn::lines($id);
     $isSales = in_array($type, SALES_TYPES, true);
+    // item groups: shown as one line per group (the default) or as the items in them
+    $groupSwitch = '';
+    if ($isSales && ItemGroups::ready() && ItemGroups::has($lines)) {
+        $lineMode = ItemGroups::viewMode();
+        $groupSwitch = ItemGroups::viewSwitch($lineMode);
+        if ($lineMode === 'groups') {
+            $lines = ItemGroups::collapse($lines);
+        }
+    }
     $showCosts = Access::viewCosts();
     $open = in_array($type, array_merge(Balances::RECEIVABLE_DOCS, Balances::PAYABLE_DOCS), true) ? Balances::open($t) : null;
     $credit = in_array($type, array_merge(Balances::CUSTOMER_CREDITS, Balances::VENDOR_CREDITS), true) ? Balances::creditRemaining($t) : null;
     $advLeft = $type === 'vendor_advance' ? Advances::remaining($t) : null;
     $voided = (int)$t['is_voided'] === 1;
+    // v42: the vouchers that are signed (check, cash voucher, journal entry); a signed one is locked
+    $signing = Signatures::on($t);
+    $sigLocked = $signing && Signatures::locked($id);
 
     $actions = [];
     // finance charges and the documents the system makes itself have no edit form of their own: they are corrected by
     // voiding and entering them again, so they get no Edit button (item receipts, inventory adjustments, transfers and
     // builds are edited on their own pages)
-    $editable = !$voided && Access::can($pageKey, 'edit') && !in_array($type, ['pos_sale', 'pos_return', 'depreciation', 'asset_disposal', 'bank_charge', 'bank_interest', 'pos_over_short', 'refund',
+    $editable = !$voided && !$sigLocked && Access::can($pageKey, 'edit') && !in_array($type, ['pos_sale', 'pos_return', 'depreciation', 'asset_disposal', 'bank_charge', 'bank_interest', 'pos_over_short', 'refund',
         'finance_charge'], true);
     if ($editable) {
         $actions[] = btn_link(url($pageKey, ['a' => 'edit', 'id' => $id]), 'Edit', 'btn-primary', 'pencil');
@@ -451,7 +534,7 @@ function render_txn_view(array $t, string $pageKey): void
         }
     }
     if (Access::can($pageKey, 'print')) {
-        $actions[] = btn_link(Txn::url($t, 'print'), 'Print', 'btn-outline-secondary', 'printer');
+        $actions[] = btn_link(Txn::url($t, 'print') . (g('lines') === 'details' ? '&lines=details' : ''), 'Print', 'btn-outline-secondary', 'printer');
         if ($t['customer_id'] || $t['vendor_id']) {
             $actions[] = btn_link(Txn::url($t, 'email'), 'Email', 'btn-outline-secondary', 'envelope');
         }
@@ -513,7 +596,11 @@ function render_txn_view(array $t, string $pageKey): void
         }
     }
     $posting = !in_array($type, Posting::NON_POSTING, true);
-    if (Access::can($pageKey, 'delete')) {
+    if ($signing && !$voided && Signatures::canSign($pageKey) && sign_free_slots($t)
+        && !array_filter(Signatures::active($id), fn($s) => (int)$s['signer_user_id'] === (int)Auth::id())) {
+        $actions[] = btn_link(Txn::url($t, 'sign'), 'Sign Voucher', 'btn-outline-primary', 'pen');
+    }
+    if (Access::can($pageKey, 'delete') && !$sigLocked) {
         if (!$voided && $posting) {
             $actions[] = '<button class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#voidModal"><i class="bi bi-slash-circle"></i> Void</button>';
         }
@@ -526,7 +613,7 @@ function render_txn_view(array $t, string $pageKey): void
     }
     $actions[] = btn_link(url($pageKey), 'Back to list', 'btn-outline-secondary');
 
-    layout_start(Txn::ref($t), ['actions' => implode(' ', $actions)]);
+    layout_start(Txn::ref($t), ['actions' => implode(' ', $actions), 'js' => $signing ? ['js/signature.js'] : []]);
     if ($voided) {
         echo '<div class="alert alert-dark"><strong>VOID</strong> — ' . h($t['void_reason']) . ' (' . h(fdatetime($t['voided_at'])) . ')</div>';
     }
@@ -542,6 +629,10 @@ function render_txn_view(array $t, string $pageKey): void
         'Number' => $t['txn_no'],
         'Status' => status_badge($t['status']),
     ];
+    if ($signing) {
+        $sigSum = Signatures::summary($t);
+        $info['Signatures'] = '<a class="sig-info sig-st-' . h($sigSum['key']) . '" href="#signatures">' . h($sigSum['label']) . ' (' . (int)$sigSum['signed'] . ' of ' . (int)$sigSum['total'] . ')</a>';
+    }
     $ent = entity_name($t);
     if ($ent !== '') {
         $info[$type === Posting::CASH_VOUCHER ? 'Paid to' : ($t['vendor_id'] ? 'Vendor' : ($t['customer_id'] ? 'Customer' : 'Payee'))] = h($ent);
@@ -598,6 +689,7 @@ function render_txn_view(array $t, string $pageKey): void
           </div>
         </div></div>
         <?php if ($lines): ?>
+        <?= $groupSwitch !== '' ? '<div class="mb-2">' . $groupSwitch . '</div>' : '' ?>
         <div class="card mb-3"><div class="table-responsive"><table class="table table-sm mb-0">
           <thead><tr>
             <?php $lineClasses = (bool)array_filter($lines, fn($x) => !empty($x['class_id'])); ?>
@@ -607,7 +699,7 @@ function render_txn_view(array $t, string $pageKey): void
               <th>Item / Account</th><th>Description</th><th class="num">Qty</th><th class="num">Rate</th><th class="num">Disc</th><th class="num">Amount</th><th>Tax</th>
               <?php if (in_array($type, ['sales_order', 'purchase_order'], true)): ?><th class="num"><?= $type === 'sales_order' ? 'Invoiced' : 'Received' ?></th><?php endif; ?>
               <?php if ($showCosts && $isSales && $posting): ?><th class="num">Cost</th><?php endif; ?>
-              <?php if (in_array($type, PURCHASE_TYPES, true)): ?><th>Customer:Job</th><?php endif; ?>
+              <?php if (in_array($type, PURCHASE_TYPES, true)): ?><th>Customer / Supplier</th><?php endif; ?>
             <?php endif; ?>
           </tr></thead>
           <tbody>
@@ -623,7 +715,8 @@ function render_txn_view(array $t, string $pageKey): void
             <?php else: ?>
               <tr class="<?= (int)$l['is_closed'] ? 'text-muted' : '' ?>">
                 <td><?= h($l['item_code'] ?: ($l['account_code'] ? $l['account_code'] . ' - ' . $l['account_name'] : '')) ?><?= $l['line_kind'] === 'component' ? ' <span class="badge text-bg-light">component</span>' : '' ?></td>
-                <td><?= h($l['description']) ?><?= (int)$l['is_billable'] ? ' <span class="badge text-bg-info">billable</span>' : '' ?><?= $l['billed_txn_id'] ? ' <span class="small">billed on ' . Txn::link((int)$l['billed_txn_id']) . '</span>' : '' ?></td>
+                <td><?= h($l['description']) ?><?= !empty($l['_group']) ? '<div class="small text-muted group-members">Item group: ' . h(implode(', ', array_map(fn($m) => qty($m['qty']) . ' ' . ($m['item_code'] ?: $m['description']), $l['_members']))) . '</div>'
+                    : (!empty($l['group_ref']) && !empty($l['group_item_id']) ? '<div class="small text-muted">In item group ' . h((string)(item_cache((int)$l['group_item_id'])['code'] ?? '')) . '</div>' : '') ?><?= (int)$l['is_billable'] ? ' <span class="badge text-bg-info">billable</span>' : '' ?><?= $l['billed_txn_id'] ? ' <span class="small">billed on ' . Txn::link((int)$l['billed_txn_id']) . '</span>' : '' ?></td>
                 <td class="num"><?= $l['item_type'] === 'subtotal' ? '' : line_qty($l) ?></td>
                 <td class="num"><?= $l['item_type'] === 'subtotal' ? '' : line_rate($l) ?></td>
                 <td class="num"><?= line_discount($l) ?></td>
@@ -631,7 +724,7 @@ function render_txn_view(array $t, string $pageKey): void
                 <td class="small"><?= $l['tax_code_id'] ? h(Lookup::taxCodes()[$l['tax_code_id']] ?? '') . ' ' . money($l['tax_amount'], true) : '' ?></td>
                 <?php if (in_array($type, ['sales_order', 'purchase_order'], true)): ?><td class="num"><?= qty($l['qty_fulfilled']) ?><?= (int)$l['is_closed'] ? ' <span class="badge text-bg-secondary">closed</span>' : '' ?></td><?php endif; ?>
                 <?php if ($showCosts && $isSales && $posting): ?><td class="num"><?= money($l['cost_amount'], true) ?></td><?php endif; ?>
-                <?php if (in_array($type, PURCHASE_TYPES, true)): ?><td><?= h($l['customer_name']) ?></td><?php endif; ?>
+                <?php if (in_array($type, PURCHASE_TYPES, true)): ?><td><?= h($l['customer_name'] ?: ($l['line_kind'] === 'expense' ? ($l['vendor_name'] ?? '') : '')) ?></td><?php endif; ?>
               </tr>
             <?php endif; ?>
           <?php endforeach; ?>
@@ -678,6 +771,8 @@ function render_txn_view(array $t, string $pageKey): void
             <?php if ($advLeft !== null): ?><tr><td>Applied to bills</td><td class="num"><?= money(Advances::applied($id)) ?></td></tr><tr class="fw-semibold"><td>Left to apply</td><td class="num"><?= money($advLeft) ?></td></tr><?php endif; ?>
           </table>
         </div></div>
+        <?= $signing ? signatures_card($t, $pageKey) : '' ?>
+        <?= Attachments::viewCard($t, $pageKey) ?>
         <?php $whtRows = in_array($type, ['bill_payment', 'payment'], true) ? Withholding::forPayment($id) : []; if ($whtRows): ?>
         <div class="card mb-3"><div class="card-header small fw-semibold"><?= $type === 'payment' ? 'Taxes withheld by the customer' : 'Taxes withheld from the supplier' ?></div>
           <div class="table-responsive"><table class="table table-sm mb-0 small"><thead><tr><th>Document</th><th>Tax</th><th class="num">Base</th><th class="num">Amount</th></tr></thead>
@@ -711,7 +806,10 @@ function render_txn_view(array $t, string $pageKey): void
     if (in_array($type, Memorized::TYPES, true) && (int)$t['is_voided'] === 0 && Access::can('coa.memorized_txns', 'create')) {
         echo memorize_modal($t);
     }
-    if (Access::can($pageKey, 'delete')) {
+    if ($signing) {
+        echo signatures_modals($t, $pageKey);
+    }
+    if (Access::can($pageKey, 'delete') && !$sigLocked) {
         echo reason_modal('voidModal', 'Void transaction', Txn::url($t, 'void'), 'btn-warning',
             '<p class="small text-muted mt-2">Voiding keeps the document but removes its effect on the ledger and inventory.</p>');
         echo reason_modal('deleteModal', 'Delete transaction', Txn::url($t, 'delete'), 'btn-danger',
@@ -850,15 +948,28 @@ function print_company_block(string $logoKey): string
         . ($s['company_phone'] ? ', ' . h($s['company_phone']) : '') . '</div></div></div>';
 }
 
-/** Prepared by / Checked by / Approved by (/ Received by) */
+/**
+ * Prepared by / Checked by / Approved by (/ Received by).
+ * v42: on the vouchers that are signed, a signed line shows the signature above it, the signer's name on it and
+ * the date under it.
+ */
 function print_signatures(array $t, bool $received = false): string
 {
     $who = fn($id) => $id ? h((string)DB::value('SELECT full_name FROM users WHERE id = :id', ['id' => $id])) : '&nbsp;';
-    return '<div class="row mt-5 small signatures">'
-        . '<div class="col"><div class="sig-label">Prepared by:</div><div class="sig-line">' . $who($t['created_by']) . '</div></div>'
-        . '<div class="col"><div class="sig-label">Checked by:</div><div class="sig-line">&nbsp;</div></div>'
-        . '<div class="col"><div class="sig-label">Approved by:</div><div class="sig-line">' . $who($t['approved_by'] ?? null) . '</div></div>'
-        . ($received ? '<div class="col"><div class="sig-label">Received by:</div><div class="sig-line">&nbsp;</div></div>' : '')
+    $sigs = Signatures::on($t) ? Signatures::active((int)$t['id']) : [];
+    $cell = function (string $slot, string $label, string $name) use ($sigs): string {
+        $s = $sigs[$slot] ?? null;
+        if (!$s) {
+            return '<div class="col"><div class="sig-label">' . $label . ':</div><div class="sig-line">' . $name . '</div></div>';
+        }
+        return '<div class="col"><div class="sig-label">' . $label . ':</div><div class="sig-line is-signed"><span class="sig-mark">' . Signatures::svg((string)$s['strokes']) . '</span>'
+            . h($s['signer_name']) . '</div><div class="sig-when">Signed ' . h(fdatetime($s['signed_at'])) . '</div></div>';
+    };
+    return '<div class="row mt-5 small signatures' . ($sigs ? ' has-signed' : '') . '">'
+        . $cell('prepared', 'Prepared by', $who($t['created_by']))
+        . $cell('checked', 'Checked by', '&nbsp;')
+        . $cell('approved', 'Approved by', $who($t['approved_by'] ?? null))
+        . ($received ? $cell('received', 'Received by', '&nbsp;') : '')
         . '</div>';
 }
 
@@ -1004,6 +1115,10 @@ function txn_print_body(array $t): void
         return;
     }
     $lines = Txn::lines((int)$t['id']);
+    // item groups print as one line each, or as the items in them (?lines=details)
+    if (in_array($t['txn_type'], SALES_TYPES, true) && ItemGroups::ready() && ItemGroups::has($lines) && ItemGroups::viewMode() === 'groups') {
+        $lines = ItemGroups::collapse($lines);
+    }
     $s = Settings::all();
     $type = $t['txn_type'];
     $title = strtoupper(Txn::label($type));
@@ -1105,12 +1220,24 @@ function render_txn_list(string $pageKey, array $types, string $title, array $op
 {
     $from = gdate('from', date('Y-m-d', strtotime('-90 days')));
     $to = gdate('to', date('Y-m-d', strtotime('+30 days')));
+    // a ready-made period (This month, Last month ...) fills in From and To
+    $preset = (string)g('dates');
+    $presets = ['' => 'Custom', 'today' => 'Today', 'this_week' => 'This week', 'this_month' => 'This month', 'last_month' => 'Last month',
+        'this_quarter' => 'This quarter', 'last_quarter' => 'Last quarter', 'this_year' => 'This fiscal year', 'last_year' => 'Last fiscal year', 'all' => 'All dates'];
+    if ($preset !== '' && isset($presets[$preset])) {
+        [$from, $to] = Report::preset($preset);
+    }
     $status = g('status');
     $q = g('q');
     $where = ['t.txn_date BETWEEN :f AND :t'];
     [$in, $params] = DB::in('ty', $types);
     $where[] = "t.txn_type IN $in";
     $params += ['f' => $from, 't' => $to];
+    // a list of its own documents only (Receive Items List: what was received on that page)
+    if (!empty($opt['where'])) {
+        $where[] = $opt['where'];
+        $params += $opt['where_params'] ?? [];
+    }
     if ($status === 'pending') {
         $where[] = 't.is_pending = 1';
     } elseif ($status === 'unpaid') {
@@ -1171,6 +1298,9 @@ function render_txn_list(string $pageKey, array $types, string $title, array $op
         ], $rows));
     }
 
+    // v40: a paper clip beside the number of a document with attached files
+    $attCounts = array_intersect($types, Attachments::TYPES) ? Attachments::counts(array_column($rows, 'id')) : [];
+
     $actions = $opt['actions'] ?? '';
     if (Access::can($pageKey, 'create') && empty($opt['no_new'])) {
         $actions = btn_link(url($pageKey, ['a' => 'new']), $opt['new_label'] ?? 'New', 'btn-primary', 'plus-lg') . ' ' . $actions;
@@ -1183,8 +1313,10 @@ function render_txn_list(string $pageKey, array $types, string $title, array $op
     ?>
     <form class="row g-2 mb-3 filters" method="get">
       <input type="hidden" name="p" value="<?= h($pageKey) ?>">
-      <div class="col-auto"><label class="form-label">From</label><input class="form-control form-control-sm" type="date" name="from" value="<?= h($from) ?>"></div>
-      <div class="col-auto"><label class="form-label">To</label><input class="form-control form-control-sm" type="date" name="to" value="<?= h($to) ?>"></div>
+      <?php foreach ((array)($opt['hidden'] ?? []) as $hk => $hv): ?><input type="hidden" name="<?= h((string)$hk) ?>" value="<?= h((string)$hv) ?>"><?php endforeach; ?>
+      <div class="col-auto"><label class="form-label">Dates</label><select class="form-select form-select-sm" name="dates" data-no-combo onchange="if(this.value){this.form.from.value='';this.form.to.value='';}this.form.submit()"><?= options($presets, $preset) ?></select></div>
+      <div class="col-auto"><label class="form-label">From</label><input class="form-control form-control-sm" type="date" name="from" value="<?= h($from) ?>" onchange="this.form.dates.value=''"></div>
+      <div class="col-auto"><label class="form-label">To</label><input class="form-control form-control-sm" type="date" name="to" value="<?= h($to) ?>" onchange="this.form.dates.value=''"></div>
       <div class="col-auto"><label class="form-label">Status</label><select class="form-select form-select-sm" name="status"><?= options($statuses, $status, 'All') ?></select></div>
       <?php if ($useClasses): ?><div class="col-auto"><label class="form-label">Class</label><select class="form-select form-select-sm" name="class_id"><?= options(Classes::filterOptions(), $classId, 'All') ?></select></div><?php endif; ?>
       <div class="col-auto"><label class="form-label">Search</label><input class="form-control form-control-sm" name="q" value="<?= h($q) ?>" placeholder="No., name, memo"></div>
@@ -1213,7 +1345,7 @@ function render_txn_list(string $pageKey, array $types, string $title, array $op
         <tr class="<?= (int)$r['is_voided'] ? 'text-muted text-decoration-line-through' : '' ?>">
           <td><?= h(fdate($r['txn_date'])) ?></td>
           <?php if (count($types) > 1): ?><td><?= h(Txn::label($r['txn_type'])) ?></td><?php endif; ?>
-          <td><a href="<?= h(url($pageKey, ['a' => 'view', 'id' => $r['id']])) ?>"><?= h($r['txn_no'] ?: '#' . $r['id']) ?></a></td>
+          <td><a href="<?= h(!empty($opt['own_link']) ? Txn::url($r) : url($pageKey, ['a' => 'view', 'id' => $r['id']])) ?>"><?= h($r['txn_no'] ?: '#' . $r['id']) ?></a><?= Attachments::clip($attCounts[(int)$r['id']] ?? 0) ?></td>
           <?php if ($siteCols): ?>
             <td><?= h($siteNames[$r['site_id']] ?? '') ?></td><td><i class="bi bi-arrow-right-short text-muted"></i> <?= h($siteNames[$r['site2_id']] ?? '') ?></td>
           <?php else: ?>

@@ -20,10 +20,22 @@ if ($mode === 'receipt' && txn_common_actions($pageKey, ['item_receipt'])) {
     return;
 }
 if (g('a') === 'list') {
+    $tracked = ItemGroups::ready();     // the received_via column came with the same database update
     if ($mode === 'bill') {
-        redirect(url('vend.bills'));
+        // every bill entered with Receive Items and Enter Bills
+        if (!$tracked) {
+            redirect(url('vend.bills'));
+        }
+        render_txn_list($pageKey, ['bill'], 'Receive Items and Enter Bills List', ['no_new' => true, 'own_link' => true,
+            'where' => "t.received_via = 'bill'", 'hidden' => ['a' => 'list'],
+            'statuses' => ['open' => 'Open', 'partial' => 'Partially paid', 'paid' => 'Paid', 'void' => 'Void'],
+            'actions' => btn_link(url($pageKey), 'Receive items and enter bill', 'btn-primary', 'box-arrow-in-down')]);
+        return;
     }
-    render_txn_list($pageKey, ['item_receipt'], 'Item Receipts (bill to follow)', ['no_new' => true,
+    // every receipt of items: those waiting for their bill, and those whose bill has been entered
+    render_txn_list($pageKey, ['item_receipt', 'bill'], 'Receive Items List', ['no_new' => true, 'own_link' => true,
+        'where' => $tracked ? "(t.txn_type = 'item_receipt' OR t.received_via = 'receipt')" : "t.txn_type = 'item_receipt'", 'hidden' => ['a' => 'list'],
+        'statuses' => ['open' => 'Open', 'partial' => 'Partially paid', 'paid' => 'Paid', 'void' => 'Void'],
         'actions' => btn_link(url($pageKey), 'Receive items', 'btn-primary', 'box-arrow-in-down')]);
     return;
 }
@@ -130,8 +142,13 @@ handle_post(function () use ($mode, $docType, $vendorId, $po, $pageKey, $edit) {
         flash('success', Txn::ref(Txn::load($id)) . ' updated. Stock, the journal and the purchase order follow the new figures.');
         redirect(url($pageKey, ['a' => 'view', 'id' => $id]));
     }
+    if (ItemGroups::ready()) {
+        // the page the items were received on: the Receive Items List / Receive Items and Enter Bills List
+        $h['received_via'] = $mode === 'bill' ? 'bill' : 'receipt';
+    }
     $id = Txn::save($docType, $h, $lines);
-    flash('success', ($mode === 'bill' ? 'Items received and bill entered.' : 'Items received. The bill can be entered when it arrives.'));
+    $files = Attachments::claim($id, $pageKey);
+    flash('success', ($mode === 'bill' ? 'Items received and bill entered.' : 'Items received. The bill can be entered when it arrives.') . ($files !== '' ? ' ' . $files : ''));
     redirect_after_save(url($pageKey), url($mode === 'bill' ? 'vend.bills' : $pageKey, ['a' => 'view', 'id' => $id]));
 });
 
@@ -153,7 +170,8 @@ if ($edit) {
 }
 layout_start($edit ? 'Edit Item Receipt ' . $edit['txn_no'] : ($mode === 'bill' ? 'Receive Items and Enter Bills' : 'Receive Items'), ['actions' => $edit
     ? btn_link(Txn::url($edit), 'Cancel', 'btn-outline-secondary')
-    : $loadButton . ' ' . ($mode === 'receipt' ? btn_link(url($pageKey, ['a' => 'list']), 'Item receipts', 'btn-outline-secondary', 'list-ul') : '')]);
+    : $loadButton . ' ' . ($mode === 'receipt' ? btn_link(url($pageKey, ['a' => 'list']), 'Receive Items List', 'btn-outline-secondary', 'list-ul')
+        : btn_link(url($pageKey, ['a' => 'list']), 'Receive Items and Enter Bills List', 'btn-outline-secondary', 'list-ul'))]);
 echo memorized_loaded_note($mem);
 ?>
 <?php if ($edit): ?>
@@ -180,7 +198,7 @@ echo memorized_loaded_note($mem);
 <?php endif; ?>
 
 <?php if ($vendorId): ?>
-<form method="post">
+<form method="post"<?= $edit ? '' : Attachments::enctype($docType) ?>>
 <?= csrf_field() ?>
 <div class="card mb-3"><div class="card-body row g-2">
   <?= input_field('txn_date', $mode === 'bill' ? 'Bill date' : 'Date received', fv('txn_date', $edit, today()), ['type' => 'date', 'class' => 'col-md-2']) ?>
@@ -202,6 +220,7 @@ echo memorized_loaded_note($mem);
       ? 'Posting debits Inventory and Input Tax and credits Accounts Payable, and updates the purchase order.'
       : 'Posting increases inventory now (debit Inventory, credit Accounts Payable at the PO cost). The receipt is not a bill, so it does not appear in Pay Bills until you enter the bill.' ?></p>
 </div>
+<?= $edit ? '' : Attachments::formCard($docType, null) ?>
 <div class="d-flex flex-wrap gap-2 align-items-center">
   <?php if ($edit): ?>
     <button class="btn btn-primary"><i class="bi bi-check2"></i> Save changes</button>
