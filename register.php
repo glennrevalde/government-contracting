@@ -120,6 +120,7 @@ $code = (string)(p('company_code') ?: g('code'));
 <link rel="stylesheet" href="<?= h(vendor_asset('bootstrap.css')) ?>">
 <link rel="stylesheet" href="<?= h(vendor_asset('icons.css')) ?>">
 <link rel="stylesheet" href="<?= h(asset('css/app.css')) ?>">
+<?= Pwa::head() ?>
 </head>
 <body class="login-bg">
 <div class="container join-wrap">

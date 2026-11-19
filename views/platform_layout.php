@@ -35,6 +35,7 @@ function platform_start(string $title, array $opt = []): void
 <link rel="stylesheet" href="<?= h(vendor_asset('bootstrap.css')) ?>">
 <link rel="stylesheet" href="<?= h(vendor_asset('icons.css')) ?>">
 <link rel="stylesheet" href="<?= h(asset('css/app.css')) ?>">
+<?= Pwa::head() ?>
 <script src="<?= h(asset('js/fmt.js')) ?>"></script>
 </head>
 <body class="platform">
@@ -45,6 +46,8 @@ function platform_start(string $title, array $opt = []): void
     <span class="company d-none d-md-inline">Platform administration</span>
   </div>
   <?php if ($sa): ?>
+  <div class="d-flex align-items-center gap-2">
+  <?= Pwa::installButton() ?>
   <div class="dropdown">
     <button class="btn btn-sm btn-user dropdown-toggle" data-bs-toggle="dropdown"><i class="bi bi-shield-lock"></i> <?= h($sa['full_name']) ?></button>
     <ul class="dropdown-menu dropdown-menu-end">
@@ -56,6 +59,7 @@ function platform_start(string $title, array $opt = []): void
       <li><hr class="dropdown-divider"></li>
       <li><form method="post" action="<?= h(purl('companies', ['a' => 'logout'])) ?>"><?= csrf_field() ?><button class="dropdown-item"><i class="bi bi-box-arrow-right"></i> Log out</button></form></li>
     </ul>
+  </div>
   </div>
   <?php endif; ?>
 </nav>

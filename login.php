@@ -33,6 +33,7 @@ $multi = Tenant::isMulti();
 <link rel="stylesheet" href="<?= h(vendor_asset('bootstrap.css')) ?>">
 <link rel="stylesheet" href="<?= h(vendor_asset('icons.css')) ?>">
 <link rel="stylesheet" href="<?= h(asset('css/app.css')) ?>">
+<?= Pwa::head() ?>
 </head>
 <body class="login-bg">
 <div class="container" style="max-width:420px;padding-top:11vh">
@@ -63,6 +64,7 @@ $multi = Tenant::isMulti();
       <?php endif; ?>
     </div>
   </div>
+  <?= Pwa::installBox() ?>
 </div>
 </body>
 </html>

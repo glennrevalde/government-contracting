@@ -67,6 +67,7 @@ function manual_search(string $id, string $class = ''): string
 <link rel="stylesheet" href="<?= h(vendor_asset('icons.css')) ?>">
 <link rel="stylesheet" href="<?= h(asset('css/app.css')) ?>">
 <link rel="stylesheet" href="<?= h(asset('css/manual.css')) ?>">
+<?= Pwa::head() ?>
 </head>
 <body class="manual" data-search="<?= h($searchUrl) ?>">
 <nav class="navbar navbar-dark bg-dark app-bar sticky-top px-3 no-print">

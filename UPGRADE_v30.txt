@@ -1,0 +1,50 @@
+G-SMaRT Integrated Accounting and Government Contracting System - version 30 (2026-11-18)
+=========================================================================================
+
+The system can now be installed as an app on phones, tablets and computers: an icon that opens
+it full screen, without the browser's address bar. No app store and no database change.
+
+Copy the files of this package over the program folder, keeping the folders. Nothing else to run.
+
+New files
+---------
+manifest.php               what the browser reads to install the app: name (from config/config.php),
+                           short name, start page, colors, icons. Needs no log-in and no database;
+                           PHP notices can never get into it.
+sw.js                      the service worker. Pages are never cached (they hold private data);
+                           only the stylesheets, scripts, fonts and icons of assets/ are kept.
+                           Without a connection it shows offline.html. Posted forms (saving, uploads,
+                           log-in), downloads and files are left to the browser.
+offline.html               "No internet connection" with a Try again button. It also opens the page
+                           by itself as soon as the connection is back.
+app/Pwa.php                the head tags, the "Install app" button and the "Install the app" box;
+                           the app's colors (THEME_COLOR, BACKGROUND_COLOR: the side menu's color)
+assets/js/pwa.js           registers sw.js (on https or localhost only), opens the browser's install
+                           when it offers one, otherwise shows the steps for the browser in use
+assets/icons/              icon-192, icon-512, maskable-192, maskable-512, apple-touch-icon (180),
+                           favicon-32: "GS" on the system's blue
+
+Changed files
+-------------
+views/layout.php           head tags; "Install app" button in the top bar
+views/platform_layout.php  head tags; "Install app" button in the top bar of the Super Admin pages
+login.php                  head tags; "Install the app" box under the log-in card
+register.php, manual.php   head tags
+assets/css/app.css         the button, the box and the install steps
+README.md                  section 8: Installing the system as an app
+
+The stylesheets and scripts carry their file date in their address (?v=...), so browsers and the
+service worker take the new app.css and pwa.js right away.
+
+Installing needs https or localhost
+-----------------------------------
+Browsers install the app only from an https:// address with a certificate the device trusts, or
+from http://localhost on the computer that runs the system. On a plain http:// address on the office
+network (http://192.168.x.x/...) the system works in the browser as before, and the Install button
+explains that https is needed.
+
+To try it on the server PC: open http://localhost/government-contracting-system/ in Chrome or Edge,
+then Install app in the top bar (or the box on the log-in page).
+
+Inside the installed app the Install button and box are hidden. To remove the app: Chrome or Edge,
+open the app, menu > Uninstall; Android, hold the icon > Uninstall; iPhone, hold the icon > Remove App.
