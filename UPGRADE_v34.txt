@@ -1,0 +1,159 @@
+G-SMaRT Integrated Accounting and Government Contracting System - version 34 (2026-11-21)
+=========================================================================================
+
+The requests of ADDITIONAL MODULE FOR GOVERNMENT CONTRUCTING SYSTEM v4:
+ - the card "Numbers and dates of the barangay's papers" taken off the transaction form;
+ - People Accountable Set-up: each function set by ROLES or by USERS;
+ - the transaction form: gross amount, withholding tax, cheque amount, amount to release,
+   profit, receipt deduction and SOP (estimates and targets: no accounting entry);
+ - the purchase request items (price schedule): "Look up the Inventory List", the estimated
+   amount worked out (qty x estimated unit cost), add 1, 5 or 10 lines at once, any number
+   of lines;
+ - the IAR: RIS No. and Date beside the IAR No. and Date; no Requisitioning Office/Dept.,
+   no Responsibility Center Code;
+ - the Request for Quotation replaced with the barangay's format (header, footer, logos and
+   text still changed on its template);
+ - the DV: gross amount, VAT (5% / 3%) and EWT (2% / 1%) in its Fill in the blanks, the check
+   amount and the amount in words worked out at once;
+ - "Cheque ready: payment released": the tradename of the cheque, from every tradename.
+
+This package holds ONLY the files that are new or changed since version 33, in the
+same folders. Copy them over your installation (folder government-contracting-system);
+every other file stays as it is.
+
+Upgrading an installation of version 33
+---------------------------------------
+1. Back up the database and the program folder (storage/ and config/config.php too).
+2. Copy the files of this package over your installation. config/config.php is not
+   in the package; yours stays.
+3. Run the new migration on your database (phpMyAdmin: select the database > Import;
+   Navicat: Execute SQL File):
+
+       database/migrations/2026_11_21_people_users_estimates_dv_rfq_iar.sql
+
+   It needs 2026_11_20_tradenames_people_report_center.sql (version 33) to have been run
+   first. With several companies, run it on every company database (Super Admin:
+   Companies > Database updates > Update all companies). Until it is run, the program shows
+   a page naming it. It is safe to run a second time.
+4. Press Ctrl+F5 once in the browser so it loads the changed assets/css/app.css and
+   assets/js/brgy.js.
+5. Open Proforma & Form Templates > Request for quotation (canvass form) > Format >
+   Letterhead and logos, and upload the Bagong Pilipinas logo as Picture A (the right side
+   of the BAC letterhead). The barangay seal on the left comes from each barangay's record
+   (Barangays & Procuring Entities), as before.
+6. Check Contracting Settings > The SOP: the rates offered by the estimates of the
+   transaction form (withholding tax 1,4,5,6,7; profit 10,13,15; receipt deduction 3).
+
+What the migration does
+-----------------------
+ - The table brgy_function_users (People Accountable Set-up by user). Nothing is ticked:
+   every function keeps the roles set in version 33.
+ - Ten empty columns on brgy_projects: lines_lookup_inventory (the look-up switch of the
+   price schedule), est_gross, est_wt_rate, est_profit_rate, est_receipt_rate, est_sop
+   (the estimates), dv_gross, dv_vat_rate, dv_ewt_rate (the amounts entered on the DV) and
+   cheque_tradename.
+ - A new version of the template "Request for quotation (canvass form)" in the barangay's
+   format, and of "Inspection and acceptance report (IAR)" with the RIS No. and Date and
+   without the two lines. The version before stays under the template's Versions and can be
+   put back. An IAR whose text was changed so that the two lines are not found is left as
+   it is.
+ - One line in the audit trail saying the migration was run.
+Nothing is deleted and no amount or posting changes. Forms already prepared keep their
+text; a draft takes the new format with "Fill again from the records". The numbers and
+dates of the barangay's papers saved before stay on the transactions and still print.
+
+What is new
+-----------
+People Accountable Set-up (Barangay Contracts > Setup)
+ - Each function (sales representative, preparer, checker / reviewer, approver, authorized
+   submitter, project manager, collector) has Roles or Users. Roles: the active users of the
+   roles ticked. Users: only the people ticked by name. Nothing ticked: every active user.
+ - Saving a function with Users clears its roles, and with Roles clears its users.
+ - Choosing anyone else on the transaction form is refused, naming who is allowed.
+The transaction form (Barangay Contracts > Projects & Contracts > New transaction)
+ - No card "Numbers and dates of the barangay's papers": the numbers and dates of the PR,
+   PO, RIS, IAR and DV are filled in on each paper (Fill in the blanks).
+ - Estimates and targets, between the Fund and the Purpose:
+     Gross amount        typed in
+     Withholding tax     1%, 4%, 5%, 6% or 7% of the gross (its amount shown under it)
+     Cheque amount       gross less withholding tax (worked out)
+     Amount to release   gross less withholding tax (worked out)
+     Profit              10%, 13% or 15% of the gross (its amount shown under it)
+     Receipt deduction   3% of the gross (its amount shown under it)
+     SOP                 an amount typed in
+   No accounting entry is made from them. Step 1 of the Process tab shows them, and the
+   printed transaction form takes its gross, withholding tax, cheque amount and profit from
+   them (the cheque actually released and the taxes actually withheld come first).
+The price schedule (the items of the purchase request)
+ - "Look up the Inventory List": on, each line picks an item of the Inventory Center
+   (inventory and assembly items, with the quantity on hand); its description, default
+   unit and the price of the barangay as a customer (its price level) fill in, and the unit
+   and price stay editable. Off, the lines are typed freely. The switch is kept.
+ - PR est. amount = quantity x PR estimated unit cost, worked out at once, with its total.
+ - Add 1 line, 5 lines or 10 lines; the lines are sent as one field, so a purchase request
+   of hundreds of lines is saved (no "max_input_vars" limit).
+The disbursement voucher (Forms & Proformas > a DV > Edit > Fill in the blanks)
+ - Gross amount, VAT and EWT. The taxes, the check amount (gross less VAT and EWT) and the
+   amount in words change on the page as you type, and are worked out again on saving:
+     VAT 5% = gross / 1.12 x 5%          VAT 3% = gross x 3%
+     EWT 2% = gross / 1.12 x 2%          EWT 1% = gross x 1%
+   EWT 1% beside VAT 5% is gross / 1.12 x 1%, as on the company's DV:
+     29,750.00: VAT 5% 1,328.13 + EWT 1% 265.63 = 1,593.76; check amount PhP28,156.24.
+ - The amounts are kept with the transaction ("Fill again from the records" uses them) and
+   the Cheque ready dialog expects that check amount. A DV prepared before version 34 gets
+   the boxes after "Fill again from the records".
+Cheque ready: payment released (Process tab)
+ - Tradename (payee of the cheque): every active tradename, the transaction's own chosen
+   first. It is kept with the cheque and shown on the Process tab and the timeline.
+Request for quotation and IAR (Proforma & Form Templates)
+ - The request for quotation in the barangay's format: the BAC letterhead (seal left,
+   Picture A right, REPUBLIC OF THE PHILIPPINES ... BIDS AND AWARD COMMITTEE), DATE and
+   QUOTATION NO., the request with the barangay's e-mail and hall, the BAC Chairman, the
+   General Conditions 1 to 6, UNIT | ITEM DESCRIPTION | QUANTITY | UNIT PRICE | TOTAL with
+   ***nothing follows*** and the TOTAL line, Printed Name / Signature, NAME OF ESTABLISHMENT
+   and DATE. Its letterhead, footer, pictures and text are changed on the template as before.
+ - The IAR: RIS No. and Date beside the IAR No. and Date; the lines Requisitioning
+   Office/Dept. and Responsibility Center Code are gone.
+Contracting Settings
+ - The SOP card: the rates of the withholding tax, profit and receipt deduction drop-downs.
+Every page
+ - Every page and saved record (329 in all) was opened on a 390 px phone, a 360 px phone
+   and a computer: nothing runs past the screen. The new boxes were laid out for phones.
+The User's Manual has the new sections (Help on each page).
+
+Tested
+------
+ - The migration on a copy of a version 33 database (the demo and a new installation),
+   twice; the result is the same as a new installation of version 34.
+ - php tools/test_v34.php --yes (62 checks: People Accountable by roles and by users, the
+   estimates, 150 lines saved at once, the look-up switch, the DV amounts against the
+   company's DV, the cheque's tradename, the request for quotation and the IAR). It WRITES
+   test records: run it on a copy, never on books in use.
+ - php tools/test_brgy.php --yes (172 checks), php tools/test_accounting.php --yes (75) and
+   php tools/test_v33.php --yes (35).
+ - Every page of the menu (283) opened as the administrator: no PHP error.
+
+Files
+-----
+New:
+  database/migrations/2026_11_21_people_users_estimates_dv_rfq_iar.sql
+  tools/test_v34.php                         the checks above
+  UPGRADE_v34.txt                            this file
+  assets/manual/img/brgy_projects__lookup.jpg, brgy_forms__dv.jpg, brgy_templates__rfq.jpg
+Changed:
+  app/Brgy.php                               people accountable by users, the estimates
+  app/BrgyOps.php                            the estimates, the look-up switch, the DV on saving
+  app/BrgySop.php                            the DV amounts, the cheque's tradename
+  app/BrgyDocs.php                           the DV, the transaction form, the RFQ fields
+  app/BrgyLayout.php                         the item table of the request for quotation
+  app/Schema.php
+  modules/brgy/projects.php, _project_view.php, _process_tab.php, _ui.php, accountable.php,
+  forms.php, settings.php
+  assets/css/app.css, assets/js/brgy.js
+  tools/brgy_sop_seed.php, tools/demo_brgy_sop.php
+  database/schema.sql, database/government_contracting_system.sql,
+  database/government_contracting_system_clean.sql
+  views/manual/...                           chapter 11, manual.json, search.json
+  assets/manual/img/...                      the transaction form, People Accountable Set-up
+  tests/selenium/suites/s51_barangay_sop.py  the transaction form and the cheque
+  README.md

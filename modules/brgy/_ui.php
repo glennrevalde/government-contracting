@@ -68,7 +68,7 @@ function brgy_user_select(string $name, string $label, $value, string $cls = 'co
     if ($value && !isset($users[(int)$value]) && ($n = Brgy::userName((int)$value)) !== '') {
         $users[(int)$value] = $n;
     }
-    $note = $fn && Brgy::functionRoles($fn) ? ['data-fn-limited="1" title="Only the roles set on People Accountable Set-up"'] : [];
+    $note = $fn && Brgy::functionMode($fn) !== 'all' ? ['data-fn-limited="1" title="Only the people allowed on People Accountable Set-up"'] : [];
     return select_field($name, $label, $users, $value, ['blank' => $blank, 'class' => $cls, 'extra' => trim('data-no-combo ' . implode(' ', $note))]);
 }
 
@@ -244,4 +244,22 @@ function brgy_rel(?string $date): string
 function brgy_dtl($v): string
 {
     return $v ? date('Y-m-d\TH:i', strtotime((string)$v)) : '';
+}
+
+/**
+ * v34: the lines of a price schedule as posted. The page sends them as one JSON field (lines_json), so a purchase
+ * request of hundreds of items is not cut short by PHP's max_input_vars; without JavaScript they come as lines[n][field].
+ */
+function brgy_posted_lines(): array
+{
+    $json = $_POST['lines_json'] ?? null;
+    if (is_string($json) && $json !== '') {
+        $rows = json_decode($json, true);
+        if (!is_array($rows)) {
+            fail('The lines could not be read. Reload the page and try again.');
+        }
+    } else {
+        $rows = (array)($_POST['lines'] ?? []);
+    }
+    return array_values(array_filter($rows, 'is_array'));
 }

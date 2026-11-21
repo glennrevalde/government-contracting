@@ -314,8 +314,10 @@ function brgy_sop_templates(): array
         '<div class="fx-title" style="text-align:center;margin-bottom:8px">INSPECTION AND ACCEPTANCE REPORT</div>'
         . '<table class="fx" style="width:100%"><tbody>'
         . '<tr><td style="width:55%">Entity Name: <b>{{entity.name}}</b></td><td>Fund Cluster: {{project.fund}}</td></tr>'
-        . '<tr><td>Supplier: <b>{{company.name}}</b><br>PO No./Date: {{po.no}} / {{po.date}}<br>Requisitioning Office/Dept.: {{project.end_user}}<br>Responsibility Center Code:</td>'
-        . '<td>IAR No.: {{iar.no}}<br>Date: {{iar.date}}<br>Invoice No.: {{iar.invoice_no}}<br>Date: {{iar.invoice_date}}</td></tr>'
+        // v34: RIS No. and Date beside the IAR No. and Date; no requisitioning office and no responsibility center code
+        . '<tr><td>Supplier: <b>{{company.name}}</b><br>PO No./Date: {{po.no}} / {{po.date}}</td>'
+        . '<td><table class="fx-plain" style="width:100%"><tbody><tr><td style="width:55%;padding:0">IAR No.: {{iar.no}}<br>Date: {{iar.date}}</td><td style="padding:0">RIS No.: {{ris.no}}<br>Date: {{ris.date}}</td></tr>'
+        . '<tr><td colspan="2" style="padding:0">Invoice No.: {{iar.invoice_no}}<br>Date: {{iar.invoice_date}}</td></tr></tbody></table></td></tr>'
         . '<tr><td colspan="2" class="fx-slot">{{iar.items}}</td></tr>'
         . '<tr><td style="text-align:center;font-weight:bold">INSPECTION</td><td style="text-align:center;font-weight:bold">ACCEPTANCE</td></tr>'
         . '<tr><td style="vertical-align:top;height:170px">Date Inspected: {{iar.date}}<p style="margin-top:10px"><span class="fx-chk is-on"></span> Inspected, verified and found in order as to quantity and specifications</p>'
@@ -342,28 +344,25 @@ function brgy_sop_templates(): array
         . '</tbody></table>'];
 
     // ------------------------------------------------------------------ request for quotation (the canvass form)
+    // v34: the barangay's own format: the BAC letterhead (seal left, a picture right), the general conditions, the items with blank prices
     $out[] = ['request_for_quotation', 'Request for quotation (canvass form)', 'proforma', 'bid', 'canvass', 'A4', 0, 'entity.name',
-        'The canvass form given to each supplier: the barangay\'s letterhead with its seals, the conditions, the items with blank prices for the supplier to fill in and sign.',
+        'The canvass form given to each supplier: the letterhead of the BAC with the seal, the general conditions, the items with blank prices for the supplier to fill in and sign.',
         '<div>{{letterhead}}</div>'
-        . '<div class="fx-title" style="text-align:center;margin:10px 0 6px">REQUEST FOR QUOTATION</div>'
-        . '<table class="fx-plain" style="width:100%"><tbody><tr><td style="width:52%"></td><td>DATE: {{rfq.date}}<br>Quotation / PR No. {{pr.no}}</td></tr></tbody></table>'
-        . '<table class="fx-lines" style="width:72%;margin-top:8px"><tbody>'
-        . '<tr><td class="lbl-l">Name of Company:</td><td class="val"></td></tr><tr><td class="lbl-l">Address:</td><td class="val"></td></tr>'
-        . '<tr><td class="lbl-l">PhilGEPS No.:</td><td class="val"></td></tr><tr><td class="lbl-l">Project Title:</td><td class="val">{{project.title}}</td></tr>'
-        . '<tr><td class="lbl-l">Approved Budget of the Contract:</td><td class="val">PHP {{project.abc_plain}}</td></tr>'
-        . '<tr><td class="lbl-l">End-User/ Implementing Office:</td><td><b><u>{{entity.name_upper}}</u></b></td></tr></tbody></table>'
-        . '<p style="margin-top:12px"><b>Sir/Madam:</b></p>'
-        . '<p>Please quote your lowest price quotation including government taxes on the item/s listed below and submit your quotation duly signed by you or your authorized representative not later than ______________ in an opened envelope.</p>'
-        . '<table class="fx-plain" style="width:100%" data-section="notes" title="Notes to the supplier"><tbody><tr><td style="width:12%;vertical-align:top">Note:</td><td>1. All entries must be typewritten<br>2. Delivery period must be within immediate calendar days<br>'
-        . '3. Warranty shall be for a period of three (3) months for supplies, one (1) year for equipment after acceptable by the {{entity.name_upper}} of the delivered goods.<br>'
-        . '4. Price validity shall be for the period of <u>120</u> calendar days.<br>5. Supplier/Contractor shall submit original brochures (if applicable)</td></tr></tbody></table>'
+        . '<div class="fx-title" style="text-align:center;margin:12px 0 8px">REQUEST FOR QUOTATION</div>'
+        . '<table class="fx-plain" style="width:100%"><tbody><tr><td style="width:56%"></td><td>DATE: <u>{{rfq.date}}</u><br>QUOTATION NO.: <u>{{pr.no}}</u></td></tr></tbody></table>'
+        . '<p style="margin:12px 0 0;text-align:justify">Please quote your lowest price on the item/s listed below, subject to the General Conditions stated, stating the shortest time of delivery and submit your quotation duly signed by your representative not later than ____________________, __________ thru email: {{entity.email}} or personally at The Secretariat, Bids and Awards Committee, {{entity.short}} Barangay Hall, {{entity.short}}, {{entity.city}}.</p>'
         . '<div>{{signatories}}</div>'
-        . '<p style="margin:10px 0 2px">After having carefully read and accepted the General Conditions, I/we submit our quotation/s for the item/s as follows:</p>'
+        . '<div data-section="conditions" title="General conditions"><p style="margin:10px 0 2px">GENERAL CONDITIONS:</p>'
+        . '<ol style="margin:0 0 6px;padding-left:2em"><li>All entries must be handwritten / typewritten legibly.</li><li>Approved Budget of the Contract (ABC) is <b>PHP {{project.abc_plain}}</b></li>'
+        . '<li>Delivery period is within {{rfq.delivery_words}}.</li>'
+        . '<li>Warranty shall be for a period of six (6) months for supplies and materials, one (1) year for equipment, from date of acceptance by the Procuring Entity.</li>'
+        . '<li>Price shall be inclusive of VAT.</li>'
+        . '<li>Please submit the following documents:<ol type="a" style="margin:0;padding-left:2.6em"><li>PhilGeps Registration Number</li><li>DTI/SEC Registration</li><li>Mayor&#39;s Permit</li>'
+        . '<li>BIR Form No. 2303</li><li>Tax Clearance, if available</li></ol></li></ol></div>'
         . '{{rfq.items}}'
-        . '<table class="fx-lines" style="width:100%;margin-top:8px"><tbody><tr><td class="lbl-l" style="width:18%">Amount in Words:</td><td class="val" colspan="3"></td></tr>'
-        . '<tr><td class="lbl-l">Delivery Period:</td><td class="val" style="width:32%">{{rfq.delivery_period}}</td><td class="lbl-l" style="width:12%">Warranty:</td><td class="val"></td></tr>'
-        . '<tr><td class="lbl-l">Price Validity:</td><td class="val" colspan="3"></td></tr></tbody></table>'
-        . '<table class="fx-plain" style="width:100%;margin-top:22px"><tbody><tr><td style="width:58%"></td><td><div style="border-top:1px solid #000;text-align:center">Signature over Printed Name</div>Contact No:<br>Date:</td></tr></tbody></table>'];
+        . '<p style="margin:6px 0 0">After having carefully read and accepted your General Conditions, I/We quote you on the item at prices noted above.</p>'
+        . '<table class="fx-plain" style="width:100%;margin-top:28px"><tbody><tr><td style="width:56%"></td><td><div style="border-top:1px solid #000;text-align:center">Printed Name / Signature</div></td></tr>'
+        . '<tr><td style="padding-top:28px"><div style="border-top:1px solid #000;width:88%">NAME OF ESTABLISHMENT</div></td><td style="padding-top:28px"><div style="border-top:1px solid #000">DATE</div></td></tr></tbody></table>'];
 
     // ------------------------------------------------------------------ abstract of canvass
     $out[] = ['abstract_of_canvass', 'Abstract of bids as quoted (abstract of canvass)', 'proforma', 'bid', 'abstract', 'A4', 0, 'entity.name,project.title',
@@ -650,8 +649,12 @@ function brgy_sop_template_layout(string $code): ?array
         'purchase_request' => ['blank_rows' => 3] + $pad,
         'purchase_order' => ['blank_rows' => 2, 'font_size' => 9] + $pad,
         'requisition_issue_slip' => ['blank_rows' => 4] + $pad,
-        'request_for_quotation' => ['blank_rows' => 1, 'font_size' => 9, 'table_size' => 8.5, 'margin_top' => 8, 'margin_bottom' => 8, 'lh_space' => 3, 'sig_top' => 2, 'sig_space' => 8,
-            'signatories' => [$sg('{{entity.bac_chair_upper}}', 'BAC Chairman', '', '', ['align' => 'half', 'underline' => 1])]] + $brgy,
+        // v34: the BAC's letterhead of its own (the seal of the barangay left, Picture A right: the Bagong Pilipinas logo, uploaded on the Format tab)
+        'request_for_quotation' => ['blank_rows' => 6, 'font_size' => 10, 'table_size' => 9.5, 'line_height' => 1.25, 'margin_top' => 10, 'margin_bottom' => 10, 'margin_left' => 15, 'margin_right' => 15,
+            'sig_top' => 6, 'sig_space' => 8, 'signatories' => [$sg('{{entity.bac_chair_upper}}', 'BAC Chairman', '', '', ['align' => 'half'])],
+            'lh_style' => 'own', 'lh_left' => 'seal', 'lh_right' => 'pic_a', 'lh_lines' => "**REPUBLIC OF THE PHILIPPINES**\nProvince of {{entity.province}}\n{{entity.lgu_line}}\n{{entity.title}}\n**BIDS AND AWARD COMMITTEE**",
+            'lh_align' => 'center', 'lh_font' => '', 'lh_size' => 10.5, 'lh_big' => 15, 'lh_pic_mm' => 24, 'lh_box' => 0, 'lh_box_bg' => '#ffffff', 'lh_box_fg' => '#111111', 'lh_rule' => 0,
+            'lh_rule_color' => '#111111', 'lh_space' => 4, 'lh_pic_a' => '', 'lh_pic_b' => ''],
         'inspection_acceptance_report' => ['blank_rows' => 3] + $pad,
         'disbursement_voucher' => ['font_size' => 9, 'table_size' => 8.5] + $pad,
         'abstract_of_canvass' => ['font_size' => 10, 'lh_style' => 'none', 'sig_top' => 8, 'signatories' => [$sg('{{entity.head_name_upper}}', 'PUNONG BARANGAY', 'Approved by:', '', ['underline' => 1])]],

@@ -8,7 +8,7 @@ declare(strict_types=1);
  */
 final class Schema
 {
-    private const FLAG = 'schema_ok_2026_11_20';
+    private const FLAG = 'schema_ok_2026_11_21';
 
     /**
      * file => one cheap probe.
@@ -120,6 +120,11 @@ final class Schema
                        + (SELECT COUNT(*) FROM modules WHERE code = \'rc\')
                        + (SELECT COUNT(*) FROM pages p JOIN modules m ON m.id = p.module_id WHERE p.page_key = \'home.reports\' AND m.code = \'rc\')
                        + (SELECT COUNT(*) FROM brgy_tradenames WHERE 1 = 0) + (SELECT COUNT(*) FROM brgy_function_roles WHERE 1 = 0)', 4],
+        // v34: the users allowed for a function, the columns of the estimates, the DV and the cheque's tradename (the query fails without them)
+        'database/migrations/2026_11_21_people_users_estimates_dv_rfq_iar.sql' =>
+            'SELECT (SELECT COUNT(*) FROM brgy_function_users WHERE 1 = 0)
+                  + (SELECT COUNT(lines_lookup_inventory) + COUNT(est_gross) + COUNT(est_wt_rate) + COUNT(est_profit_rate) + COUNT(est_receipt_rate) + COUNT(est_sop)
+                          + COUNT(dv_gross) + COUNT(dv_vat_rate) + COUNT(dv_ewt_rate) + COUNT(cheque_tradename) FROM brgy_projects WHERE 1 = 0)',
     ];
 
     private static ?array $pending = null;

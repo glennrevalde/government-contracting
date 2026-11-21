@@ -193,6 +193,43 @@ if ($a === 'edit' && $id) {
         </div>
         <div class="col-xl-3">
           <div class="card mb-3"><div class="card-header"><i class="bi bi-ui-checks"></i> Fill in the blanks</div><div class="card-body" id="gapPanel">
+            <?php // v34: a disbursement voucher: its gross amount, VAT and EWT; the check amount and the amount in words follow
+            $dvProject = $f['project_id'] && Brgy::v34Ready() && preg_match('/data-ph="dv\.(gross|taxes|net)/', $body) ? Brgy::project((int)$f['project_id']) : null;
+            if ($dvProject):
+                $dv = BrgySop::dvAmounts($dvProject);
+                $dvGross = is_post() ? (string)p('dv_gross') : ($dv['gross'] > 0 ? number_format($dv['gross'], 2) : '');
+                $dvVat = is_post() ? (string)p('dv_vat_rate') : Brgy::rateKey($dv['vat_rate']);
+                $dvEwt = is_post() ? (string)p('dv_ewt_rate') : Brgy::rateKey($dv['ewt_rate']);
+                $dvOpts = function (array $list, string $cur): string {
+                    $list = ['0' => 'None'] + $list;
+                    if ($cur !== '' && !isset($list[$cur])) {
+                        $list[$cur] = $cur . '%';
+                    }
+                    $o = '';
+                    foreach ($list as $v => $l) {
+                        $o .= '<option value="' . h((string)$v) . '"' . ((string)$v === ($cur === '' ? '0' : $cur) ? ' selected' : '') . '>' . h($l) . '</option>';
+                    }
+                    return $o;
+                }; ?>
+              <div class="dv-panel" id="dvPanel">
+                <div class="row g-2">
+                  <div class="col-12"><label class="form-label" for="dvGross">Gross amount</label>
+                    <input class="form-control form-control-sm text-end" id="dvGross" name="dv_gross" inputmode="decimal" autocomplete="off" value="<?= h($dvGross) ?>" placeholder="0.00"></div>
+                  <div class="col-6"><label class="form-label" for="dvVat">VAT</label><select class="form-select form-select-sm" id="dvVat" name="dv_vat_rate" data-no-combo><?= $dvOpts(BrgySop::DV_VAT, $dvVat) ?></select></div>
+                  <div class="col-6"><label class="form-label" for="dvEwt">EWT</label><select class="form-select form-select-sm" id="dvEwt" name="dv_ewt_rate" data-no-combo><?= $dvOpts(BrgySop::DV_EWT, $dvEwt) ?></select></div>
+                </div>
+                <table class="dv-calc" aria-live="polite"><tbody>
+                  <tr><th scope="row">VAT</th><td id="dvVatAmt">0.00</td></tr>
+                  <tr class="dv-how"><td colspan="2" id="dvVatHow"></td></tr>
+                  <tr><th scope="row">EWT</th><td id="dvEwtAmt">0.00</td></tr>
+                  <tr class="dv-how"><td colspan="2" id="dvEwtHow"></td></tr>
+                  <tr class="dv-net"><th scope="row">Check amount</th><td id="dvNetAmt">0.00</td></tr>
+                </tbody></table>
+                <div class="form-text">Worked out on the page as you type, and again when the DV is saved. VAT 5% and EWT 2%: gross &divide; 1.12 &times; rate. VAT 3% and EWT 1%: gross &times; rate (EWT 1% beside VAT 5%: gross &divide; 1.12 &times; 1%).</div>
+              </div>
+            <?php elseif (($f['template_code'] ?? '') === 'disbursement_voucher' && $f['project_id'] && Brgy::v34Ready()): ?>
+              <div class="alert alert-light border small mb-2">This DV was made before the gross amount, VAT and EWT boxes. Use <b>Fill again from the records</b> (below) to have them here.</div>
+            <?php endif; ?>
             <p class="small text-muted mb-2" id="gapNone" <?= $gaps ? 'hidden' : '' ?>>No blanks left.</p>
             <div id="gapList"></div>
             <div class="form-text">Blanks are fields with no value in the records when the form was made. Fill them here, or click one in the page and type. A form with blanks cannot be sent for review.</div>

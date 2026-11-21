@@ -81,7 +81,7 @@ if ($a === 'view' && $id && is_post()) {
                 BrgyOps::bidStep($id, substr($do, 4), $r);
                 return ['bid_review' => 'Bid marked reviewed.', 'bid_approve' => 'Bid approved: the price schedule is now read-only.', 'bid_return' => 'Bid returned to the preparer.', 'bid_reopen' => 'Bid reopened.'][$do];
             case 'lines_save':
-                BrgyOps::saveLines($id, array_values(array_filter((array)($_POST['lines'] ?? []), 'is_array')), p('lock_version'));
+                BrgyOps::saveLines($id, brgy_posted_lines(), p('lock_version'), p('lookup_inventory') === '1');
                 return 'Price schedule saved.';
             case 'req_attach':
                 BrgyOps::attachRequirement((int)pint('req_id'), brgy_file('file'), pint('doc_id'), ['title' => p('title') ?: null, 'doc_no' => p('doc_no'), 'issued_by' => p('issued_by'),
@@ -290,19 +290,46 @@ if (in_array($a, ['new', 'edit'], true)) {
       <?= input_field('inspector', 'Inspector', fv('inspector', $p), ['class' => 'col-md-3', 'extra' => 'maxlength="120"']) ?>
       <?= brgy_user_select('sales_rep_id', 'Sales representative', fv('sales_rep_id', $p), 'col-md-3', 'Choose', 'sales_rep') ?>
       <?= input_field('fund', 'Fund', fv('fund', $p), ['class' => 'col-md-3', 'extra' => 'maxlength="60" placeholder="General Fund"']) ?>
+      <?php if (Brgy::v34Ready()):
+          // v34: the estimates and targets of the transaction (no accounting entry is made from them)
+          $estVal = fn(string $k) => is_post() ? (string)p($k) : (($p[$k] ?? null) === null ? '' : (string)$p[$k]);
+          $estAmt = fn(string $k) => is_post() ? (string)p($k) : (($p[$k] ?? null) === null ? '' : number_format((float)$p[$k], 2));
+          $estSel = function (string $name, string $label, string $setting, string $outId) use ($estVal): string {
+              $cur = is_post() ? (string)p($name) : Brgy::rateKey($estVal($name));
+              $opts = Brgy::rateList($setting);
+              if ($cur !== '' && !isset($opts[$cur])) {
+                  $opts[$cur] = $cur . '%';   // a rate taken off the list keeps showing on the transactions saved with it
+              }
+              $html = '<div class="col-6 col-md-4 col-xl est-f"><label class="form-label" for="f_' . h($name) . '">' . h($label) . '</label>'
+                  . '<select class="form-select form-select-sm" id="f_' . h($name) . '" name="' . h($name) . '" data-no-combo data-est-rate><option value="">None</option>';
+              foreach ($opts as $v => $l) {
+                  $html .= '<option value="' . h((string)$v) . '"' . ((string)$v === $cur ? ' selected' : '') . '>' . h($l) . '</option>';
+              }
+              return $html . '</select><div class="est-amt" id="' . h($outId) . '" aria-live="polite"></div></div>';
+          };
+          $estOut = fn(string $id, string $label) => '<div class="col-6 col-md-4 col-xl est-f"><label class="form-label" for="' . h($id) . '">' . h($label) . '</label>'
+              . '<input class="form-control form-control-sm est-calc" id="' . h($id) . '" readonly tabindex="-1" value=""><div class="est-amt">Gross less WT</div></div>'; ?>
+        <div class="col-12 est-block" id="estBlock">
+          <div class="est-title">Estimates and targets</div>
+          <div class="row g-2">
+            <div class="col-6 col-md-4 col-xl est-f"><label class="form-label" for="f_est_gross">Gross amount</label>
+              <input class="form-control form-control-sm text-end" id="f_est_gross" name="est_gross" inputmode="decimal" autocomplete="off" value="<?= h($estAmt('est_gross')) ?>" placeholder="0.00"></div>
+            <?= $estSel('est_wt_rate', 'Withholding tax', 'brgy_est_wt_rates', 'estWt') ?>
+            <?= $estOut('estCheque', 'Cheque amount') ?>
+            <?= $estOut('estRelease', 'Amount to release') ?>
+            <?= $estSel('est_profit_rate', 'Profit', 'brgy_est_profit_rates', 'estProfit') ?>
+            <?= $estSel('est_receipt_rate', 'Receipt deduction', 'brgy_est_receipt_rates', 'estReceipt') ?>
+            <div class="col-6 col-md-4 col-xl est-f"><label class="form-label" for="f_est_sop">SOP</label>
+              <input class="form-control form-control-sm text-end" id="f_est_sop" name="est_sop" inputmode="decimal" autocomplete="off" value="<?= h($estAmt('est_sop')) ?>" placeholder="0.00"></div>
+          </div>
+          <div class="form-text mt-1">Estimates and targets only: no accounting entry is made from them. The cheque amount and the amount to release are the gross amount less the withholding tax; the profit and the receipt deduction are rates of the gross amount. The rates offered are set on Contracting Settings.</div>
+        </div>
+      <?php endif; ?>
       <?= input_field('purpose', 'Purpose', fv('purpose', $p), ['class' => 'col-12', 'extra' => 'maxlength="255" placeholder="For Barangay Office Use"']) ?>
     </div></div>
 
-    <div class="card mb-3" data-process-only="svp bidding"><div class="card-header"><i class="bi bi-files"></i> Numbers and dates of the barangay's papers</div><div class="card-body row g-2">
-      <?php foreach ([['reference_no', 'pr_date', 'Purchase request (PR)'], ['po_no', 'po_date', 'Purchase order (PO)'], ['ris_no', 'ris_date', 'Requisition and issue slip (RIS)'], ['iar_no', 'iar_date', 'Inspection and acceptance report (IAR)'], ['dv_no', 'dv_date', 'Disbursement voucher (DV)']] as [$no, $dt, $lbl]): ?>
-        <div class="col-md-6 col-xl-4"><label class="form-label"><?= h($lbl) ?></label><div class="input-group input-group-sm">
-          <input class="form-control" name="<?= h($no) ?>" maxlength="<?= $no === 'reference_no' ? 80 : 40 ?>" placeholder="No." value="<?= h((string)fv($no, $p)) ?>" <?= $no === 'po_no' && $p && $p['status'] !== 'open' ? 'readonly' : '' ?> <?= $no === 'reference_no' ? 'data-sync="reference_no"' : '' ?>>
-          <input class="form-control" type="date" name="<?= h($dt) ?>" value="<?= h((string)fv($dt, $p)) ?>" aria-label="Date"></div></div>
-      <?php endforeach; ?>
-      <?= input_field('delivery_date', 'Date of delivery (PO)', fv('delivery_date', $p), ['type' => 'date', 'class' => 'col-md-3']) ?>
-      <?= input_field('delivery_term', 'Delivery term (PO)', fv('delivery_term', $p), ['class' => 'col-md-3', 'extra' => 'maxlength="120"']) ?>
-      <div class="col-12 form-text">These numbers and dates print on the forms the company prepares for the barangay. Blank ones print as blank lines.</div>
-    </div></div>
+    <?php // v34: the card "Numbers and dates of the barangay's papers" is gone: those numbers and dates are filled in on each paper
+          // (Fill in the blanks) and the PO no. on the award; the values saved before stay on the transaction ?>
 
     <div class="card mb-3"><div class="card-header"><i class="bi bi-megaphone"></i> The opportunity</div><div class="card-body row g-2">
       <div class="col-md-8"><label class="form-label">Title (as in the notice / RFQ)</label><input class="form-control form-control-sm" name="title" maxlength="255" required value="<?= h(fv('title', $p)) ?>"></div>
@@ -340,7 +367,7 @@ if (in_array($a, ['new', 'edit'], true)) {
     </div></div>
 
     <div class="card mb-3"><div class="card-header"><i class="bi bi-people"></i> People accountable for the project</div><div class="card-body row g-2">
-      <?= brgy_user_select('preparer_id', 'Preparer (maker)', fv('preparer_id', $p, Brgy::userAllowed('preparer', Auth::id()) ? Auth::id() : null), 'col-md-4', Brgy::functionRoles('preparer') ? 'Choose' : '', 'preparer') ?>
+      <?= brgy_user_select('preparer_id', 'Preparer (maker)', fv('preparer_id', $p, Brgy::userAllowed('preparer', Auth::id()) ? Auth::id() : null), 'col-md-4', Brgy::functionMode('preparer') !== 'all' ? 'Choose' : '', 'preparer') ?>
       <?= brgy_user_select('checker_id', 'Checker / reviewer', fv('checker_id', $p), 'col-md-4', 'Anyone with the review right', 'checker') ?>
       <?= brgy_user_select('approver_id', 'Approver', fv('approver_id', $p), 'col-md-4', 'Anyone with the approve right', 'approver') ?>
       <?= brgy_user_select('submitter_id', 'Authorized submitter', fv('submitter_id', $p), 'col-md-4', 'Not named yet', 'submitter') ?>
@@ -363,7 +390,7 @@ if (in_array($a, ['new', 'edit'], true)) {
       m.addEventListener('change', () => { const o = m.options[m.selectedIndex]; if (o && o.dataset.regime && !r.disabled) r.value = o.dataset.regime; if (o && o.dataset.ret !== '' && ret && (ret.value === '' || parseFloat(ret.value) === 0)) ret.value = o.dataset.ret; });
     })();
     (function () {
-      // the cards of a process show only for it; the PR no. is the same box twice (transaction papers and the opportunity)
+      // the cards of a process show only for it; the PR no. box (data-sync) may appear more than once
       const picks = document.querySelectorAll('[data-process-pick]');
       const apply = () => {
         const v = (document.querySelector('[data-process-pick]:checked') || {}).value || 'general';

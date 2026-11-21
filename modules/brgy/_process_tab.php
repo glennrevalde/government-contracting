@@ -75,7 +75,7 @@ $paperRow = function (array $pp, array $step) use ($self, $canEdit, $canAttach, 
 };
 
 $money = Brgy::money($p);
-$w = BrgySop::withholding($p);
+$w = BrgySop::dvAmounts($p);   // v34: the amounts of the DV (its gross, VAT and EWT once entered on it)
 $lt = Brgy::lineTotals($id);
 ?>
 <div class="sop-head">
@@ -138,6 +138,18 @@ $lt = Brgy::lineTotals($id);
                 <dt>Inspector</dt><dd><?= h(trim((string)$p['inspector'])) ?: '<span class="text-danger">not entered</span>' ?></dd>
                 <dt>Items / particulars</dt><dd><?= $lt['lines'] ? $lt['lines'] . ' line(s), ' . money($lt['bid']) : '<span class="text-danger">none yet</span>' ?> <a href="<?= h($self(['tab' => 'lines'])) ?>">Price schedule</a></dd>
                 <dt>Purpose</dt><dd><?= h((string)$p['purpose']) ?></dd>
+                <?php $est = Brgy::v34Ready() ? Brgy::estimates($p) : null;
+                if ($est && $est['any']): $pc = fn(?float $r) => $r === null ? '' : ' (' . Brgy::rateKey($r) . '%)'; ?>
+                  <dt>Estimates and targets</dt><dd><div class="est-sum">
+                    <span>Gross <b><?= money($est['gross']) ?></b></span>
+                    <span>Withholding tax<?= h($pc($est['wt_rate'])) ?> <b><?= money($est['wt']) ?></b></span>
+                    <span>Cheque amount <b><?= money($est['cheque']) ?></b></span>
+                    <span>Amount to release <b><?= money($est['release']) ?></b></span>
+                    <?php if ($est['profit_rate'] !== null): ?><span>Profit<?= h($pc($est['profit_rate'])) ?> <b><?= money($est['profit']) ?></b></span><?php endif; ?>
+                    <?php if ($est['receipt_rate'] !== null): ?><span>Receipt deduction<?= h($pc($est['receipt_rate'])) ?> <b><?= money($est['receipt']) ?></b></span><?php endif; ?>
+                    <?php if ($est['sop'] !== null): ?><span>SOP <b><?= money($est['sop']) ?></b></span><?php endif; ?>
+                  </div><div class="text-muted">Estimates only: no accounting entry.</div></dd>
+                <?php endif; ?>
               </dl>
               <?php if ($isCur && $canEdit): ?><div class="d-flex flex-wrap gap-1 mb-2"><a class="btn btn-sm btn-outline-primary" href="<?= h(url($pageKey, ['a' => 'edit', 'id' => $id])) ?>"><i class="bi bi-pencil"></i> Edit the details</a>
                 <button type="button" class="btn btn-sm btn-outline-warning" data-bs-toggle="modal" data-bs-target="#mDetails"><i class="bi bi-question-circle"></i> Details not complete: request / prepare details</button></div><?php endif; ?>
@@ -182,6 +194,7 @@ $lt = Brgy::lineTotals($id);
                 <div class="pay-state"><i class="bi bi-<?= $released ? 'cash-coin' : 'hourglass-split' ?>"></i>
                   <div><b><?= $released ? 'Payment released' : 'Payment not released yet' ?></b>
                     <div class="small"><?= $released ? 'Cheque ' . h($p['cheque_no']) . ' dated ' . h(fdate($p['cheque_date'])) . ($p['cheque_bank'] ? ', ' . h($p['cheque_bank']) : '') . ', ' . money($p['cheque_amount'])
+                        . (!empty($p['cheque_tradename']) ? ', payable to ' . h($p['cheque_tradename']) : '')
                         : 'Hold the SI, OR and 2307; follow up with the barangay and wait. Expected cheque: ' . money($w['net']) . ' (' . money($w['gross']) . ' less ' . money($w['vat']) . ' VAT and ' . money($w['ewt']) . ' income tax withheld).' ?></div></div></div>
                 <?php if (!$released && ($canEdit || Access::can('brgy.collections', 'create')) && $live): ?>
                   <div class="d-flex flex-wrap gap-1 mt-2"><button type="button" class="btn btn-sm btn-success" data-bs-toggle="modal" data-bs-target="#mPayRelease"><i class="bi bi-check2-circle"></i> Cheque ready</button>
@@ -312,11 +325,27 @@ echo $modal('mPaperAdd', 'Add a paper', 'paper_add', '<input type="hidden" name=
 echo $modal('mSkip', 'Skip this step', 'sop_skip', '<input type="hidden" name="step" value=""><p class="small text-muted">Only when the step does not apply to this transaction. The reason is kept on the timeline and in the audit trail.</p><label class="form-label">Why</label><textarea class="form-control" name="remarks" rows="2" required></textarea>', 'Skip', 'btn-warning');
 echo $modal('mReopenStep', 'Open the step again', 'sop_reopen', '<input type="hidden" name="step" value=""><label class="form-label">Why</label><textarea class="form-control" name="remarks" rows="2" required></textarea>', 'Open again');
 echo $modal('mDetails', 'Request / prepare details', 'sop_details_request', '<p class="small text-muted">The details are not complete. Additional research and price validation are done before processing; a task goes to the sales representative.</p><label class="form-label">What is missing or has to be validated</label><textarea class="form-control" name="remarks" rows="3" required></textarea>', 'Request the details', 'btn-warning');
+// v34: the tradename the cheque is payable to, from every active tradename (the transaction's own first chosen)
+$chequeTn = '';
+if (Brgy::v34Ready()) {
+    $tnAll = Brgy::tradenames();
+    $tnNow = (string)($p['cheque_tradename'] ?: ($p['tradename'] ?: Brgy::defaultTradename()));
+    if ($tnNow !== '' && !isset($tnAll[$tnNow])) {
+        $tnAll = [$tnNow => $tnNow] + $tnAll;
+    }
+    $chequeTn = '<div class="col-sm-6"><label class="form-label" for="f_cheque_tradename">Tradename (payee of the cheque)</label><select class="form-select" id="f_cheque_tradename" name="cheque_tradename" data-no-combo>'
+        . ($tnAll ? '' : '<option value="">' . h((string)Settings::get('company_name')) . '</option>');
+    foreach ($tnAll as $tn) {
+        $chequeTn .= '<option value="' . h($tn) . '"' . ($tn === $tnNow ? ' selected' : '') . '>' . h($tn) . '</option>';
+    }
+    $chequeTn .= '</select></div>';
+}
 echo $modal('mPayRelease', 'Cheque ready: payment released', 'pay_release', '<div class="row g-2"><div class="col-sm-6"><label class="form-label">Cheque no.</label><input class="form-control" name="cheque_no" maxlength="40" required></div>'
     . '<div class="col-sm-6"><label class="form-label">Cheque date</label><input class="form-control" type="date" name="cheque_date" value="' . today() . '" required></div>'
     . '<div class="col-sm-6"><label class="form-label">Bank</label><input class="form-control" name="cheque_bank" maxlength="80" value="Landbank"></div>'
     . '<div class="col-sm-6"><label class="form-label">Amount of the cheque</label><input class="form-control" name="cheque_amount" inputmode="decimal" value="' . h(number_format($w['net'], 2, '.', '')) . '" required></div>'
     . '<div class="col-sm-6"><label class="form-label">DV no. (if known)</label><input class="form-control" name="dv_no" maxlength="40" value="' . h((string)$p['dv_no']) . '"></div>'
+    . $chequeTn
     . '<div class="col-12 form-text">Expected: ' . money($w['gross']) . ' less ' . money($w['vat']) . ' VAT and ' . money($w['ewt']) . ' income tax withheld = ' . money($w['net']) . '. The SI, OR and 2307 can now be prepared.</div></div>', 'Record the cheque', 'btn-success');
 echo $modal('mFollow', 'Payment follow-up', 'pay_followup', '<label class="form-label">What the barangay said</label><textarea class="form-control" name="remarks" rows="2" required></textarea><label class="form-label mt-2">Follow up again on</label><input class="form-control" type="date" name="next_date" value="' . date('Y-m-d', strtotime('+3 days')) . '">', 'Log it');
 echo $modal('mDeliverAll', 'Delivered and accepted', 'deliver_all', '<p class="small text-muted">Everything still to deliver on the contract is recorded as one delivery, accepted in full from the signed inspection and acceptance report (IAR ' . h($p['iar_no'] ?: 'no.') . '). For partial deliveries or rejections use Deliveries & Acceptance instead.</p>'

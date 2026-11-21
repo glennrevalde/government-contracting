@@ -302,12 +302,15 @@ def svp_new(t):
     # v33: no positions of the requestor and the inspector; the tradename is chosen from the Tradenames list
     t.check(not a.exists('[name=requestor_position]') and not a.exists('[name=inspector_position]'), 'no position of the requestor or of the inspector')
     t.check(a.exists('select[name=tradename]', visible=True), 'the tradename is a drop-down of the Tradenames list')
+    # v34: no card of the numbers and dates of the barangay's papers; the estimates and targets in the transaction form
+    t.check(not a.exists('[name=ris_no]') and not a.exists('[name=iar_no]') and not a.exists('[name=dv_date]'), "no card of the numbers and dates of the barangay's papers")
+    t.check(a.exists('#estBlock input[name=est_gross]', visible=True), 'the estimates and targets are in the transaction form')
     values = {
         'txn_date': today, 'txn_type': '=purchases', 'requestor': 'Liza M. Tumulak',
         'inspector': 'Engr. Ramon P. Ybanez', 'purpose': 'For Barangay Office Use',
         'sales_rep_id': 'Maria Santos', 'fund': 'General Fund',
-        'reference_no': 'PR-' + c, 'pr_date': today, 'po_no': 'PO-' + c, 'po_date': today, 'ris_no': 'RIS-' + c, 'ris_date': today,
-        'iar_no': 'IAR-' + c, 'iar_date': today, 'dv_no': 'DV-' + c, 'dv_date': today, 'delivery_date': today, 'delivery_term': 'Within 7 calendar days',
+        'est_gross': '20000', 'est_wt_rate': '=1', 'est_profit_rate': '=13', 'est_receipt_rate': '=3', 'est_sop': '500',
+        'reference_no': 'PR-' + c,
         'title': title, 'entity_id': '=' + str(t.state['entity_id']), 'category': '=goods', 'mode_id': 'Small Value Procurement',
         'abc_amount': '20000', 'end_user': 'Barangay Office', 'funding_source': 'General Fund 2026', 'delivery_site': 'Barangay Hall',
         'delivery_days': '7', 'checker_id': 'Ana Cruz', 'approver_id': 'Victor Aquino', 'submitter_id': 'Rosa Dizon',
@@ -336,6 +339,9 @@ def svp_new(t):
     dl = card(a, 'svp1').find_element(By.CSS_SELECTOR, 'dl').text
     for v in ('Liza M. Tumulak', 'Engr. Ramon P. Ybanez', '20,000.00', 'For Barangay Office Use'):
         t.contains(dl, v, 'details of step 1')
+    # v34: gross 20,000.00, withholding tax 1% = 200.00, cheque amount 19,800.00, profit 13% = 2,600.00
+    for v in ('Estimates and targets', '19,800.00', '2,600.00', '600.00'):
+        t.contains(dl, v, 'the estimates of step 1')
 
 
 @S.case('The types Cash Out (purchases) and Kaliwaan (purchases) are on the transaction form, and a Cash Out transaction ticks its box', needs=['entity_id'])
@@ -640,12 +646,18 @@ def svp_cheque(t):
     m = modal_by(a, a.by_text('Cheque ready', tags='button', root=card(a, 'svp4')), 'mPayRelease')
     amount = a.find('input[name=cheque_amount]', m).get_attribute('value')
     t.check(float(amount) > 2800 and float(amount) < 3000, 'the expected cheque, net of the taxes withheld: ' + amount)
+    # v34: the tradename the cheque is payable to, from the Tradenames list
+    tn_sel = a.find('select[name=cheque_tradename]', m)
+    tn_opts = [o.text.strip() for o in tn_sel.find_elements(By.TAG_NAME, 'option')]
+    t.check(len(tn_opts) >= 1, 'the cheque: a Tradename drop-down of the tradenames: ' + ', '.join(tn_opts))
+    tn_chosen = tn_sel.get_attribute('value')
     a.fill(a.find('input[name=cheque_no]', m), cheque)
     submit_modal(a, m)
     saved(a, 'Payment released')
     box = card(a, 'svp4').find_element(By.CSS_SELECTOR, '.pay-box').text
     t.contains(box, 'Payment released', 'the payment box')
     t.contains(box, 'Cheque ' + cheque, 'the cheque')
+    t.contains(box, 'payable to ' + tn_chosen, 'the tradename of the cheque')
     t.state['svp_cheque'] = cheque
     t.contains(paper_why(a, 'svp4', 'Sales invoice (SI)'), 'Issue the sales invoice from a billing pack', 'the SI is no longer held')
 

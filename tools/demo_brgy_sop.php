@@ -249,7 +249,9 @@ function brgy_demo_sop(): void
         'delivery_site' => 'Barangay Pajo, Lapu-Lapu City', 'delivery_days' => 10, 'txn_date' => $d(22), 'txn_type' => 'purchases', 'requestor' => 'Jennelyn P. Ompad', 'requestor_position' => 'Requisitioner',
         'inspector' => 'Engr. Victor S. Ybanez', 'inspector_position' => 'Inspector', 'purpose' => 'For Barangay Office Use', 'sales_rep_id' => $u('salesrep'), 'fund' => 'General Fund',
         'po_no' => 'PO-2026-0447', 'po_date' => $d(20), 'ris_no' => 'RIS-2026-0190', 'ris_date' => $d(15), 'iar_no' => 'IAR-2026-0219', 'iar_date' => $d(16), 'delivery_date' => $d(17),
-        'delivery_term' => 'Within 10 calendar days']);
+        'delivery_term' => 'Within 10 calendar days',
+        // v34: the estimates and targets of the transaction form (no accounting entry)
+        'est_gross' => 29750, 'est_wt_rate' => 1, 'est_profit_rate' => 13, 'est_receipt_rate' => 3, 'est_sop' => 1000]);
     BrgyOps::saveLines($p10, array_map(fn($l) => ['line_kind' => 'goods', 'description' => $l[0], 'unit' => $l[1], 'qty' => $l[2], 'unit_cost' => round($l[3] * 0.8, 2), 'unit_price' => $l[3], 'tax_code_id' => $vat], [
         ['Bond paper, A4, 70gsm', 'ream', 40, 245], ['Bond paper, long, 70gsm', 'ream', 20, 275], ['Ballpen, black', 'box', 10, 190], ['Folder, long, kraft', 'pack', 15, 210],
         ['Stapler with staples', 'set', 6, 360], ['Correction tape', 'pc', 24, 45], ['Ink, printer, black', 'btl', 12, 380], ['Record book, 300 pages', 'pc', 10, 160],

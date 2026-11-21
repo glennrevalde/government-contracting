@@ -944,6 +944,80 @@ final class BrgySop
         return ['gross' => r2($gross), 'base' => r2($base), 'ewt' => $ewt, 'vat' => $vat, 'ewt_rate' => $ewtRate, 'vat_rate' => $vatRate, 'total' => r2($ewt + $vat), 'net' => r2($gross - $ewt - $vat)];
     }
 
+    /** v34: the rates of the disbursement voucher, chosen on its Fill in the blanks */
+    public const DV_VAT = ['5' => '5%', '3' => '3%'];
+    public const DV_EWT = ['2' => '2%', '1' => '1%'];
+
+    /**
+     * v34: the taxes of the disbursement voucher from its gross amount, as the company computes them:
+     *   VAT 5% = gross / 1.12 x 5%          VAT 3% = gross x 3%
+     *   EWT 2% = gross / 1.12 x 2%          EWT 1% = gross x 1%, or gross / 1.12 x 1% beside the VAT of 5%
+     *   (the company's DV: 29,750.00 with VAT 5% and EWT 1% = 1,328.13 + 265.63, check amount 28,156.24)
+     * The check amount is the gross less the VAT and the EWT.
+     */
+    public static function dvCompute(float $gross, float $vatRate, float $ewtRate): array
+    {
+        $gross = r2(max(0, $gross));
+        $net112 = $gross / 1.12;
+        $vatOnNet = abs($vatRate - 5) < 0.001;
+        $ewtOnNet = $ewtRate > 0 && !(abs($ewtRate - 1) < 0.001 && !$vatOnNet);
+        $vat = $vatRate > 0 ? r2(($vatOnNet ? $net112 : $gross) * $vatRate / 100) : 0.0;
+        $ewt = $ewtRate > 0 ? r2(($ewtOnNet ? $net112 : $gross) * $ewtRate / 100) : 0.0;
+        $pct = fn(float $r) => rtrim(rtrim(number_format($r, 2), '0'), '.') . '%';
+        return ['gross' => $gross, 'base' => r2($net112), 'vat_rate' => $vatRate, 'ewt_rate' => $ewtRate, 'vat' => $vat, 'ewt' => $ewt, 'total' => r2($vat + $ewt),
+            'net' => r2($gross - $vat - $ewt),
+            'vat_how' => $vatRate > 0 ? number_format($gross, 2) . ($vatOnNet ? ' / 1.12' : '') . ' x ' . $pct($vatRate) : '',
+            'ewt_how' => $ewtRate > 0 ? number_format($gross, 2) . ($ewtOnNet ? ' / 1.12' : '') . ' x ' . $pct($ewtRate) : ''];
+    }
+
+    /**
+     * v34: the amounts of the disbursement voucher of a transaction. Once its gross amount, VAT or EWT is entered on the DV
+     * (Fill in the blanks), they follow dvCompute(); until then, the withholding of Contracting Settings (as before).
+     */
+    public static function dvAmounts(array $p): array
+    {
+        $old = self::withholding($p);
+        $entered = ($p['dv_gross'] ?? null) !== null || ($p['dv_vat_rate'] ?? null) !== null || ($p['dv_ewt_rate'] ?? null) !== null;
+        if (!$entered) {
+            $pct = fn(float $r) => rtrim(rtrim(number_format($r, 2), '0'), '.') . '%';
+            return $old + ['entered' => false,
+                'vat_how' => $old['vat'] > 0 ? number_format($old['base'], 2) . ' x ' . $pct($old['vat_rate']) : '',
+                'ewt_how' => $old['ewt'] > 0 ? number_format($old['base'], 2) . ' x ' . $pct($old['ewt_rate']) : ''];
+        }
+        $gross = ($p['dv_gross'] ?? null) !== null ? (float)$p['dv_gross'] : $old['gross'];
+        return self::dvCompute($gross, (float)($p['dv_vat_rate'] ?? 0), (float)($p['dv_ewt_rate'] ?? 0)) + ['entered' => true];
+    }
+
+    /** v34: keeps the gross amount, VAT and EWT entered on the disbursement voucher of a transaction */
+    public static function saveDv(int $projectId, $gross, $vatRate, $ewtRate): array
+    {
+        if (!Brgy::v34Ready()) {
+            return [];
+        }
+        $p = Brgy::mustProject($projectId);
+        $raw = trim(str_replace([',', '₱', ' ', 'Php', 'PhP', 'PHP'], '', (string)$gross));
+        if ($raw !== '' && (!is_numeric($raw) || (float)$raw < 0)) {
+            fail('Enter the gross amount of the DV as an amount (for example 29,750.00).');
+        }
+        $vat = Brgy::rateKey(trim((string)$vatRate) === '' ? 0 : (float)$vatRate);
+        $ewt = Brgy::rateKey(trim((string)$ewtRate) === '' ? 0 : (float)$ewtRate);
+        $vatOk = $vat === '0' || isset(self::DV_VAT[$vat]) || $vat === Brgy::rateKey($p['dv_vat_rate'] ?? null);
+        $ewtOk = $ewt === '0' || isset(self::DV_EWT[$ewt]) || $ewt === Brgy::rateKey($p['dv_ewt_rate'] ?? null);
+        if (!$vatOk || !$ewtOk) {
+            fail('Choose the VAT (5% or 3%) and the EWT (2% or 1%) of the DV from their lists.');
+        }
+        $set = ['dv_gross' => $raw === '' ? null : r2((float)$raw), 'dv_vat_rate' => (float)$vat, 'dv_ewt_rate' => (float)$ewt];
+        $was = ['dv_gross' => $p['dv_gross'], 'dv_vat_rate' => $p['dv_vat_rate'], 'dv_ewt_rate' => $p['dv_ewt_rate']];
+        $same = (string)$was['dv_gross'] === (string)($set['dv_gross'] === null ? '' : number_format($set['dv_gross'], 2, '.', ''))
+            && Brgy::rateKey($was['dv_vat_rate']) === $vat && Brgy::rateKey($was['dv_ewt_rate']) === $ewt;
+        if (!$same) {
+            DB::update('brgy_projects', $set + ['updated_by' => Auth::id(), 'updated_at' => date('Y-m-d H:i:s')], 'id = :id', ['id' => $projectId]);
+            Brgy::bumpVersion('brgy_projects', $projectId);
+            Brgy::log('edit', 'project', $projectId, $p['project_no'] . ' DV amounts', ['before' => $was, 'after' => $set, 'page_key' => 'brgy.forms']);
+        }
+        return self::dvAmounts(Brgy::mustProject($projectId));
+    }
+
     /** The cheque is ready (released by the barangay): the billing papers may now be prepared */
     public static function releasePayment(int $projectId, array $d): void
     {
@@ -957,18 +1031,30 @@ final class BrgySop
         if ($no === '' || !$date || $amt <= 0) {
             fail('Enter the cheque number, its date and its amount.');
         }
-        DB::tx(function () use ($p, $no, $date, $amt, $d) {
+        // v34: the tradename the cheque is payable to: one of the tradenames (or the one of the transaction)
+        $tn = null;
+        if (Brgy::v34Ready() && array_key_exists('cheque_tradename', $d)) {
+            $tn = mb_substr(trim((string)$d['cheque_tradename']), 0, 160);
+            if ($tn !== '' && !isset(Brgy::tradenames()[$tn]) && $tn !== (string)$p['tradename'] && $tn !== (string)$p['cheque_tradename']) {
+                fail('Choose the tradename of the cheque from the list (Barangay Contracts > Tradenames).');
+            }
+            $tn = $tn === '' ? null : $tn;
+        }
+        DB::tx(function () use ($p, $no, $date, $amt, $d, $tn) {
             $set = ['payment_status' => 'released', 'cheque_no' => $no, 'cheque_date' => $date, 'cheque_bank' => mb_substr(trim((string)($d['cheque_bank'] ?? '')), 0, 80) ?: null,
                 'cheque_amount' => $amt, 'payment_released_at' => date('Y-m-d H:i:s'), 'updated_by' => Auth::id(), 'updated_at' => date('Y-m-d H:i:s')];
+            if (Brgy::v34Ready() && array_key_exists('cheque_tradename', $d)) {
+                $set['cheque_tradename'] = $tn;
+            }
             if (!empty($d['dv_no'])) {
                 $set['dv_no'] = mb_substr(trim((string)$d['dv_no']), 0, 40);
             }
             DB::update('brgy_projects', $set, 'id = :id', ['id' => $p['id']]);
             Brgy::bumpVersion('brgy_projects', (int)$p['id']);
-            $w = self::withholding($p);
+            $w = self::dvAmounts($p);
             Brgy::event((int)$p['id'], 'payment', 'Cheque ready: ' . $no . ' for ' . money($amt), ['direction' => 'in',
-                'details' => 'Dated ' . fdate($date) . ($set['cheque_bank'] ? ', ' . $set['cheque_bank'] : '') . '. Expected net of taxes withheld: ' . money($w['net']) . '.']);
-            Brgy::log('payment_released', 'project', (int)$p['id'], $p['project_no'] . ' cheque ' . $no, ['amount' => $amt, 'page_key' => 'brgy.projects']);
+                'details' => 'Dated ' . fdate($date) . ($set['cheque_bank'] ? ', ' . $set['cheque_bank'] : '') . ($tn ? ', payable to ' . $tn : '') . '. Expected net of taxes withheld: ' . money($w['net']) . '.']);
+            Brgy::log('payment_released', 'project', (int)$p['id'], $p['project_no'] . ' cheque ' . $no, ['amount' => $amt, 'tradename' => $tn, 'page_key' => 'brgy.projects']);
             self::refreshPapers((int)$p['id'], ['txn_form', 'dv']);
         });
     }

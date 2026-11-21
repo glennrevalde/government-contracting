@@ -488,6 +488,7 @@ final class BrgyDocs
         ],
         'Procuring entity' => [
             'entity.name' => 'Official name', 'entity.address' => 'Address', 'entity.tin' => 'TIN', 'entity.province' => 'Province', 'entity.city' => 'City / municipality',
+            'entity.email' => 'E-mail of the entity',
             'entity.head_name' => 'Punong Barangay / head', 'entity.head_position' => 'Position of the head', 'entity.bac_chair' => 'BAC Chairperson',
             'entity.treasurer' => 'Treasurer', 'entity.secretary' => 'Secretary', 'entity.end_user' => 'End-user / requesting office',
             'entity.title' => 'Barangay Sabang (or the official name)', 'entity.title_upper' => 'BARANGAY SABANG (capitals)', 'entity.lgu_line' => 'City of Lapu-Lapu / Municipality of ...',
@@ -539,6 +540,8 @@ final class BrgyDocs
             'txn.series' => 'Series no.', 'txn.date' => 'Date of the transaction', 'txn.tradename' => 'Tradename', 'txn.types' => 'Type boxes (ticked)', 'txn.type' => 'Type',
             'txn.barangay' => 'Barangay', 'txn.cheque_no' => 'Cheque number', 'txn.gross' => 'Gross amount', 'txn.wht' => 'Withholding tax', 'txn.cheque_amount' => 'Cheque amount',
             'txn.profit' => 'Profit (internal)', 'txn.requestor' => 'Requestor', 'txn.inspector' => 'Inspector', 'txn.purpose' => 'Purpose', 'txn.prepared_by' => 'Prepared / received by',
+            'txn.amount_to_release' => 'Amount to release (estimate)', 'txn.receipt_deduction' => 'Receipt deduction (estimate)', 'txn.sop' => 'SOP (estimate)',
+            'txn.wht_rate' => 'Withholding tax rate (estimate)', 'txn.profit_rate' => 'Profit rate (estimate)', 'txn.receipt_rate' => 'Receipt deduction rate (estimate)',
         ],
         'Barangay papers (SOP)' => [
             'entity.short' => 'Barangay name (short)', 'entity.short_upper' => 'Barangay name (short, capitals)', 'entity.name_upper' => 'Official name (capitals)', 'entity.phone' => 'Telephone',
@@ -556,6 +559,7 @@ final class BrgyDocs
             'iar.no' => 'IAR no.', 'iar.date' => 'IAR date', 'iar.invoice_no' => 'Invoice no. (IAR)', 'iar.invoice_date' => 'Invoice date (IAR)', 'iar.items' => 'IAR items',
             'ris.no' => 'RIS no.', 'ris.date' => 'RIS date', 'ris.items' => 'RIS items',
             'rfq.date' => 'Date of the request for quotation', 'rfq.items' => 'Items for quotation (prices blank)', 'rfq.delivery_period' => 'Delivery period',
+            'rfq.delivery_words' => 'Delivery period in words (THIRTY (30) calendar days)',
             'abstract.date' => 'Date of the abstract', 'abstract.table' => 'Abstract of the quotations (suppliers side by side)',
             'dv.no' => 'DV no.', 'dv.date' => 'DV date', 'dv.fund' => 'Fund (DV)', 'dv.particulars' => 'Particulars of the payment', 'dv.gross' => 'Gross amount (DV)',
             'dv.taxes' => 'Taxes withheld (VAT, EWT)', 'dv.net' => 'Net amount (DV)', 'dv.net_words_upper' => 'Net amount in words (capitals)', 'dv.papers' => 'Supporting papers attached',
@@ -666,6 +670,7 @@ final class BrgyDocs
         $head = $off('punong_barangay');
         $c += [
             'entity.name' => $e['official_name'], 'entity.address' => (string)$e['address'], 'entity.tin' => (string)$e['tin'], 'entity.province' => (string)$e['province'],
+            'entity.email' => (string)($e['email'] ?? ''),
             'entity.city' => (string)$e['city_municipality'], 'entity.head_name' => $head['name'] ?? '', 'entity.head_position' => $head['position'] ?? '',
             'entity.bac_chair' => $off('bac_chair')['name'] ?? '', 'entity.treasurer' => $off('treasurer')['name'] ?? '', 'entity.secretary' => $off('secretary')['name'] ?? '',
             'entity.end_user' => $p['end_user'] ?: ($off('end_user')['name'] ?? ''),
@@ -901,6 +906,70 @@ final class BrgyDocs
         return $html . $blank . '<tr><td colspan="7" style="text-decoration:underline">Private</td></tr>' . $blank . '<tr><td colspan="7" style="font-weight:700">&ldquo;NONE&rdquo;</td></tr>' . $blank . '</tbody></table>';
     }
 
+    /**
+     * v34: the amounts of a disbursement voucher, each in an element marked with its field (class ph-dv, data-ph) so the
+     * Fill in the blanks of the DV can change them on the page and the server can fill them again when the DV is saved.
+     * A gross or check amount of zero stays a blank to fill in.
+     */
+    public static function dvParts(array $d): array
+    {
+        $pct = fn(float $r) => rtrim(rtrim(number_format($r, 2), '0'), '.') . '%';
+        $taxes = '<table class="fx-plain fx-taxes" style="width:100%"><tbody>'
+            . ($d['vat'] > 0 ? '<tr><td style="width:45%;text-align:right;padding-right:16px">VAT ' . $pct((float)$d['vat_rate']) . '</td><td style="text-align:right">' . number_format($d['vat'], 2) . '</td></tr>' : '')
+            . ($d['ewt'] > 0 ? '<tr><td style="width:45%;text-align:right;padding-right:16px">EWT ' . $pct((float)$d['ewt_rate']) . '</td><td style="text-align:right">' . number_format($d['ewt'], 2) . '</td></tr>' : '')
+            . '<tr><td style="width:45%"></td><td style="text-align:right;border-top:3px double #000">' . number_format($d['total'], 2) . '</td></tr></tbody></table>';
+        $span = fn(string $k, string $v) => $v === '' ? '' : ['html' => '<span class="ph-dv" data-ph="' . $k . '">' . h($v) . '</span>', 'text' => $v];
+        $gross = self::money2((float)$d['gross'], 'Php');
+        $net = self::money2((float)$d['net'], 'PhP');
+        $words = $d['net'] > 0 ? mb_strtoupper(self::wordsTitle((float)$d['net'])) . '.' : '';
+        return ['dv.gross' => $span('dv.gross', $gross), 'dv.taxes' => ['html' => '<div class="ph-dv" data-ph="dv.taxes">' . $taxes . '</div>'],
+            'dv.net' => $span('dv.net', $net), 'dv.net_words_upper' => $span('dv.net_words_upper', $words)];
+    }
+
+    /**
+     * v34: puts the amounts of a disbursement voucher (dvParts) into the text of a DV already made: the content of each element
+     * marked with dv.gross, dv.taxes, dv.net or dv.net_words_upper (a blank left for one of them included) is replaced.
+     */
+    public static function fillDv(string $body, array $parts): string
+    {
+        if (!preg_match('/data-ph="dv\.(gross|taxes|net|net_words_upper)"/', $body)) {
+            return $body;
+        }
+        $known = [];
+        foreach (self::FIELDS as $g) {
+            $known += $g;
+        }
+        $doc = new DOMDocument('1.0', 'UTF-8');
+        $prev = libxml_use_internal_errors(true);
+        $doc->loadHTML('<?xml encoding="UTF-8"><html><body><div id="dvroot">' . $body . '</div></body></html>', LIBXML_HTML_NODEFDTD);
+        libxml_clear_errors();
+        libxml_use_internal_errors($prev);
+        $xp = new DOMXPath($doc);
+        foreach (['dv.gross', 'dv.taxes', 'dv.net', 'dv.net_words_upper'] as $k) {
+            $v = $parts[$k] ?? '';
+            $html = is_array($v) ? (string)$v['html'] : '';
+            foreach (iterator_to_array($xp->query('//*[@data-ph="' . $k . '"]')) as $el) {
+                // the new element: the value, or a blank to fill in when there is none
+                $new = $html !== '' ? $html : '<span class="ph-missing" data-ph="' . $k . '">[' . h($known[$k] ?? $k) . ']</span>';
+                $frag = new DOMDocument('1.0', 'UTF-8');
+                libxml_use_internal_errors(true);
+                $frag->loadHTML('<?xml encoding="UTF-8"><html><body><div id="x">' . $new . '</div></body></html>', LIBXML_HTML_NODEFDTD);
+                libxml_clear_errors();
+                $holder = $frag->getElementById('x');
+                foreach (iterator_to_array($holder->childNodes) as $child) {
+                    $el->parentNode->insertBefore($doc->importNode($child, true), $el);
+                }
+                $el->parentNode->removeChild($el);
+            }
+        }
+        $root = $doc->getElementById('dvroot');
+        $out = '';
+        foreach ($root->childNodes as $child) {
+            $out .= $doc->saveHTML($child);
+        }
+        return $out;
+    }
+
     private static function money2(float $v, string $prefix = '₱'): string
     {
         return $v > 0 ? $prefix . number_format($v, 2) : '';
@@ -974,11 +1043,20 @@ final class BrgyDocs
             $c['txn.mark_' . $code] = $p['txn_type'] === $code ? 'X' : '';
         }
         $profit = Access::viewCosts() && $t['cost'] > 0 ? r2($gross - $t['cost']) : 0.0;
+        // v34: the estimates typed on the transaction form fill its amounts (the cheque released and the taxes actually withheld come first)
+        $est = Brgy::v34Ready() ? Brgy::estimates($p) : null;
+        $estOn = $est && $est['gross'] > 0;
+        $rateTxt = fn(?float $r) => $r === null ? '' : Brgy::rateKey($r) . '%';
         $c += [
             'txn.series' => (string)$p['txn_form_no'], 'txn.date' => self::d($p['txn_date']), 'txn.tradename' => (string)($p['tradename'] ?: Brgy::defaultTradename()),
             'txn.types' => ['html' => '<div class="fx-types">' . $boxes . '</div>', 'text' => $types[$p['txn_type']] ?? ''], 'txn.type' => $types[$p['txn_type']] ?? '',
-            'txn.barangay' => (string)$e['official_name'], 'txn.cheque_no' => (string)$p['cheque_no'], 'txn.gross' => self::money2($gross),
-            'txn.wht' => self::money2($whtActual > 0 ? $whtActual : $w['total']), 'txn.cheque_amount' => self::money2((float)$p['cheque_amount']), 'txn.profit' => self::money2($profit),
+            'txn.barangay' => (string)$e['official_name'], 'txn.cheque_no' => (string)$p['cheque_no'], 'txn.gross' => self::money2($estOn ? $est['gross'] : $gross),
+            'txn.wht' => self::money2($whtActual > 0 ? $whtActual : ($estOn && $est['wt_rate'] !== null ? $est['wt'] : $w['total'])),
+            'txn.cheque_amount' => self::money2((float)$p['cheque_amount'] > 0 ? (float)$p['cheque_amount'] : ($estOn ? $est['cheque'] : 0.0)),
+            'txn.profit' => self::money2($estOn && $est['profit_rate'] !== null ? $est['profit'] : $profit),
+            'txn.amount_to_release' => self::money2($estOn ? $est['release'] : 0.0), 'txn.receipt_deduction' => self::money2($estOn && $est['receipt_rate'] !== null ? $est['receipt'] : 0.0),
+            'txn.sop' => $est && $est['sop'] !== null ? self::money2($est['sop']) : '', 'txn.wht_rate' => $rateTxt($est['wt_rate'] ?? null),
+            'txn.profit_rate' => $rateTxt($est['profit_rate'] ?? null), 'txn.receipt_rate' => $rateTxt($est['receipt_rate'] ?? null),
             // v33: the transaction form shows the requestor and the inspector without their positions
             'txn.requestor' => trim((string)$p['requestor']),
             'txn.inspector' => trim((string)$p['inspector']),
@@ -1041,6 +1119,8 @@ final class BrgyDocs
             'ris.no' => (string)$p['ris_no'], 'ris.date' => self::d($p['ris_date']), 'ris.items' => ['html' => BrgyLayout::itemsTable('ris.items', $lines, $L)],
             'rfq.date' => self::d($p['pr_date'] ?: $p['posting_date']), 'rfq.items' => ['html' => BrgyLayout::itemsTable('rfq.items', $lines, $L)],
             'rfq.delivery_period' => $p['delivery_days'] ? $p['delivery_days'] . ' DAYS' : '',
+            // v34: the new request for quotation: "Delivery period is within THIRTY (30) calendar days."
+            'rfq.delivery_words' => (int)$p['delivery_days'] > 0 ? mb_strtoupper(self::numWords((int)$p['delivery_days'])) . ' (' . (int)$p['delivery_days'] . ') calendar days' : '',
         ];
         // ---- abstract of canvass
         $cv = BrgySop::ready() ? BrgySop::canvass((int)$p['id']) : [];
@@ -1054,22 +1134,16 @@ final class BrgyDocs
             . $row('<b style="letter-spacing:.25em">REMARKS</b>', fn($x) => '<td style="text-align:center;font-weight:bold">' . h(ucfirst((string)$x['remarks'])) . '</td>', ' style="text-align:center"')
             . '</tbody></table>';
         $c += ['abstract.date' => $cv ? self::d(max(array_column($cv, 'received_date'))) : '', 'abstract.table' => ['html' => $abs]];
-        // ---- disbursement voucher
-        $pctLabel = fn(float $r) => rtrim(rtrim(number_format($r, 2), '0'), '.') . '%';
-        $taxes = '<table class="fx-plain fx-taxes" style="width:100%"><tbody>'
-            . ($w['vat'] > 0 ? '<tr><td style="width:45%;text-align:right;padding-right:16px">VAT ' . $pctLabel($w['vat_rate']) . '</td><td style="text-align:right">' . number_format($w['vat'], 2) . '</td></tr>' : '')
-            . ($w['ewt'] > 0 ? '<tr><td style="text-align:right;padding-right:16px">EWT ' . $pctLabel($w['ewt_rate']) . '</td><td style="text-align:right">' . number_format($w['ewt'], 2) . '</td></tr>' : '')
-            . '<tr><td></td><td style="text-align:right;border-top:3px double #000">' . number_format($w['total'], 2) . '</td></tr></tbody></table>';
+        // ---- disbursement voucher (v34: the gross amount, VAT and EWT entered on the DV, the check amount computed from them)
         $papers = '';
         foreach ([['si', 'SALES INVOICE/COLLECTION RECEIPT'], ['pr', 'PR'], ['po', 'PO'], ['iar', 'IAR'], ['ris', 'RIS'], ['abstract', 'Abstract of Canvass'], ['canvass', 'Canvass Form']] as $i => [$code, $label]) {
             $papers .= '<div style="padding-left:6px">' . ($i + 1) . ' ' . h($label) . '</div>';
         }
         $c += [
             'dv.no' => (string)$p['dv_no'], 'dv.date' => self::d($p['dv_date']), 'dv.fund' => (string)$p['fund'],
-            'dv.particulars' => (string)preg_replace('/^payment for (the )?/i', '', (string)$p['title']), 'dv.gross' => self::money2($gross, 'Php'),
-            'dv.taxes' => ['html' => $taxes], 'dv.net' => self::money2($w['net'], 'PhP'), 'dv.net_words_upper' => $w['net'] > 0 ? $up(self::wordsTitle($w['net'])) . '.' : '',
+            'dv.particulars' => (string)preg_replace('/^payment for (the )?/i', '', (string)$p['title']),
             'dv.papers' => ['html' => $papers], 'dv.check_no' => (string)$p['cheque_no'], 'dv.bank' => (string)$p['cheque_bank'], 'dv.or_no' => (string)($col['receipt_no'] ?? ''),
-        ];
+        ] + self::dvParts(BrgySop::dvAmounts($p));
         // ---- transmittal
         $rows = '';
         $i = 0;

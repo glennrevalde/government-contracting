@@ -1736,6 +1736,16 @@ CREATE TABLE brgy_projects (
   transmittal_no         VARCHAR(40)  NULL,
   transmittal_returned_at DATETIME     NULL,                        -- the signed transmittal came back
   bid_endorsed_at        DATETIME     NULL,                         -- bidding documents endorsed to the representative
+  lines_lookup_inventory TINYINT(1)   NOT NULL DEFAULT 0,           -- v34: the price schedule looks up the Inventory List
+  est_gross              DECIMAL(15,2) NULL,                        -- v34: estimates and targets of the transaction form (no accounting entry)
+  est_wt_rate            DECIMAL(5,2) NULL,                         --      withholding tax % of the gross
+  est_profit_rate        DECIMAL(5,2) NULL,                         --      profit % of the gross
+  est_receipt_rate       DECIMAL(5,2) NULL,                         --      receipt deduction % of the gross
+  est_sop                DECIMAL(15,2) NULL,                        --      SOP (amount)
+  dv_gross               DECIMAL(15,2) NULL,                        -- v34: gross amount entered on the DV
+  dv_vat_rate            DECIMAL(5,2) NULL,                         --      VAT of the DV: 5 (gross / 1.12 x 5%), 3 (gross x 3%), 0 none
+  dv_ewt_rate            DECIMAL(5,2) NULL,                         --      EWT of the DV: 2 (gross / 1.12 x 2%), 1, 0 none
+  cheque_tradename       VARCHAR(160) NULL,                         -- v34: the tradename the cheque was released to
   lock_version           INT UNSIGNED NOT NULL DEFAULT 0,
   created_by             INT UNSIGNED NULL,
   created_at             TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -2625,6 +2635,16 @@ CREATE TABLE brgy_function_roles (
   PRIMARY KEY (function_code, role_id),
   KEY ix_bfr_role (role_id),
   CONSTRAINT fk_bfr_role FOREIGN KEY (role_id) REFERENCES roles(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- v34: People Accountable Set-up by user: the users allowed for a function (in place of its roles)
+DROP TABLE IF EXISTS brgy_function_users;
+CREATE TABLE brgy_function_users (
+  function_code VARCHAR(20)  NOT NULL,          -- sales_rep, preparer, checker, approver, submitter, pm, collector
+  user_id       INT UNSIGNED NOT NULL,
+  PRIMARY KEY (function_code, user_id),
+  KEY ix_bfu_user (user_id),
+  CONSTRAINT fk_bfu_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 SET FOREIGN_KEY_CHECKS = 1;

@@ -80,6 +80,27 @@ if (is_post()) {
             fail('Enter at least one type of transaction.');
         }
         $set('brgy_txn_types', implode("\n", $types));
+        // v34: the rates of the drop-downs of the estimates on the transaction form
+        foreach (['brgy_est_wt_rates' => 'Withholding tax', 'brgy_est_profit_rates' => 'Profit', 'brgy_est_receipt_rates' => 'Receipt deduction'] as $k => $what) {
+            if (!array_key_exists($k, $_POST)) {
+                continue;
+            }
+            $rates = [];
+            foreach (preg_split('/[\s,;%]+/', (string)p($k)) as $v) {
+                if ($v === '') {
+                    continue;
+                }
+                if (!is_numeric($v) || (float)$v <= 0 || (float)$v >= 100) {
+                    fail($what . ' rates: enter percentages above 0 and below 100, separated by commas (for example 1, 4, 5).');
+                }
+                $rates[Brgy::rateKey((float)$v)] = (float)$v;
+            }
+            if (!$rates) {
+                fail($what . ' rates: enter at least one percentage.');
+            }
+            asort($rates);
+            $set($k, implode(',', array_keys($rates)));
+        }
         $site = (int)p('brgy_delivered_site_id');
         if ($site && !DB::value('SELECT id FROM sites WHERE id = :id', ['id' => $site])) {
             fail('Choose a site.');
@@ -223,6 +244,11 @@ layout_start('Contracting Settings', brgy_layout(['actions' => page_link('coa.de
         <?php endforeach; ?>
       </div>
       <div class="col-12 form-text">The amount only suggests the process of a new transaction; the steps and papers themselves are on <?= safe_link('brgy.process', [], 'SOP Steps & Papers') ?>.</div>
+      <div class="col-12"><div class="fw-semibold small mt-1">Estimates and targets of the transaction form (rates in %, separated by commas)</div></div>
+      <?= input_field('brgy_est_wt_rates', 'Withholding tax', $s('brgy_est_wt_rates'), ['class' => 'col-md-4', 'extra' => 'maxlength="60" ' . $ro]) ?>
+      <?= input_field('brgy_est_profit_rates', 'Profit', $s('brgy_est_profit_rates'), ['class' => 'col-md-4', 'extra' => 'maxlength="60" ' . $ro]) ?>
+      <?= input_field('brgy_est_receipt_rates', 'Receipt deduction', $s('brgy_est_receipt_rates'), ['class' => 'col-md-4', 'extra' => 'maxlength="60" ' . $ro]) ?>
+      <div class="col-12 form-text">What the drop-downs of the transaction form offer. They are estimates and targets only: no accounting entry is made from them.</div>
     </div></div>
     <div class="card mb-3"><div class="card-header"><i class="bi bi-percent"></i> Defaults of a new project</div><div class="card-body row g-2">
       <?= input_field('brgy_default_retention_pct', 'Retention %', $s('brgy_default_retention_pct'), ['class' => 'col-md-6', 'extra' => 'inputmode="decimal" ' . $ro]) ?>

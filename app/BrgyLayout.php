@@ -110,8 +110,9 @@ final class BrgyLayout
             'issued_qty' => ['Qty', 9, 'center'], 'remarks' => ['Remarks', 20, 'left']], 'contract', '', ''],
         'iar.items' => ['Inspection and acceptance report items', ['no' => ["Stock/\nProperty No.", 12, 'center'], 'description' => ['Description', 0, 'left'], 'unit' => ['Unit', 10, 'center'],
             'qty' => ['Quantity', 12, 'center']], 'contract', '', ''],
-        'rfq.items' => ['Request for quotation items', ['no' => ['ITEM NO.', 9, 'center'], 'description' => ['ITEM & DESCRIPTION', 0, 'left'], 'unit' => ['UNIT', 10, 'center'],
-            'qty' => ['QTY.', 9, 'center'], 'blank_price' => ["UNIT\nPRICE", 12, 'right'], 'blank_total' => ['TOTAL PRICE', 16, 'right']], 'bid', 'blank_total', 'TOTAL'],
+        // v34: the barangay's request for quotation: UNIT | ITEM DESCRIPTION | QUANTITY | UNIT PRICE | TOTAL (the prices left for the supplier)
+        'rfq.items' => ['Request for quotation items', ['unit' => ['UNIT', 9, 'center'], 'description' => ['ITEM DESCRIPTION', 0, 'left'], 'qty' => ['QUANTITY', 13, 'center'],
+            'blank_price' => ['UNIT PRICE', 13, 'right'], 'blank_total' => ['TOTAL', 14, 'right']], 'bid', 'blank_total', 'TOTAL'],
         'lines.table' => ['Price schedule (bid quantities)', ['no' => ['Item no.', 6, 'center'], 'description' => ['Description / specifications', 0, 'left'], 'unit' => ['Unit', 9, 'center'],
             'qty' => ['Qty', 10, 'right'], 'unit_price' => ['Unit price', 15, 'right'], 'amount' => ['Total price', 16, 'right']], 'bid', 'amount', 'TOTAL'],
         'lines.contract_table' => ['Contract lines (with change orders)', ['no' => ['Item no.', 6, 'center'], 'description' => ['Description / specifications', 0, 'left'], 'unit' => ['Unit', 9, 'center'],

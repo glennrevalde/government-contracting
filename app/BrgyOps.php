@@ -234,6 +234,31 @@ final class BrgyOps
         if (array_key_exists('sales_rep_id', $d)) {
             $row['sales_rep_id'] = $userId($d['sales_rep_id']);
         }
+        // v34: the estimates and targets of the transaction form (no accounting entry is made from them)
+        if (Brgy::v34Ready()) {
+            $was = $id ? Brgy::project($id) : null;
+            foreach (['est_gross' => 'gross amount', 'est_sop' => 'SOP'] as $k => $what) {
+                if (array_key_exists($k, $d)) {
+                    $raw = trim(str_replace([',', '₱', ' '], '', (string)$d[$k]));
+                    if ($raw !== '' && !is_numeric($raw)) {
+                        fail('Enter the ' . $what . ' as an amount (for example 29,750.00).');
+                    }
+                    $row[$k] = $raw === '' ? null : r2((float)$raw);
+                    if ($row[$k] !== null && ($row[$k] < 0 || $row[$k] > 9999999999999)) {
+                        fail('The ' . $what . ' cannot be negative.');
+                    }
+                }
+            }
+            foreach (['est_wt_rate' => ['brgy_est_wt_rates', 'withholding tax'], 'est_profit_rate' => ['brgy_est_profit_rates', 'profit'], 'est_receipt_rate' => ['brgy_est_receipt_rates', 'receipt deduction']] as $k => [$setting, $what]) {
+                if (array_key_exists($k, $d)) {
+                    $v = Brgy::rateKey(trim((string)$d[$k]) === '' ? null : (float)$d[$k]);
+                    if ($v !== '' && !isset(Brgy::rateList($setting)[$v]) && Brgy::rateKey($was[$k] ?? null) !== $v) {
+                        fail('Choose the ' . $what . ' from the list (the rates are set on Contracting Settings).');
+                    }
+                    $row[$k] = $v === '' ? null : (float)$v;
+                }
+            }
+        }
         if ($row['abc_amount'] < 0) {
             fail('The approved budget (ABC) cannot be negative.');
         }
@@ -324,10 +349,10 @@ final class BrgyOps
      * the award (then only through change orders). $rows: [id?, line_kind, item_id, description, specs, unit, qty, unit_cost,
      * markup_pct, unit_price, tax_code_id, delivery_due, notes]. A blank price is the cost plus the markup.
      */
-    public static function saveLines(int $projectId, array $rows, $lockVersion = null): void
+    public static function saveLines(int $projectId, array $rows, $lockVersion = null, ?bool $lookupInventory = null): void
     {
         self::need('brgy.projects', 'edit', 'change the price schedule');
-        DB::tx(function () use ($projectId, $rows, $lockVersion) {
+        DB::tx(function () use ($projectId, $rows, $lockVersion, $lookupInventory) {
             Brgy::checkVersion('brgy_projects', $projectId, $lockVersion);
             $p = Brgy::mustProject($projectId);
             if ($p['status'] !== 'open' || !in_array($p['bid_status'], ['draft', 'returned'], true)) {
@@ -387,7 +412,11 @@ final class BrgyOps
                 DB::run('DELETE FROM brgy_project_lines WHERE id = :id', ['id' => $gone]);
             }
             $t = Brgy::lineTotals($projectId);
-            DB::update('brgy_projects', ['bid_amount' => $t['bid'], 'est_cost' => $t['cost'], 'updated_by' => Auth::id(), 'updated_at' => date('Y-m-d H:i:s')], 'id = :id', ['id' => $projectId]);
+            $upd = ['bid_amount' => $t['bid'], 'est_cost' => $t['cost'], 'updated_by' => Auth::id(), 'updated_at' => date('Y-m-d H:i:s')];
+            if ($lookupInventory !== null && Brgy::v34Ready()) {
+                $upd['lines_lookup_inventory'] = $lookupInventory ? 1 : 0;   // v34: "Look up the Inventory List" of this price schedule
+            }
+            DB::update('brgy_projects', $upd, 'id = :id', ['id' => $projectId]);
             Brgy::bumpVersion('brgy_projects', $projectId);
             if (in_array($p['phase'], ['intake', 'eligibility'], true) && $p['go_decision'] === 'go') {
                 Brgy::setPhase($p, 'costing', 'Price schedule prepared');
@@ -1697,6 +1726,20 @@ final class BrgyOps
                     }
                 }
                 $set['values_json'] = json_encode($vals, JSON_UNESCAPED_UNICODE);
+            }
+            // v34: the gross amount, VAT and EWT of a disbursement voucher: kept on the transaction, and the amounts of the
+            // voucher (taxes, check amount, amount in words) computed again into its text
+            if ($f['project_id'] && array_key_exists('dv_gross', $d) && preg_match('/data-ph="dv\.(gross|taxes|net)/', $set['body'])) {
+                $dv = BrgySop::saveDv((int)$f['project_id'], $d['dv_gross'], $d['dv_vat_rate'] ?? '', $d['dv_ewt_rate'] ?? '');
+                if ($dv) {
+                    $parts = BrgyDocs::dvParts($dv);
+                    $set['body'] = BrgyDocs::sanitize(BrgyDocs::fillDv($set['body'], $parts));
+                    $vals = json_decode((string)($set['values_json'] ?? $f['values_json']), true) ?: ['f' => [], 't' => []];
+                    foreach (['dv.gross', 'dv.net', 'dv.net_words_upper'] as $k) {
+                        $vals['f'][$k] = is_array($parts[$k]) ? (string)$parts[$k]['text'] : '';
+                    }
+                    $set['values_json'] = json_encode($vals, JSON_UNESCAPED_UNICODE);
+                }
             }
             DB::update('brgy_forms', $set, 'id = :id', ['id' => $formId]);
             Brgy::bumpVersion('brgy_forms', $formId);

@@ -63,6 +63,29 @@
     if (valid) valid.classList.toggle('is-wanted', btn.dataset.validity === '1');
   });
 
+  // ------------------------------------------------------------------ v34: the estimates and targets of the transaction form
+  const estBlock = $('#estBlock');
+  if (estBlock) {
+    const g = $('#f_est_gross');
+    const rate = (id) => { const el = $(id); return el && el.value !== '' ? parseFloat(el.value) : null; };
+    const amt = (v) => (v === null ? '' : fmt(v));
+    const calc = () => {
+      const gross = Math.max(0, num(String(g.value).replace(/[^0-9.,-]/g, '')));
+      const wtR = rate('#f_est_wt_rate');
+      const prR = rate('#f_est_profit_rate');
+      const rcR = rate('#f_est_receipt_rate');
+      const wt = wtR === null ? 0 : r2(gross * wtR / 100);
+      $('#estWt').textContent = wtR === null ? '' : amt(wt);
+      $('#estCheque').value = gross > 0 ? fmt(r2(gross - wt)) : '';
+      $('#estRelease').value = gross > 0 ? fmt(r2(gross - wt)) : '';
+      $('#estProfit').textContent = prR === null ? '' : amt(r2(gross * prR / 100));
+      $('#estReceipt').textContent = rcR === null ? '' : amt(r2(gross * rcR / 100));
+    };
+    $$('input, select', estBlock).forEach((el) => el.addEventListener(el.tagName === 'SELECT' ? 'change' : 'input', calc));
+    [g, $('#f_est_sop')].forEach((el) => el && el.addEventListener('blur', () => { if (el.value.trim() !== '' && !isNaN(num(el.value))) el.value = fmt(num(el.value)); }));
+    calc();
+  }
+
   // ------------------------------------------------------------------ price schedule (Projects > Price schedule)
   const grid = $('#linesGrid');
   if (grid) {
@@ -85,6 +108,7 @@
     };
     const recalc = () => {
       let total = 0;
+      let estTotal = 0;
       $$('tr', tbody).forEach((tr) => {
         const q = num(field(tr, 'qty').value);
         const p = priceOf(tr);
@@ -93,9 +117,26 @@
         field(tr, 'amount').textContent = fmt(a);
         const pr = field(tr, 'unit_price');
         if (pr) pr.placeholder = costs && pr.value.trim() === '' && p > 0 ? fmt(p) : '';
+        // v34: the estimated amount of the purchase request = qty x estimated unit cost (blank: the unit price)
+        const est = field(tr, 'est_unit_price');
+        const ea = field(tr, 'est_amount');
+        if (est && ea) {
+          const eu = est.value.trim() === '' ? p : num(est.value);
+          const e = r2(q * eu);
+          estTotal += e;
+          ea.textContent = fmt(e);
+          est.placeholder = est.value.trim() === '' && p > 0 ? fmt(p) : '';
+        }
       });
       total = r2(total);
       $('#lgTotal').textContent = fmt(total);
+      const et = $('#lgEstTotal');
+      if (et) et.textContent = fmt(r2(estTotal));
+      const cnt = $('#lgCount');
+      if (cnt) {
+        const used = $$('tr', tbody).filter((tr) => field(tr, 'description').value.trim() !== '' || field(tr, 'item_id').value !== '').length;
+        cnt.textContent = used + ' of ' + tbody.children.length + ' line(s) filled in';
+      }
       if (meter) {
         const fill = $('#abcFill');
         const text = $('#abcText');
@@ -121,16 +162,19 @@
       tbody.appendChild(tr);
       if (window.AppCombo) window.AppCombo.init(tr);
       const item = field(tr, 'item_id');
+      let prev = items[item.value] || null;
       item.addEventListener('change', () => {
         const it = items[item.value];
-        if (!it) return;
+        if (!it) { prev = null; return; }
+        // v34: an item from the Inventory List brings its default unit and the customer's price (both editable)
         const d = field(tr, 'description');
-        if (!d.value) d.value = it.d;
-        const u = field(tr, 'unit');
-        if (!u.value) u.value = it.u || '';
-        if (costs && it.c && !field(tr, 'unit_cost').value) field(tr, 'unit_cost').value = it.c;
+        if (!d.value || (prev && d.value === prev.d)) d.value = it.d;
+        field(tr, 'unit').value = it.u || field(tr, 'unit').value;
+        if (it.p > 0) field(tr, 'unit_price').value = String(it.p);
+        if (costs && it.c) field(tr, 'unit_cost').value = it.c;
         if (it.t) field(tr, 'tax_code_id').value = it.t;
         field(tr, 'line_kind').value = it.k === 'service' ? 'service' : 'goods';
+        prev = it;
         recalc();
       });
       $('[data-del]', tr).addEventListener('click', () => { tr.remove(); recalc(); });
@@ -142,9 +186,40 @@
     if (!tbody.children.length) for (let i = 0; i < 3; i++) addRow(null);
     $$('[data-add]').forEach((b) => b.addEventListener('click', () => {
       let last = null;
-      for (let i = 0; i < parseInt(b.dataset.add, 10); i++) last = addRow(null);
-      if (last) field(last, 'description').focus();
+      let first = null;
+      for (let i = 0; i < parseInt(b.dataset.add, 10); i++) { last = addRow(null); first = first || last; }
+      recalc();
+      if (first) {
+        // the first new line comes into view, ready to type (its item list is not opened, so it never covers these buttons)
+        first.scrollIntoView({ block: 'nearest' });
+        field(first, 'description').focus({ preventScroll: true });
+      }
     }));
+    // v34: "Look up the Inventory List" shows or hides the item column
+    const lookup = $('#lookupInv');
+    if (lookup) {
+      const foot = $('#lgFootLabel');
+      const apply = () => {
+        grid.classList.toggle('lg-lookup-off', !lookup.checked);
+        if (foot) foot.colSpan = parseInt(foot.dataset.span, 10) - (lookup.checked ? 0 : 1);
+      };
+      lookup.addEventListener('change', apply);
+      apply();
+    }
+    // v34: the lines go as one JSON field, so hundreds of lines are not cut short by the server's limit on fields
+    const form = grid.closest('form');
+    if (form) form.addEventListener('submit', () => {
+      const rows = $$('tr', tbody).map((tr) => {
+        const o = {};
+        $$('[data-k]', tr).forEach((el) => { if (el.tagName !== 'TD') o[el.dataset.k] = el.value; });
+        return o;
+      });
+      let hid = form.querySelector('input[name="lines_json"]');
+      if (!hid) { hid = document.createElement('input'); hid.type = 'hidden'; hid.name = 'lines_json'; form.appendChild(hid); }
+      hid.value = JSON.stringify(rows);
+      // the fields of each row are no longer sent one by one (the JSON above has them)
+      $$('[data-k]', tbody).forEach((el) => { if (el.tagName !== 'TD') el.removeAttribute('name'); });
+    });
     recalc();
   }
 
@@ -267,6 +342,85 @@
       $$('.fp-group').forEach((g) => { g.hidden = !$$('.fp-item', g).some((it) => !it.hidden); });
     });
 
+    // v34: a disbursement voucher: the gross amount, VAT and EWT boxes work out the taxes, the check amount and the amount in words
+    const dvPanel = $('#dvPanel');
+    const DV_KEYS = ['dv.gross', 'dv.taxes', 'dv.net', 'dv.net_words_upper'];
+    const dvGross = $('#dvGross');
+    if (dvPanel) {
+      const vSel = $('#dvVat');
+      const eSel = $('#dvEwt');
+      // rounded as the server rounds (29,750.00 / 1.12 x 5% = 1,328.13)
+      const rp = (v) => Math.round(Number((v * 100).toPrecision(15))) / 100;
+      const pctTxt = (r) => (Math.round(r * 100) / 100) + '%';
+      const money = (v) => v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+      // 28,156.24 -> TWENTY-EIGHT THOUSAND ONE HUNDRED FIFTY-SIX PESOS AND 24/100.
+      const words = (amount) => {
+        amount = rp(Math.abs(amount));
+        let whole = Math.floor(amount + 0.000001);
+        let cents = Math.round((amount - whole) * 100);
+        if (cents === 100) { whole++; cents = 0; }
+        const ones = ['', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve', 'thirteen', 'fourteen', 'fifteen', 'sixteen', 'seventeen', 'eighteen', 'nineteen'];
+        const tens = ['', '', 'twenty', 'thirty', 'forty', 'fifty', 'sixty', 'seventy', 'eighty', 'ninety'];
+        const below1000 = (n) => {
+          const out = [];
+          if (n >= 100) { out.push(ones[Math.floor(n / 100)] + ' hundred'); n %= 100; }
+          if (n >= 20) out.push(tens[Math.floor(n / 10)] + (n % 10 ? '-' + ones[n % 10] : ''));
+          else if (n > 0) out.push(ones[n]);
+          return out.join(' ');
+        };
+        const parts = [];
+        [[1e9, 'billion'], [1e6, 'million'], [1e3, 'thousand'], [1, '']].forEach(([size, label]) => {
+          const chunk = Math.floor(whole / size);
+          whole %= size;
+          if (chunk > 0) parts.push((below1000(chunk) + ' ' + label).trim());
+        });
+        return ((parts.length ? parts.join(' ') : 'zero') + ' pesos and ' + String(cents).padStart(2, '0') + '/100').toUpperCase() + '.';
+      };
+      const labels = { 'dv.gross': 'Gross amount (DV)', 'dv.net': 'Net amount (DV)', 'dv.net_words_upper': 'Net amount in words (capitals)' };
+      const compute = () => {
+        const g = rp(Math.max(0, num(String(dvGross.value).replace(/[^0-9.,-]/g, ''))));
+        const vr = parseFloat(vSel.value) || 0;
+        const er = parseFloat(eSel.value) || 0;
+        const n112 = g / 1.12;
+        const vatOnNet = Math.abs(vr - 5) < 0.001;
+        const ewtOnNet = er > 0 && !(Math.abs(er - 1) < 0.001 && !vatOnNet);
+        const vat = vr > 0 ? rp((vatOnNet ? n112 : g) * vr / 100) : 0;
+        const ewt = er > 0 ? rp((ewtOnNet ? n112 : g) * er / 100) : 0;
+        return { g, vr, er, vat, ewt, total: rp(vat + ewt), net: rp(g - vat - ewt),
+          vatHow: vr > 0 ? money(g) + (vatOnNet ? ' \u00f7 1.12' : '') + ' \u00d7 ' + pctTxt(vr) : '',
+          ewtHow: er > 0 ? money(g) + (ewtOnNet ? ' \u00f7 1.12' : '') + ' \u00d7 ' + pctTxt(er) : '' };
+      };
+      const show = (d) => {
+        $('#dvVatAmt').textContent = money(d.vat);
+        $('#dvEwtAmt').textContent = money(d.ewt);
+        $('#dvNetAmt').textContent = money(d.net);
+        $('#dvVatHow').textContent = d.vatHow;
+        $('#dvEwtHow').textContent = d.ewtHow;
+      };
+      // the same text the server writes (BrgyDocs::dvParts)
+      const part = (k, d) => {
+        if (k === 'dv.taxes') {
+          const row = (lbl, v) => '<tr><td style="width:45%;text-align:right;padding-right:16px">' + lbl + '</td><td style="text-align:right">' + money(v) + '</td></tr>';
+          return '<div class="ph-dv" data-ph="dv.taxes"><table class="fx-plain fx-taxes" style="width:100%"><tbody>' + (d.vat > 0 ? row('VAT ' + pctTxt(d.vr), d.vat) : '')
+            + (d.ewt > 0 ? row('EWT ' + pctTxt(d.er), d.ewt) : '') + '<tr><td style="width:45%"></td><td style="text-align:right;border-top:3px double #000">' + money(d.total) + '</td></tr></tbody></table></div>';
+        }
+        const v = k === 'dv.gross' ? (d.g > 0 ? 'Php' + money(d.g) : '') : (d.net > 0 ? (k === 'dv.net' ? 'PhP' + money(d.net) : words(d.net)) : '');
+        return v !== '' ? '<span class="ph-dv" data-ph="' + k + '">' + esc(v) + '</span>' : '<span class="ph-missing" data-ph="' + k + '">[' + esc(labels[k]) + ']</span>';
+      };
+      const fill = () => {
+        const d = compute();
+        show(d);
+        DV_KEYS.forEach((k) => $$('[data-ph="' + k + '"]', editor).forEach((el) => { el.outerHTML = part(k, d); }));
+        listGaps();
+      };
+      dvGross.addEventListener('input', fill);
+      dvGross.addEventListener('blur', () => { const d = compute(); if (dvGross.value.trim() !== '') dvGross.value = money(d.g); });
+      vSel.addEventListener('change', fill);
+      eSel.addEventListener('change', fill);
+      show(compute());
+    }
+
     // blanks: list them with a box each; typing there fills every blank of that field in the page
     const gapList = $('#gapList');
     const gapNone = $('#gapNone');
@@ -289,6 +443,16 @@
         const lab = document.createElement('label');
         lab.className = 'form-label';
         lab.textContent = seen[k];
+        if (dvPanel && DV_KEYS.includes(k)) {
+          // the amounts of the DV come from its gross amount box above
+          const note = document.createElement('div');
+          note.className = 'small text-muted';
+          note.textContent = 'Enter the gross amount above.';
+          wrap.appendChild(lab);
+          wrap.appendChild(note);
+          gapList.appendChild(wrap);
+          return;
+        }
         const inp = document.createElement('input');
         inp.className = 'form-control form-control-sm';
         inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); inp.dispatchEvent(new Event('change')); } });
@@ -306,6 +470,7 @@
     editor.addEventListener('click', (e) => {
       const s = e.target.closest('.ph-missing');
       if (!s || !editor.contains(s)) return;
+      if (dvPanel && DV_KEYS.includes(s.dataset.ph)) { dvGross.focus(); return; }
       const t = document.createTextNode(s.textContent);
       s.replaceWith(t);
       const r = document.createRange();

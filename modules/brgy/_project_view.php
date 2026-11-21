@@ -181,37 +181,59 @@ elseif ($tab === 'lines'):
     $lt = Brgy::lineTotals($id);
     $vatIncl = Brgy::on('brgy_prices_vat_inclusive');
     if ($editable):
-        $itemOpts = DB::pairs("SELECT id, CONCAT(code, ' - ', name) FROM items WHERE is_active = 1 AND item_type IN ('inventory','non_inventory','service','assembly','other_charge') ORDER BY code");
+        $rows = is_post() ? (function () { try { return brgy_posted_lines(); } catch (Throwable $e) { return []; } })() : $lines;
+        // v34: "Look up the Inventory List": the items come from the Inventory Center (inventory and assembly items),
+        // with their default unit and the price of the customer (its price level), both still editable
+        $lookup = is_post() ? p('lookup_inventory') === '1' : (int)($p['lines_lookup_inventory'] ?? 0) === 1;
+        $custId = (int)($p['customer_id'] ?: DB::value('SELECT customer_id FROM brgy_entities WHERE id = :e', ['e' => (int)$p['entity_id']])) ?: null;
+        $usedIds = array_values(array_filter(array_map(fn($l) => (int)($l['item_id'] ?? 0), $rows)));
+        $invRows = DB::all("SELECT i.id, i.code, i.name, i.description, i.unit, i.cost, i.sales_price, i.tax_code_id, i.item_type,
+                                   (SELECT COALESCE(SUM(s.qty_on_hand), 0) FROM item_site_stock s WHERE s.item_id = i.id) AS on_hand
+                              FROM items i
+                             WHERE (i.is_active = 1 AND i.item_type IN ('inventory','assembly'))" . ($usedIds ? ' OR i.id IN (' . implode(',', $usedIds) . ')' : '') . '
+                             ORDER BY i.code');
+        $itemOpts = [];
         $itemData = [];
-        foreach (DB::all("SELECT id, name, description, unit, cost, sales_price, tax_code_id, item_type FROM items WHERE is_active = 1 AND item_type IN ('inventory','non_inventory','service','assembly','other_charge')") as $it) {
-            $itemData[(int)$it['id']] = ['d' => $it['description'] ?: $it['name'], 'u' => $it['unit'], 'c' => $costs ? (float)$it['cost'] : 0, 't' => $it['tax_code_id'], 'k' => $it['item_type'] === 'service' ? 'service' : 'goods'];
+        foreach ($invRows as $it) {
+            $id = (int)$it['id'];
+            $inv = in_array($it['item_type'], ['inventory', 'assembly'], true);
+            $du = Uom::defaultUnit($id, 'sales');
+            $factor = $du ? max(0.000001, (float)$du['factor']) : 1.0;
+            $itemOpts[$id] = $it['code'] . ' - ' . $it['name'] . ($inv ? ' (' . qty((float)$it['on_hand']) . ' on hand)' : '');
+            $itemData[$id] = ['d' => $it['description'] ?: $it['name'], 'u' => $du ? $du['code'] : (string)$it['unit'], 'c' => $costs ? round((float)$it['cost'] * $factor, 4) : 0,
+                't' => $it['tax_code_id'], 'k' => $it['item_type'] === 'service' ? 'service' : 'goods',
+                'p' => round(Lookup::priceFor($id, $custId) * $factor, 4)];
         }
         $taxOpts = Lookup::taxCodes();
-        $rows = is_post() ? array_values((array)($_POST['lines'] ?? [])) : $lines;
         ?>
         <form method="post" action="<?= h($self()) ?>" id="linesForm" data-no-class-check><?= csrf_field() ?><input type="hidden" name="do" value="lines_save"><?= $hiddenTab ?><?= Brgy::versionField($p['lock_version']) ?>
         <p class="small text-muted mb-2"><?= $sop ? 'These are the items (complete specifications / particulars) of the transaction: the purchase request, purchase order, RIS, IAR and canvass forms print them. ' : '' ?>Prices are <?= $vatIncl ? 'VAT inclusive' : 'VAT exclusive' ?> (Contracting Settings). <?= $costs ? 'Leave the price blank to take the cost plus the markup.' : '' ?> The schedule is fixed once the bid is approved; after the award only change orders alter it.</p>
-        <div class="table-responsive"><table class="table table-sm line-free brgy-grid mb-1" id="linesGrid" data-items="<?= h(json_encode($itemData)) ?>" data-costs="<?= $costs ? 1 : 0 ?>">
-          <thead><tr><th style="width:112px">Kind</th><th style="min-width:180px">Item (optional)</th><th style="min-width:220px">Description</th><th style="width:70px">Unit</th><th class="num" style="width:80px">Qty</th>
-            <?php if ($costs): ?><th class="num" style="width:110px">Unit cost</th><th class="num" style="width:80px">Markup %</th><?php endif; ?><th class="num" style="width:120px">Unit price</th><?php if ($sop): ?><th class="num" style="width:110px" title="Estimated unit cost on the purchase request (blank = the unit price)">PR est. cost</th><?php endif; ?><th class="num" style="width:120px">Amount</th><th style="width:100px">Tax</th><th></th></tr></thead>
+        <div class="lg-lookup form-check form-switch mb-2">
+          <input class="form-check-input" type="checkbox" role="switch" id="lookupInv" name="lookup_inventory" value="1" <?= $lookup ? 'checked' : '' ?>>
+          <label class="form-check-label fw-semibold" for="lookupInv">Look up the Inventory List</label>
+          <div class="form-text mt-0">Pick each item from the Inventory Center: its default unit and <?= $custId ? 'the price of ' . h((string)DB::value('SELECT name FROM customers WHERE id = :c', ['c' => $custId])) . ' (its price level)' : 'its sales price (the barangay is not a customer yet)' ?> fill in, and both can still be changed. Off: type the lines freely.</div>
+        </div>
+        <div class="table-responsive"><table class="table table-sm line-free brgy-grid mb-1<?= $lookup ? '' : ' lg-lookup-off' ?>" id="linesGrid" data-items="<?= h(json_encode($itemData)) ?>" data-costs="<?= $costs ? 1 : 0 ?>" data-sop="<?= $sop ? 1 : 0 ?>">
+          <thead><tr><th style="width:112px">Kind</th><th class="lg-item" style="min-width:200px">Item (Inventory List)</th><th style="min-width:220px">Description</th><th style="width:70px">Unit</th><th class="num" style="width:80px">Qty</th>
+            <?php if ($costs): ?><th class="num" style="width:110px">Unit cost</th><th class="num" style="width:80px">Markup %</th><?php endif; ?><th class="num" style="width:120px">Unit price</th><?php if ($sop): ?><th class="num" style="width:110px" title="Estimated unit cost on the purchase request (blank = the unit price)">PR est. cost</th><th class="num" style="width:115px" title="Qty x estimated unit cost: the estimated amount of the purchase request">PR est. amount</th><?php endif; ?><th class="num" style="width:120px">Amount</th><th style="width:100px">Tax</th><th></th></tr></thead>
           <tbody></tbody>
-          <tfoot><tr class="grid-totals"><td colspan="<?= ($costs ? 7 : 5) + ($sop ? 1 : 0) ?>" class="text-end">Total</td><td></td><td class="num fw-bold" id="lgTotal">0.00</td><td colspan="2"></td></tr></tfoot>
+          <tfoot><tr class="grid-totals"><td class="text-end" id="lgFootLabel" data-span="<?= $sop ? ($costs ? 9 : 7) : ($costs ? 7 : 5) ?>" colspan="<?= ($sop ? ($costs ? 9 : 7) : ($costs ? 7 : 5)) - ($lookup ? 0 : 1) ?>">Total</td><?php if ($sop): ?><td class="num fw-semibold" id="lgEstTotal" title="Purchase request: total estimated amount">0.00</td><?php else: ?><td></td><?php endif; ?><td class="num fw-bold" id="lgTotal">0.00</td><td colspan="2"></td></tr></tfoot>
         </table></div>
         <template id="tplLine"><tr>
           <td data-label="Kind"><select class="form-select form-select-sm" data-k="line_kind" data-no-combo><?= options(Brgy::LINE_KINDS) ?></select></td>
-          <td data-label="Item (optional)" class="lg-wide"><select class="form-select form-select-sm" data-k="item_id" data-combo><?= options($itemOpts, null, '') ?></select></td>
+          <td data-label="Item (Inventory List)" class="lg-wide lg-item"><select class="form-select form-select-sm" data-k="item_id" data-combo><?= options($itemOpts, null, '') ?></select></td>
           <td data-label="Description" class="lg-wide"><input class="form-control form-control-sm" data-k="description" maxlength="255"><input type="hidden" data-k="id"></td>
           <td data-label="Unit"><input class="form-control form-control-sm" data-k="unit" maxlength="20"></td>
           <td data-label="Qty"><input class="form-control form-control-sm text-end" data-k="qty" inputmode="decimal"></td>
           <?php if ($costs): ?><td data-label="Unit cost"><input class="form-control form-control-sm text-end" data-k="unit_cost" inputmode="decimal"></td><td data-label="Markup %"><input class="form-control form-control-sm text-end" data-k="markup_pct" inputmode="decimal"></td><?php endif; ?>
           <td data-label="Unit price"><input class="form-control form-control-sm text-end" data-k="unit_price" inputmode="decimal"></td>
-          <?php if ($sop): ?><td data-label="PR est. cost"><input class="form-control form-control-sm text-end" data-k="est_unit_price" inputmode="decimal"></td><?php endif; ?>
+          <?php if ($sop): ?><td data-label="PR est. cost"><input class="form-control form-control-sm text-end" data-k="est_unit_price" inputmode="decimal"></td><td data-label="PR est. amount" class="num align-middle" data-k="est_amount">0.00</td><?php endif; ?>
           <td data-label="Amount" class="num align-middle lg-amount" data-k="amount">0.00</td>
           <td data-label="Tax"><select class="form-select form-select-sm" data-k="tax_code_id" data-no-combo><?= options($taxOpts, Brgy::defaultTaxCode()) ?></select></td>
           <td class="grid-acts lg-del"><button type="button" class="btn btn-sm btn-link text-danger p-0" data-del aria-label="Remove the line"><i class="bi bi-x-lg"></i><span class="d-md-none"> Remove</span></button></td>
         </tr></template>
         <div class="d-flex flex-wrap gap-2 align-items-center justify-content-between mt-2">
-          <div class="grid-add"><button type="button" class="btn btn-sm btn-outline-secondary" data-add="1"><i class="bi bi-plus"></i> Add line</button><button type="button" class="btn btn-sm btn-outline-secondary" data-add="5"><i class="bi bi-plus"></i> Add 5 lines</button></div>
+          <div class="grid-add"><span class="small text-muted me-1">Add</span><div class="btn-group btn-group-sm" role="group" aria-label="Add lines"><button type="button" class="btn btn-outline-secondary" data-add="1"><i class="bi bi-plus"></i> 1 line</button><button type="button" class="btn btn-outline-secondary" data-add="5">5 lines</button><button type="button" class="btn btn-outline-secondary" data-add="10">10 lines</button></div><span class="small text-muted ms-2" id="lgCount"></span></div>
           <div class="abc-meter" data-abc="<?= h((string)(float)$p['abc_amount']) ?>"><div class="abc-bar"><span id="abcFill"></span></div><div class="small" id="abcText"></div></div>
         </div>
         <div class="sticky-actions mt-3"><button class="btn btn-primary btn-sm"><i class="bi bi-check-lg"></i> Save price schedule</button></div>

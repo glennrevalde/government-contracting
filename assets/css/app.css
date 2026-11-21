@@ -2692,6 +2692,10 @@ body.sig-public { background: #eef1f5; min-height: 100vh; display: flex; flex-di
 .acc-list .acc-row:first-child { padding-top: 0; }
 .acc-row .acc-roles .form-label { margin-bottom: .2rem; }
 .acc-who { padding-top: 1.55rem; line-height: 1.45; color: var(--ink, #212529); }
+.acc-pick { display: flex; flex-direction: column; gap: .45rem; min-width: 0; }
+.acc-mode { align-self: flex-start; }
+.acc-mode .btn { font-weight: 500; }
+.acc-pick + .acc-who { padding-top: .3rem; }
 .tn-table td:first-child { min-width: 220px; }
 .tn-phone { display: none; }
 @media (max-width: 991.98px) {
@@ -2713,3 +2717,34 @@ body.sig-public { background: #eef1f5; min-height: 100vh; display: flex; flex-di
 }
 /* a select or box sized to its content (w-auto) never runs past a narrow screen */
 .form-select.w-auto, .form-control.w-auto { max-width: 100%; }
+
+/* =====================================================================
+   Version 34: price schedule look-up, the estimates of the transaction form, People Accountable by users,
+   the DV tax computation
+   ===================================================================== */
+#linesGrid.lg-lookup-off .lg-item { display: none !important; }
+.lg-lookup { padding: .6rem .85rem .6rem 3.35rem; border: 1px solid var(--line); border-radius: .65rem; background: var(--surface-2, #f8f9fb); box-shadow: var(--inset); }
+.lg-lookup .form-check-input { margin-top: .3rem; margin-left: -2.5rem; }
+.lg-lookup .form-text { margin-left: 0; }
+.grid-add { display: flex; flex-wrap: wrap; align-items: center; gap: .35rem; }
+
+/* the estimates and targets of the transaction form (no accounting entry) */
+.est-block { margin-top: .35rem; padding: .7rem .85rem .75rem; border: 1px solid var(--line); border-radius: .65rem; background: var(--surface-2, #f8f9fb); }
+.est-title { font-weight: 600; font-size: .84rem; color: #212529; margin-bottom: .35rem; }
+.est-block .est-f { min-width: 0; }
+.est-block .form-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.est-calc { background: #fff; color: #212529; font-weight: 600; text-align: right; font-variant-numeric: tabular-nums; }
+.est-calc:focus { box-shadow: none; border-color: var(--line); }
+.est-amt { min-height: 1.1rem; margin-top: .2rem; font-size: .76rem; color: #6c757d; text-align: right; font-variant-numeric: tabular-nums; }
+.est-sum { display: flex; flex-wrap: wrap; gap: .15rem 1rem; }
+.est-sum b { font-variant-numeric: tabular-nums; }
+
+/* the amounts of a disbursement voucher (Fill in the blanks of the DV) */
+.dv-panel { padding-bottom: .75rem; margin-bottom: .75rem; border-bottom: 1px solid var(--line); }
+.dv-calc { width: 100%; margin-top: .6rem; font-size: .82rem; font-variant-numeric: tabular-nums; }
+.dv-calc th { font-weight: 500; color: #6c757d; padding: .25rem 0 0; vertical-align: top; white-space: nowrap; }
+.dv-calc td { text-align: right; padding: .25rem 0 0; }
+.dv-calc .dv-how td { padding: 0 0 .2rem; color: #6c757d; font-size: .72rem; }
+.dv-calc .dv-net th, .dv-calc .dv-net td { border-top: 1px solid var(--line); padding-top: .35rem; color: #212529; font-weight: 700; }
+.formdoc .ph-dv { background: transparent; }
+#linesGrid thead th:first-child { min-width: 108px; }

@@ -167,6 +167,10 @@ final class Brgy
         'brgy_tradename'             => '',
         'brgy_txn_types'             => "cash_out|Cash Out (purchases)\nkaliwaan|Kaliwaan (purchases)\npurchases|Purchases\nconstruction|Construction",
         'brgy_accounting_dept'       => 'Accounting Department',
+        // v34: the drop-downs of the estimates on the transaction form (rates in %, separated by commas)
+        'brgy_est_wt_rates'          => '1,4,5,6,7',
+        'brgy_est_profit_rates'      => '10,13,15',
+        'brgy_est_receipt_rates'     => '3',
     ];
 
     // ================================================================== small helpers
@@ -248,35 +252,66 @@ final class Brgy
     /** The role ids allowed for a function (People Accountable Set-up); none means every active user */
     public static function functionRoles(string $fn): array
     {
-        if (self::$fnRoles === null) {
-            self::$fnRoles = [];
-            if (self::v33Ready()) {
-                foreach (DB::all('SELECT function_code, role_id FROM brgy_function_roles') as $r) {
-                    self::$fnRoles[$r['function_code']][] = (int)$r['role_id'];
-                }
+        self::loadFunctions();
+        return self::$fnRoles[$fn] ?? [];
+    }
+
+    /** v34: the users allowed for a function by name (People Accountable Set-up: "Users" instead of "Roles") */
+    public static function functionUsers(string $fn): array
+    {
+        self::loadFunctions();
+        return self::$fnUsers[$fn] ?? [];
+    }
+
+    /** How a function picks its people: 'users' (named users), 'roles' (users of named roles) or 'all' (every active user) */
+    public static function functionMode(string $fn): string
+    {
+        return self::functionUsers($fn) ? 'users' : (self::functionRoles($fn) ? 'roles' : 'all');
+    }
+
+    private static function loadFunctions(): void
+    {
+        if (self::$fnRoles !== null) {
+            return;
+        }
+        self::$fnRoles = [];
+        self::$fnUsers = [];
+        if (self::v33Ready()) {
+            foreach (DB::all('SELECT function_code, role_id FROM brgy_function_roles') as $r) {
+                self::$fnRoles[$r['function_code']][] = (int)$r['role_id'];
             }
         }
-        return self::$fnRoles[$fn] ?? [];
+        if (self::v34Ready()) {
+            foreach (DB::all('SELECT function_code, user_id FROM brgy_function_users') as $r) {
+                self::$fnUsers[$r['function_code']][] = (int)$r['user_id'];
+            }
+        }
     }
 
     /** Reads People Accountable Set-up again (after it was changed in the same request) */
     public static function forgetFunctionRoles(): void
     {
         self::$fnRoles = null;
+        self::$fnUsers = null;
     }
 
     private static ?array $fnRoles = null;
+    private static ?array $fnUsers = null;
 
-    /** The users who may be chosen for a function: active users in one of its roles (every active user when no role is named) */
+    /** The users who may be chosen for a function: the users named for it, else the active users of its roles, else every active user */
     public static function usersFor(string $fn): array
     {
-        $roles = self::functionRoles($fn);
-        if (!$roles) {
-            return self::users();
+        $active = "u.status = 'active' AND u.is_platform = 0 AND u.approval_status = 'approved'";
+        switch (self::functionMode($fn)) {
+            case 'users':
+                return DB::pairs("SELECT u.id, u.full_name FROM users u WHERE $active AND u.id IN (" . implode(',', array_map('intval', self::functionUsers($fn))) . ') ORDER BY u.full_name');
+            case 'roles':
+                return DB::pairs("SELECT DISTINCT u.id, u.full_name FROM users u JOIN user_roles ur ON ur.user_id = u.id
+                                   WHERE $active AND ur.role_id IN (" . implode(',', array_map('intval', self::functionRoles($fn))) . ')
+                                   ORDER BY u.full_name');
+            default:
+                return self::users();
         }
-        return DB::pairs("SELECT DISTINCT u.id, u.full_name FROM users u JOIN user_roles ur ON ur.user_id = u.id
-                           WHERE u.status = 'active' AND u.is_platform = 0 AND u.approval_status = 'approved' AND ur.role_id IN (" . implode(',', array_map('intval', $roles)) . ')
-                           ORDER BY u.full_name');
     }
 
     /** Whether a user may be chosen for a function */
@@ -285,18 +320,85 @@ final class Brgy
         if (!$userId) {
             return true;
         }
-        $roles = self::functionRoles($fn);
-        return !$roles || (bool)DB::value('SELECT 1 FROM user_roles WHERE user_id = :u AND role_id IN (' . implode(',', array_map('intval', $roles)) . ') LIMIT 1', ['u' => $userId]);
+        switch (self::functionMode($fn)) {
+            case 'users':
+                return in_array($userId, self::functionUsers($fn), true);
+            case 'roles':
+                return (bool)DB::value('SELECT 1 FROM user_roles WHERE user_id = :u AND role_id IN (' . implode(',', array_map('intval', self::functionRoles($fn))) . ') LIMIT 1', ['u' => $userId]);
+            default:
+                return true;
+        }
     }
 
-    /** Stops a save when a user outside the roles of a function is newly chosen for it */
+    /** Stops a save when a user outside what People Accountable Set-up allows is newly chosen for a function */
     public static function assertUserAllowed(string $fn, ?int $userId, ?int $before = null): void
     {
         if ($userId && $userId !== $before && !self::userAllowed($fn, $userId)) {
-            $roles = DB::pairs('SELECT id, name FROM roles WHERE id IN (' . implode(',', array_map('intval', self::functionRoles($fn))) . ') ORDER BY name');
-            fail(self::userName($userId) . ' cannot be the ' . strtolower(self::FUNCTIONS[$fn][0]) . ': People Accountable Set-up allows only '
-                . implode(', ', $roles) . ' for it.');
+            if (self::functionMode($fn) === 'users') {
+                $who = DB::pairs('SELECT id, full_name FROM users WHERE id IN (' . implode(',', array_map('intval', self::functionUsers($fn))) . ') ORDER BY full_name');
+                $allowed = implode(', ', $who);
+            } else {
+                $allowed = 'the roles ' . implode(', ', DB::pairs('SELECT id, name FROM roles WHERE id IN (' . implode(',', array_map('intval', self::functionRoles($fn))) . ') ORDER BY name'));
+            }
+            fail(self::userName($userId) . ' cannot be the ' . strtolower(self::FUNCTIONS[$fn][0]) . ': People Accountable Set-up allows only ' . $allowed . ' for it.');
         }
+    }
+
+    /** The table of version 34 (brgy_function_users) exists: the 2026-11-21 migration has been run */
+    public static function v34Ready(): bool
+    {
+        static $ok = null;
+        if ($ok === null) {
+            try {
+                DB::value('SELECT COUNT(*) FROM brgy_function_users WHERE 1 = 0');
+                $ok = true;
+            } catch (Throwable $e) {
+                $ok = false;
+            }
+        }
+        return $ok;
+    }
+
+    // ---------------------------------------------------------------- v34: the estimates and targets of the transaction form
+
+    /** The rates offered by a drop-down of the transaction form (Contracting Settings): [rate => "5%"] */
+    public static function rateList(string $key): array
+    {
+        $out = [];
+        foreach (preg_split('/[\s,;]+/', self::setting($key)) as $v) {
+            if (is_numeric($v) && (float)$v > 0 && (float)$v < 100) {
+                $r = rtrim(rtrim(number_format((float)$v, 2, '.', ''), '0'), '.');
+                $out[$r] = $r . '%';
+            }
+        }
+        ksort($out, SORT_NUMERIC);
+        return $out;
+    }
+
+    /** A rate as the drop-downs show it: 5.00 -> "5" */
+    public static function rateKey($v): string
+    {
+        return $v === null || $v === '' ? '' : rtrim(rtrim(number_format((float)$v, 2, '.', ''), '0'), '.');
+    }
+
+    /**
+     * The estimates and targets typed on the transaction form (no accounting entry comes from them):
+     * the gross amount, the withholding tax (a rate of the gross), the cheque amount and the amount to release
+     * (both the gross less the withholding tax), the profit and the receipt deduction (rates of the gross) and the SOP (an amount).
+     */
+    public static function estimates(array $p): array
+    {
+        $gross = r2((float)($p['est_gross'] ?? 0));
+        $rate = fn(string $k) => ($p[$k] ?? null) !== null && $p[$k] !== '' ? (float)$p[$k] : null;
+        $wtRate = $rate('est_wt_rate');
+        $profitRate = $rate('est_profit_rate');
+        $receiptRate = $rate('est_receipt_rate');
+        $wt = $wtRate !== null ? r2($gross * $wtRate / 100) : 0.0;
+        $sop = ($p['est_sop'] ?? null) !== null && $p['est_sop'] !== '' ? r2((float)$p['est_sop']) : null;
+        return ['gross' => $gross, 'wt_rate' => $wtRate, 'wt' => $wt, 'cheque' => r2($gross - $wt), 'release' => r2($gross - $wt),
+            'profit_rate' => $profitRate, 'profit' => $profitRate !== null ? r2($gross * $profitRate / 100) : 0.0,
+            'receipt_rate' => $receiptRate, 'receipt' => $receiptRate !== null ? r2($gross * $receiptRate / 100) : 0.0,
+            'sop' => $sop, 'any' => $gross > 0 || $wtRate !== null || $profitRate !== null || $receiptRate !== null || $sop !== null];
     }
 
     // ---------------------------------------------------------------- v33: tradenames
