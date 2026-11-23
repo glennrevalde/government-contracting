@@ -99,15 +99,15 @@
 <h4 id="s-the-customer-list">The customer list<a class="man-hash" href="#s-the-customer-list" aria-label="Link to this section"><i class="bi bi-link-45deg"></i></a></h4>
 <p>The left side lists your customers in alphabetical order, each job indented under its customer with an arrow. The figure beside each name is that record's own Accounts Receivable balance.</p>
 <ul>
-<li><strong>Type to find a customer or job</strong>: the list narrows as you type, letter by letter, to the customers and jobs whose name, company name, contact person, phone or mobile contains what you typed. The count under the box says how many are shown ("3 of 24 customer(s) and job(s)"). When nothing matches, the list says <strong>No customer matches. Press Enter to search the whole list on the server.</strong> Press Enter to open the first match, or, when the list on screen is filtered to active customers, to search the whole list, inactive ones included.</li>
+<li><strong>Type to find a customer or job</strong>: the list narrows as you type, letter by letter, to the customers and jobs whose name, company name, contact person, treasurer name, phone or mobile contains what you typed. The count under the box says how many are shown ("3 of 24 customer(s) and job(s)"). When nothing matches, the list says <strong>No customer matches. Press Enter to search the whole list on the server.</strong> Press Enter to open the first match, or, when the list on screen is filtered to active customers, to search the whole list, inactive ones included.</li>
 <li>The drop-down beside it shows <strong>Active</strong> customers (the default), <strong>All</strong> customers including inactive ones (marked "inactive"), or only those <strong>With balance</strong>.</li>
 <li>Click a name to show its details on the right.</li>
 </ul>
 <figure class="man-fig"><a class="man-zoom" href="assets/manual/img/cust_center__search.jpg" title="Click to enlarge"><img src="assets/manual/img/cust_center__search.jpg" alt="The customer list narrowed to the names containing &quot;abc&quot; as it is typed" width="1094" height="902" loading="lazy" decoding="async"></a><figcaption>The customer list narrowed to the names containing &quot;abc&quot; as it is typed</figcaption></figure>
 <p>At the top of the page, <strong>New customer / job</strong> opens a blank customer form and <strong>Export list</strong> downloads the list shown as a spreadsheet file (CSV) with the name, parent customer, company, contact, phone, email, billing address, terms, credit limit, balance and active flag. Exporting needs the print permission.</p>
 <h4 id="s-a-customers-details">A customer's details<a class="man-hash" href="#s-a-customers-details" aria-label="Link to this section"><i class="bi bi-link-45deg"></i></a></h4>
-<figure class="man-fig"><a class="man-zoom" href="assets/manual/img/cust_center__detail.jpg" title="Click to enlarge"><img src="assets/manual/img/cust_center__detail.jpg" alt="The details of ABC Trading Corp., with its buttons, transactions and notes" width="1094" height="902" loading="lazy" decoding="async"></a><figcaption>The details of ABC Trading Corp., with its buttons, transactions and notes</figcaption></figure>
-<p>The top card shows the name (as Customer:Job for a job), the company name and TIN, the contact person, phone, mobile and email, and the billing address. On the right are:</p>
+<figure class="man-fig"><a class="man-zoom" href="assets/manual/img/cust_center__detail.jpg" title="Click to enlarge"><img src="assets/manual/img/cust_center__detail.jpg" alt="The details of ABC Trading Corp., with its buttons, transactions and notes" width="1094" height="901" loading="lazy" decoding="async"></a><figcaption>The details of ABC Trading Corp., with its buttons, transactions and notes</figcaption></figure>
+<p>The top card shows the name (as Customer:Job for a job), the company name and TIN, the contact person, phone, mobile and email, the treasurer, and the billing address with the zip code. On the right are:</p>
 <ul>
 <li><strong>Open balance</strong>: what the customer owes today. For a customer, it includes the balances of its jobs.</li>
 <li><strong>Credit limit</strong>: the limit, or "none".</li>
@@ -165,7 +165,7 @@
 <p>The <strong>Transactions</strong> card lists the customer's documents, newest first (up to 300), including those of its jobs. Use the type drop-down to show one kind only (Estimates, Sales orders, Invoices, Sales receipts, Payments, Credit memos, Statement charges, Finance charges or Refunds) and the date box to change the starting date, which is 1 January of last year by default. The columns are <strong>Type</strong>, <strong>No.</strong>, <strong>Date</strong>, <strong>Job</strong> (filled for a job's document), <strong>Amount</strong>, <strong>Open</strong> (the unpaid part of an invoice or charge, or the unused part of a payment or credit memo) and <strong>Status</strong>. Click a number to open the document.</p>
 <p>The <strong>Notes and to-do reminders</strong> card shows the Notes field of the customer record first, then every note added here, with who added it and when. A to-do has a checkbox icon and a <strong>Done</strong> link; a done to-do is struck through. Open to-dos also appear under <strong>To-do reminders</strong> on the Home dashboard, overdue dates in red, so collection calls are not forgotten.</p>
 <h4 id="s-fields">Fields<a class="man-hash" href="#s-fields" aria-label="Link to this section"><i class="bi bi-link-45deg"></i></a></h4>
-<figure class="man-fig"><a class="man-zoom" href="assets/manual/img/cust_center__new.jpg" title="Click to enlarge"><img src="assets/manual/img/cust_center__new.jpg" alt="The blank New customer or job form" width="1094" height="757" loading="lazy" decoding="async"></a><figcaption>The blank New customer or job form</figcaption></figure>
+<figure class="man-fig"><a class="man-zoom" href="assets/manual/img/cust_center__new.jpg" title="Click to enlarge"><img src="assets/manual/img/cust_center__new.jpg" alt="The blank New customer or job form" width="1094" height="762" loading="lazy" decoding="async"></a><figcaption>The blank New customer or job form</figcaption></figure>
 <div class="table-responsive man-table"><table class="table table-sm">
 <thead>
 <tr>
@@ -191,6 +191,10 @@
 <td>The person you deal with. Shown on the Collections Report.</td>
 </tr>
 <tr>
+<td><strong>Treasurer name</strong></td>
+<td>The customer's treasurer (for a barangay or a government office, the one who releases the payments). Shown on the customer's card, in the exported list and in the Treasurer name column of custom reports; the customer list also finds a customer by it.</td>
+</tr>
+<tr>
 <td><strong>Phone</strong>, <strong>Mobile</strong></td>
 <td>Contact numbers.</td>
 </tr>
@@ -201,6 +205,10 @@
 <tr>
 <td><strong>TIN</strong></td>
 <td>Printed under the Bill to address.</td>
+</tr>
+<tr>
+<td><strong>Zip code</strong></td>
+<td>The zip code of the customer's address (numbers, and letters, spaces or a dash for a foreign one; up to 10 characters). Shown after the billing address on the customer's card, in the exported list and in the Zip code column of custom reports.</td>
 </tr>
 <tr>
 <td><strong>Billing address</strong></td>
@@ -269,7 +277,7 @@
 <ol>
 <li>Click <strong>New customer / job</strong>.</li>
 <li>Type the <strong>Customer / job name</strong> and leave <strong>Job of</strong> blank.</li>
-<li>Fill in the company, contact, addresses, TIN and the terms, credit limit, price level and other settings.</li>
+<li>Fill in the company, contact person, treasurer name, addresses, zip code, TIN and the terms, credit limit, price level and other settings.</li>
 <li>Click <strong>Save customer</strong>, or <strong>Save customer &amp; New</strong> to go on with the next one.</li>
 </ol>
 <p>To add a job:</p>
@@ -283,7 +291,7 @@
 <ol>
 <li>Select the customer and click <strong>Edit</strong>.</li>
 </ol>
-<figure class="man-fig"><a class="man-zoom" href="assets/manual/img/cust_center__edit.jpg" title="Click to enlarge"><img src="assets/manual/img/cust_center__edit.jpg" alt="Editing ABC Trading Corp., with the Reason for change box" width="1094" height="819" loading="lazy" decoding="async"></a><figcaption>Editing ABC Trading Corp., with the Reason for change box</figcaption></figure>
+<figure class="man-fig"><a class="man-zoom" href="assets/manual/img/cust_center__edit.jpg" title="Click to enlarge"><img src="assets/manual/img/cust_center__edit.jpg" alt="Editing ABC Trading Corp., with the Reason for change box" width="1094" height="825" loading="lazy" decoding="async"></a><figcaption>Editing ABC Trading Corp., with the Reason for change box</figcaption></figure>
 <ol start="2">
 <li>Change what you need.</li>
 <li>If you changed <strong>Credit limit (0 = none)</strong>, type the reason in <strong>Reason for change (required for credit limit changes)</strong>.</li>

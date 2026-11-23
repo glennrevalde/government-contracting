@@ -1,0 +1,78 @@
+G-SMaRT Integrated Accounting and Government Contracting System - version 35 (2026-11-23)
+=========================================================================================
+
+Zip Code and Treasurer Name in the Customer Center.
+
+This package holds ONLY the files that are new or changed since version 34, in the
+same folders. Copy them over your installation (folder government-contracting-system);
+every other file stays as it is.
+
+Upgrading an installation of version 34
+---------------------------------------
+1. Back up the database and the program folder (storage/ and config/config.php too).
+2. Copy the files of this package over your installation. config/config.php is not
+   in the package; yours stays.
+3. Run the new migration on your database (phpMyAdmin: select the database > Import;
+   Navicat: Execute SQL File):
+
+       database/migrations/2026_11_23_customer_zip_treasurer.sql
+
+   It needs 2026_11_21_people_users_estimates_dv_rfq_iar.sql (version 34) to have been run
+   first. With several companies, run it on every company database (Super Admin:
+   Companies > Database updates > Update all companies). Until it is run, the program shows
+   a page naming it. It is safe to run a second time.
+4. Press Ctrl+F5 once in the browser.
+
+What the migration does
+-----------------------
+ - Two empty columns on customers: treasurer_name VARCHAR(120) (after contact_person) and
+   zip_code VARCHAR(10) (after shipping_address).
+ - One line in the audit trail saying the migration was run.
+Nothing is deleted and nothing else changes.
+
+What is new
+-----------
+Customers > Customer Center > New customer / job, or a customer > Edit
+ - Treasurer name, beside the contact person (Contact person, Treasurer name, Phone, Mobile).
+ - Zip code, beside the TIN (Email, TIN, Zip code): numbers, and letters, spaces or a dash
+   for a foreign address, up to 10 characters.
+ - The customer's card shows "Treasurer: ..." and the zip code after the billing address.
+ - Typing a treasurer's name in "Type to find a customer or job" finds the customer.
+ - Export list has the columns Treasurer and Zip code.
+ - The changes are kept in the audit trail, as for the other fields.
+Utilities > Import from CSV > Customers
+ - The columns treasurer_name and zip_code (the template has them). A line that leaves
+   them blank keeps what is saved.
+Custom reports
+ - Treasurer name and Zip code among the columns that can be added from the customer.
+The User's Manual (Customers > Customer Center) describes the two fields.
+
+Tested
+------
+ - The migration on a copy of a version 34 database, twice; the result is the same as a new
+   installation of version 35.
+ - php tools/test_v35.php --yes (11 checks). It WRITES one test customer and removes it:
+   run it on a copy, never on books in use.
+ - php tools/test_v34.php --yes (62), test_v33.php (35), test_brgy.php (172) and
+   test_accounting.php (75).
+ - In the browser: saving, a wrong zip code refused, the card, the search, the export, the
+   import, a new customer; the form on a 390 px and a 360 px phone. Every page of the menu
+   (283) opened with no PHP error, and every page and saved record (329) on a 390 px phone
+   with nothing running past the screen.
+
+Files
+-----
+New:
+  database/migrations/2026_11_23_customer_zip_treasurer.sql
+  tools/test_v35.php                         the checks above
+  UPGRADE_v35.txt                            this file
+Changed:
+  modules/customers/center.php               the two fields: form, card, search, export
+  modules/admin/import.php, app/Importer.php the import of customers
+  app/ReportFields.php                       the columns of custom reports
+  app/Schema.php
+  database/schema.sql, database/government_contracting_system.sql,
+  database/government_contracting_system_clean.sql
+  views/manual/chapters/05-customers.html, views/manual/search.json
+  assets/manual/img/cust_center__new.jpg, cust_center__edit.jpg, cust_center__detail.jpg
+  README.md

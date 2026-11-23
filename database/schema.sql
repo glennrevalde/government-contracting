@@ -347,11 +347,13 @@ CREATE TABLE customers (
   name                VARCHAR(120) NOT NULL,
   company_name        VARCHAR(120) NULL,
   contact_person      VARCHAR(120) NULL,
+  treasurer_name      VARCHAR(120) NULL,          -- v35: the customer's treasurer
   phone               VARCHAR(40)  NULL,
   mobile              VARCHAR(40)  NULL,
   email               VARCHAR(120) NULL,
   billing_address     VARCHAR(255) NULL,
   shipping_address    VARCHAR(255) NULL,
+  zip_code            VARCHAR(10)  NULL,          -- v35: the zip code of the address
   tin                 VARCHAR(30)  NULL,
   wht_ids             VARCHAR(100) NULL,          -- withholding taxes it usually withholds from its payments
   terms_id            INT UNSIGNED NULL,

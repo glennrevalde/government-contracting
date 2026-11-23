@@ -8,7 +8,7 @@ declare(strict_types=1);
  */
 final class Schema
 {
-    private const FLAG = 'schema_ok_2026_11_21';
+    private const FLAG = 'schema_ok_2026_11_23';
 
     /**
      * file => one cheap probe.
@@ -125,6 +125,9 @@ final class Schema
             'SELECT (SELECT COUNT(*) FROM brgy_function_users WHERE 1 = 0)
                   + (SELECT COUNT(lines_lookup_inventory) + COUNT(est_gross) + COUNT(est_wt_rate) + COUNT(est_profit_rate) + COUNT(est_receipt_rate) + COUNT(est_sop)
                           + COUNT(dv_gross) + COUNT(dv_vat_rate) + COUNT(dv_ewt_rate) + COUNT(cheque_tradename) FROM brgy_projects WHERE 1 = 0)',
+        // v35: the zip code and the treasurer name of a customer
+        'database/migrations/2026_11_23_customer_zip_treasurer.sql' =>
+            'SELECT COUNT(zip_code) + COUNT(treasurer_name) FROM customers WHERE 1 = 0',
     ];
 
     private static ?array $pending = null;

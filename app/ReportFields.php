@@ -42,10 +42,12 @@ final class ReportFields
             'name'        => ['Customer name', 'text'],
             'company'     => ['Company name', 'text'],
             'contact'     => ['Contact person', 'text'],
+            'treasurer'   => ['Treasurer name', 'text'],
             'phone'       => ['Phone', 'text'],
             'mobile'      => ['Mobile', 'text'],
             'email'       => ['Email', 'text'],
             'address'     => ['Billing address', 'text'],
+            'zip'         => ['Zip code', 'text'],
             'tin'         => ['TIN', 'text'],
             'terms'       => ['Terms', 'text'],
             'type'        => ['Customer type', 'text'],
@@ -270,8 +272,8 @@ final class ReportFields
                                    LEFT JOIN sales_reps sr ON sr.id = c.sales_rep_id LEFT JOIN price_levels pl ON pl.id = c.price_level_id
                                   WHERE c.id IN $in", $p);
                 foreach ($rows as $c) {
-                    $out[(int)$c['id']] = ['name' => $c['name'], 'company' => $c['company_name'], 'contact' => $c['contact_person'], 'phone' => $c['phone'],
-                        'mobile' => $c['mobile'], 'email' => $c['email'], 'address' => self::oneLine($c['billing_address']), 'tin' => $c['tin'], 'terms' => $c['terms_name'],
+                    $out[(int)$c['id']] = ['name' => $c['name'], 'company' => $c['company_name'], 'contact' => $c['contact_person'], 'treasurer' => $c['treasurer_name'] ?? '', 'phone' => $c['phone'],
+                        'mobile' => $c['mobile'], 'email' => $c['email'], 'address' => self::oneLine($c['billing_address']), 'zip' => $c['zip_code'] ?? '', 'tin' => $c['tin'], 'terms' => $c['terms_name'],
                         'type' => $c['type_name'], 'rep' => $c['rep_name'], 'price_level' => $c['level_name'], 'limit' => $c['credit_limit'],
                         'balance' => in_array('balance', $fields, true) ? Balances::customerBalance((int)$c['id']) : ''];
                 }

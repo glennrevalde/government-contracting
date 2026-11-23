@@ -40,11 +40,16 @@ if ($a === 'new' || $a === 'edit') {
         Access::require($pageKey, 'create');
     }
     $fields = ['name', 'company_name', 'contact_person', 'phone', 'mobile', 'email', 'billing_address', 'shipping_address', 'tin', 'notes'];
+    $fields[] = 'treasurer_name';   // v35
+    $fields[] = 'zip_code';         // v35
     $ids = ['parent_id', 'terms_id', 'price_level_id', 'tax_code_id', 'payment_method_id', 'customer_type_id', 'sales_rep_id', 'billing_group_id'];
     handle_post(function () use ($c, $fields, $ids, $pageKey) {
         $data = [];
         foreach ($fields as $f) {
-            $data[$f] = p($f) !== '' ? mb_substr((string)p($f), 0, $f === 'notes' ? 5000 : 255) : null;
+            $data[$f] = p($f) !== '' ? mb_substr((string)p($f), 0, ['notes' => 5000, 'treasurer_name' => 120, 'zip_code' => 10][$f] ?? 255) : null;
+        }
+        if ($data['zip_code'] !== null && !preg_match('/^[A-Za-z0-9][A-Za-z0-9 -]{0,9}$/', $data['zip_code'])) {
+            fail('Enter the zip code with numbers (and letters, spaces or a dash) only, up to 10 characters, for example 6000.');
         }
         foreach ($ids as $f) {
             $data[$f] = pint($f);
@@ -93,12 +98,13 @@ if ($a === 'new' || $a === 'edit') {
         <?= input_field('name', 'Customer / job name', fv('name', $c), ['required' => true]) ?>
         <?= select_field('parent_id', 'Job of (leave blank for a customer)', $parents, fv('parent_id', $c, g('parent')), ['blank' => '']) ?>
         <?= input_field('company_name', 'Company name', fv('company_name', $c)) ?>
-        <?= input_field('contact_person', 'Contact person', fv('contact_person', $c)) ?>
-        <?= input_field('phone', 'Phone', fv('phone', $c)) ?>
-        <?= input_field('mobile', 'Mobile', fv('mobile', $c)) ?>
+        <?= input_field('contact_person', 'Contact person', fv('contact_person', $c), ['class' => 'col-sm-6 col-lg-3', 'extra' => 'maxlength="120"']) ?>
+        <?= input_field('treasurer_name', 'Treasurer name', fv('treasurer_name', $c), ['class' => 'col-sm-6 col-lg-3', 'extra' => 'maxlength="120" autocomplete="off"']) ?>
+        <?= input_field('phone', 'Phone', fv('phone', $c), ['class' => 'col-sm-6 col-lg-3']) ?>
+        <?= input_field('mobile', 'Mobile', fv('mobile', $c), ['class' => 'col-sm-6 col-lg-3']) ?>
         <?= input_field('email', 'Email', fv('email', $c), ['type' => 'email']) ?>
-        <?= input_field('tin', 'TIN', fv('tin', $c)) ?>
-        <div class="col-md-4"></div>
+        <?= input_field('tin', 'TIN', fv('tin', $c), ['class' => 'col-sm-6 col-md-4']) ?>
+        <?= input_field('zip_code', 'Zip code', fv('zip_code', $c), ['class' => 'col-sm-6 col-md-4', 'extra' => 'maxlength="10" inputmode="numeric" autocomplete="postal-code" placeholder="6000"']) ?>
         <div class="col-md-6"><label class="form-label">Billing address</label><textarea class="form-control form-control-sm" name="billing_address" rows="2"><?= h(fv('billing_address', $c)) ?></textarea></div>
         <div class="col-md-6"><label class="form-label">Shipping address</label><textarea class="form-control form-control-sm" name="shipping_address" rows="2"><?= h(fv('shipping_address', $c)) ?></textarea></div>
         <?= select_field('terms_id', 'Payment terms', Lookup::terms(), fv('terms_id', $c), ['blank' => '']) ?>
@@ -141,7 +147,7 @@ if ($show === 'active') {
     $where[] = 'c.is_active = 1';
 }
 if ($q !== '') {
-    $where[] = '(c.name LIKE :q OR c.company_name LIKE :q OR c.contact_person LIKE :q OR c.phone LIKE :q)';
+    $where[] = '(c.name LIKE :q OR c.company_name LIKE :q OR c.contact_person LIKE :q OR c.treasurer_name LIKE :q OR c.phone LIKE :q)';
     $params['q'] = "%$q%";
 }
 [$ain, $ap] = DB::in('ar', Accts::arIds() ?: [0]);
@@ -160,9 +166,9 @@ if ($show === 'balance') {
 if (g('export') === 'csv') {
     Access::require($pageKey, 'print');
     Audit::log('export', 'cust', 'list', null, 'Customer list', ['page_key' => $pageKey]);
-    csv_download('customers.csv', ['Name', 'Job of', 'Company', 'Contact', 'Phone', 'Email', 'Billing address', 'Terms', 'Credit limit', 'Balance', 'Active'],
-        array_map(fn($r) => [$r['name'], $r['parent_name'], $r['company_name'], $r['contact_person'], $r['phone'], $r['email'], $r['billing_address'],
-            DB::value('SELECT name FROM terms WHERE id = :id', ['id' => $r['terms_id']]), $r['credit_limit'], $r['balance'], $r['is_active']], $list));
+    csv_download('customers.csv', ['Name', 'Job of', 'Company', 'Contact', 'Treasurer', 'Phone', 'Email', 'Billing address', 'Zip code', 'Terms', 'Credit limit', 'Balance', 'Active'],
+        array_map(fn($r) => [$r['name'], $r['parent_name'], $r['company_name'], $r['contact_person'], $r['treasurer_name'] ?? '', $r['phone'], $r['email'], $r['billing_address'],
+            $r['zip_code'] ?? '', DB::value('SELECT name FROM terms WHERE id = :id', ['id' => $r['terms_id']]), $r['credit_limit'], $r['balance'], $r['is_active']], $list));
 }
 
 $selId = gint('id') ?? ($list[0]['id'] ?? null);
@@ -183,12 +189,12 @@ layout_start('Customer Center', ['actions' => $actions]);
                    data-live-filter="#custList .list-group-item" data-live-count="#custCount" data-live-empty="#custNone" aria-label="Find a customer"></div>
           <select class="form-select form-select-sm" name="show" data-autosubmit style="max-width:140px"><?= options(['active' => 'Active', 'all' => 'All', 'balance' => 'With balance'], $show) ?></select>
         </form>
-        <div class="d-flex justify-content-between mt-1"><span class="live-count"><span id="custCount"><?= count($list) ?></span> customer(s) and job(s)</span><span class="live-count d-none d-xl-inline">Type any part of the name, company, contact or phone</span></div>
+        <div class="d-flex justify-content-between mt-1"><span class="live-count"><span id="custCount"><?= count($list) ?></span> customer(s) and job(s)</span><span class="live-count d-none d-xl-inline">Type any part of the name, company, contact, treasurer or phone</span></div>
       </div>
       <div class="list-group list-group-flush center-list" id="custList" style="max-height:70vh;overflow:auto">
         <?php foreach ($list as $r): ?>
           <a class="list-group-item list-group-item-action d-flex justify-content-between <?= (int)$r['id'] === (int)$selId ? 'active' : '' ?> <?= $r['parent_id'] ? 'ps-4' : '' ?>" href="<?= h(url($pageKey, ['id' => $r['id'], 'show' => $show])) ?>"
-             data-filter-text="<?= h(($r['parent_name'] ? $r['parent_name'] . ' ' : '') . $r['name'] . ' ' . $r['company_name'] . ' ' . $r['contact_person'] . ' ' . $r['phone'] . ' ' . $r['mobile']) ?>">
+             data-filter-text="<?= h(($r['parent_name'] ? $r['parent_name'] . ' ' : '') . $r['name'] . ' ' . $r['company_name'] . ' ' . $r['contact_person'] . ' ' . ($r['treasurer_name'] ?? '') . ' ' . $r['phone'] . ' ' . $r['mobile']) ?>">
             <span><?= $r['parent_id'] ? '<i class="bi bi-arrow-return-right"></i> ' : '' ?><?= h($r['name']) ?><?= (int)$r['is_active'] ? '' : ' <span class="badge text-bg-secondary">inactive</span>' ?></span>
             <span class="num"><?= money($r['balance'], true) ?></span>
           </a>
@@ -223,7 +229,8 @@ layout_start('Customer Center', ['actions' => $actions]);
           <h2 class="h5 mb-0"><?= h(($sel['parent_name'] ? $sel['parent_name'] . ':' : '') . $sel['name']) ?></h2>
           <div class="small text-muted"><?= h($sel['company_name']) ?> <?= $sel['tin'] ? ', TIN ' . h($sel['tin']) : '' ?></div>
           <div class="small"><?= h($sel['contact_person']) ?> <?= h($sel['phone']) ?> <?= h($sel['mobile']) ?> <?= h($sel['email']) ?></div>
-          <div class="small text-muted"><?= h($sel['billing_address']) ?></div>
+          <?php if (!empty($sel['treasurer_name'])): ?><div class="small"><span class="text-muted">Treasurer:</span> <?= h($sel['treasurer_name']) ?></div><?php endif; ?>
+          <div class="small text-muted"><?= h($sel['billing_address']) ?><?= !empty($sel['zip_code']) ? ' ' . h($sel['zip_code']) : '' ?></div>
         </div>
         <div class="text-end">
           <div class="small text-muted">Open balance</div>
