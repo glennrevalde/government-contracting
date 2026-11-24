@@ -128,11 +128,12 @@ $does('Gross 29,750.00, withholding tax 1%, profit 13%, receipt deduction 3%, SO
     'est_gross' => '29,750.00', 'est_wt_rate' => '1', 'est_profit_rate' => '13', 'est_receipt_rate' => '3', 'est_sop' => '1,500.00'], (int)$pid, $p['lock_version']));
 $p = Brgy::project((int)$pid);
 $e = Brgy::estimates($p);
-$ok('Withholding tax 1% of the gross = 297.50', abs($e['wt'] - 297.50) < 0.005, (string)$e['wt']);
-$ok('Cheque amount = gross less withholding tax = 29,452.50', abs($e['cheque'] - 29452.50) < 0.005, (string)$e['cheque']);
-$ok('Amount to release = gross less withholding tax = 29,452.50', abs($e['release'] - 29452.50) < 0.005, (string)$e['release']);
+// v37: the computation of the Excel file v5 (withholding tax on the gross / 1.12, receipt deduction on 80% of the gross, the release less SOP, profit and receipt)
+$ok('Withholding tax 1% of the gross / 1.12 = 265.63 (v37)', abs($e['wt'] - 265.63) < 0.005, (string)$e['wt']);
+$ok('Cheque amount = gross less withholding tax = 29,484.37', abs($e['cheque'] - 29484.37) < 0.005, (string)$e['cheque']);
+$ok('Amount to release = cheque less SOP, profit and receipt deduction = 23,402.87 (v37)', abs($e['release'] - 23402.87) < 0.005, (string)$e['release']);
 $ok('Profit 13% = 3,867.50', abs($e['profit'] - 3867.50) < 0.005, (string)$e['profit']);
-$ok('Receipt deduction 3% = 892.50', abs($e['receipt'] - 892.50) < 0.005, (string)$e['receipt']);
+$ok('Receipt deduction 3% of 80% of the gross = 714.00 (v37)', abs($e['receipt'] - 714.00) < 0.005, (string)$e['receipt']);
 $ok('SOP typed in = 1,500.00', abs((float)$e['sop'] - 1500) < 0.005);
 $ok('The drop-downs offer 1, 4, 5, 6, 7% / 10, 13, 15% / 3%', implode(',', Brgy::rateList('brgy_est_wt_rates')) === '1%,4%,5%,6%,7%'
     && implode(',', Brgy::rateList('brgy_est_profit_rates')) === '10%,13%,15%' && implode(',', Brgy::rateList('brgy_est_receipt_rates')) === '3%');
@@ -140,9 +141,9 @@ $refused('A withholding tax rate not on the list', fn() => BrgyOps::saveProject(
 $ok('No accounting entry is made from the estimates', (int)DB::value('SELECT COUNT(*) FROM journal_lines') + (int)DB::value('SELECT COUNT(*) FROM brgy_postings') === $jlBefore);
 $ctx = BrgyDocs::context($p);
 $ok('The printed transaction form: gross, withholding tax, cheque amount and profit from the estimates',
-    $ctx['txn.gross'] === '₱29,750.00' && $ctx['txn.wht'] === '₱297.50' && $ctx['txn.cheque_amount'] === '₱29,452.50' && $ctx['txn.profit'] === '₱3,867.50',
+    $ctx['txn.gross'] === '₱29,750.00' && $ctx['txn.wht'] === '₱265.63' && $ctx['txn.cheque_amount'] === '₱29,484.37' && $ctx['txn.profit'] === '₱3,867.50',
     $ctx['txn.gross'] . ' / ' . $ctx['txn.wht'] . ' / ' . $ctx['txn.cheque_amount'] . ' / ' . $ctx['txn.profit']);
-$ok('... and the new fields (amount to release, receipt deduction, SOP)', $ctx['txn.amount_to_release'] === '₱29,452.50' && $ctx['txn.receipt_deduction'] === '₱892.50' && $ctx['txn.sop'] === '₱1,500.00');
+$ok('... and the new fields (amount to release, receipt deduction, SOP)', $ctx['txn.amount_to_release'] === '₱23,402.87' && $ctx['txn.receipt_deduction'] === '₱714.00' && $ctx['txn.sop'] === '₱1,500.00');
 $form = file_get_contents(APP_ROOT . '/modules/brgy/projects.php');
 $ok('The card "Numbers and dates of the barangay\'s papers" is gone from the transaction form', !str_contains($form, "Numbers and dates of the barangay's papers</div>") && !str_contains($form, "input_field('ris_no'"));
 

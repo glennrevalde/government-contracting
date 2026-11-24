@@ -1744,6 +1744,7 @@ CREATE TABLE brgy_projects (
   est_profit_rate        DECIMAL(5,2) NULL,                         --      profit % of the gross
   est_receipt_rate       DECIMAL(5,2) NULL,                         --      receipt deduction % of the gross
   est_sop                DECIMAL(15,2) NULL,                        --      SOP (amount)
+  est_sop_rate           DECIMAL(5,2) NULL,                         -- v37: the SOP as a % of the gross (blank: the amount above)
   dv_gross               DECIMAL(15,2) NULL,                        -- v34: gross amount entered on the DV
   dv_vat_rate            DECIMAL(5,2) NULL,                         --      VAT of the DV: 5 (gross / 1.12 x 5%), 3 (gross x 3%), 0 none
   dv_ewt_rate            DECIMAL(5,2) NULL,                         --      EWT of the DV: 2 (gross / 1.12 x 2%), 1, 0 none

@@ -307,22 +307,39 @@ if (in_array($a, ['new', 'edit'], true)) {
               }
               return $html . '</select><div class="est-amt" id="' . h($outId) . '" aria-live="polite"></div></div>';
           };
-          $estOut = fn(string $id, string $label) => '<div class="col-6 col-md-4 col-xl est-f"><label class="form-label" for="' . h($id) . '">' . h($label) . '</label>'
-              . '<input class="form-control form-control-sm est-calc" id="' . h($id) . '" readonly tabindex="-1" value=""><div class="est-amt">Gross less WT</div></div>'; ?>
-        <div class="col-12 est-block" id="estBlock">
+          $estOut = fn(string $id, string $label, string $how) => '<div class="col-6 col-md-4 col-xl est-f"><label class="form-label" for="' . h($id) . '">' . h($label) . '</label>'
+              . '<input class="form-control form-control-sm est-calc" id="' . h($id) . '" readonly tabindex="-1" value=""><div class="est-amt">' . h($how) . '</div></div>';
+          // v37: the SOP is an amount or a % of the gross; the withholding tax is worked out on the gross / 1.12, the receipt deduction on 80% of the gross
+          $sopPct = is_post() ? p('est_sop_kind') === 'pct' : Brgy::v37Ready() && ($p['est_sop_rate'] ?? null) !== null;
+          $sopVal = is_post() ? (string)p('est_sop') : ($sopPct ? Brgy::rateKey($p['est_sop_rate']) : $estAmt('est_sop'));
+          $estDiv = Brgy::estWtDivisor();
+          $estBase = Brgy::estReceiptBase();
+          $numTxt = fn(float $v) => rtrim(rtrim(number_format($v, 4, '.', ''), '0'), '.'); ?>
+        <div class="col-12 est-block" id="estBlock" data-wt-div="<?= h($numTxt($estDiv)) ?>" data-rc-base="<?= h($numTxt($estBase)) ?>">
           <div class="est-title">Estimates and targets</div>
           <div class="row g-2">
             <div class="col-6 col-md-4 col-xl est-f"><label class="form-label" for="f_est_gross">Gross amount</label>
               <input class="form-control form-control-sm text-end" id="f_est_gross" name="est_gross" inputmode="decimal" autocomplete="off" value="<?= h($estAmt('est_gross')) ?>" placeholder="0.00"></div>
             <?= $estSel('est_wt_rate', 'Withholding tax', 'brgy_est_wt_rates', 'estWt') ?>
-            <?= $estOut('estCheque', 'Cheque amount') ?>
-            <?= $estOut('estRelease', 'Amount to release') ?>
+            <?= $estOut('estCheque', 'Cheque amount', 'Gross less WT') ?>
+            <?= $estOut('estRelease', 'Amount to release', 'Less WT, SOP, profit, receipt') ?>
             <?= $estSel('est_profit_rate', 'Profit', 'brgy_est_profit_rates', 'estProfit') ?>
             <?= $estSel('est_receipt_rate', 'Receipt deduction', 'brgy_est_receipt_rates', 'estReceipt') ?>
-            <div class="col-6 col-md-4 col-xl est-f"><label class="form-label" for="f_est_sop">SOP</label>
-              <input class="form-control form-control-sm text-end" id="f_est_sop" name="est_sop" inputmode="decimal" autocomplete="off" value="<?= h($estAmt('est_sop')) ?>" placeholder="0.00"></div>
+            <?php if (Brgy::v37Ready()): ?>
+              <div class="col-6 col-md-4 col-xl est-f"><div class="est-f-head"><label class="form-label" for="f_est_sop">SOP</label>
+                  <select class="form-select est-kind" name="est_sop_kind" id="f_est_sop_kind" data-no-combo aria-label="SOP as an amount or a % of the gross">
+                    <option value="amount" <?= $sopPct ? '' : 'selected' ?>>amount</option><option value="pct" <?= $sopPct ? 'selected' : '' ?>>% of gross</option>
+                  </select></div>
+                <input class="form-control form-control-sm text-end" id="f_est_sop" name="est_sop" inputmode="decimal" autocomplete="off" value="<?= h($sopVal) ?>" placeholder="<?= $sopPct ? '0' : '0.00' ?>" aria-describedby="estSop">
+                <div class="est-amt" id="estSop" aria-live="polite"></div></div>
+            <?php else: ?>
+              <div class="col-6 col-md-4 col-xl est-f"><label class="form-label" for="f_est_sop">SOP</label>
+                <input class="form-control form-control-sm text-end" id="f_est_sop" name="est_sop" inputmode="decimal" autocomplete="off" value="<?= h($estAmt('est_sop')) ?>" placeholder="0.00"></div>
+            <?php endif; ?>
           </div>
-          <div class="form-text mt-1">Estimates and targets only: no accounting entry is made from them. The cheque amount and the amount to release are the gross amount less the withholding tax; the profit and the receipt deduction are rates of the gross amount. The rates offered are set on Contracting Settings.</div>
+          <div class="form-text mt-1">Estimates and targets only: no accounting entry is made from them. Withholding tax = gross &divide; <?= h($numTxt($estDiv)) ?> &times; rate; cheque amount = gross less the withholding tax;
+            SOP = a % of the gross or an amount; profit = gross &times; rate; receipt deduction = <?= h($numTxt($estBase)) ?>% of the gross &times; rate;
+            amount to release = gross less the withholding tax, SOP, profit and receipt deduction. The rates, the <?= h($numTxt($estDiv)) ?> and the <?= h($numTxt($estBase)) ?>% are set on Contracting Settings.</div>
         </div>
       <?php endif; ?>
       <?= input_field('purpose', 'Purpose', fv('purpose', $p), ['class' => 'col-12', 'extra' => 'maxlength="255" placeholder="For Barangay Office Use"']) ?>

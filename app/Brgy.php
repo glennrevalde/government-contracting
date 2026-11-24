@@ -134,6 +134,13 @@ final class Brgy
         'brgy_liaison_position'      => 'Liaison Officer',
         'brgy_liaison_phone'         => '',
         'brgy_liaison_mobile'        => '',
+        // v37: the representative in the sworn statements (omnibus sworn statement, bid securing declaration)
+        'brgy_signatory_civil_status' => '',
+        'brgy_signatory_citizenship' => 'Filipino',
+        'brgy_signatory_residence'   => '',
+        'brgy_signatory_id_type'     => '',
+        'brgy_signatory_id_no'       => '',
+        'brgy_notary_place'          => '',
         'brgy_bank_details'          => '',
         'brgy_prices_vat_inclusive'  => '1',
         'brgy_sod_strict'            => '1',
@@ -171,6 +178,9 @@ final class Brgy
         'brgy_est_wt_rates'          => '1,4,5,6,7',
         'brgy_est_profit_rates'      => '10,13,15',
         'brgy_est_receipt_rates'     => '3',
+        // v37: the withholding tax is worked out on the gross divided by this (1.12: the gross less VAT), the receipt deduction on this % of the gross
+        'brgy_est_wt_divisor'        => '1.12',
+        'brgy_est_receipt_base'      => '80',
     ];
 
     // ================================================================== small helpers
@@ -381,10 +391,44 @@ final class Brgy
         return $v === null || $v === '' ? '' : rtrim(rtrim(number_format((float)$v, 2, '.', ''), '0'), '.');
     }
 
+    /** v37: the gross is divided by this before the withholding tax rate is applied (Contracting Settings; 1.12 = the gross less VAT) */
+    public static function estWtDivisor(): float
+    {
+        $v = (float)self::setting('brgy_est_wt_divisor');
+        return $v >= 1 && $v <= 2 ? round($v, 4) : 1.12;
+    }
+
+    /** v37: the % of the gross the receipt deduction rate is applied to (Contracting Settings; 80) */
+    public static function estReceiptBase(): float
+    {
+        $v = (float)self::setting('brgy_est_receipt_base');
+        return $v > 0 && $v <= 100 ? round($v, 2) : 80.0;
+    }
+
+    /** v37: the column of the SOP as a % of the gross exists (the 2026-11-24 migration has been run) */
+    public static function v37Ready(): bool
+    {
+        static $ok = null;
+        if ($ok === null) {
+            try {
+                DB::value('SELECT COUNT(est_sop_rate) FROM brgy_projects WHERE 1 = 0');
+                $ok = true;
+            } catch (Throwable $e) {
+                $ok = false;
+            }
+        }
+        return $ok;
+    }
+
     /**
-     * The estimates and targets typed on the transaction form (no accounting entry comes from them):
-     * the gross amount, the withholding tax (a rate of the gross), the cheque amount and the amount to release
-     * (both the gross less the withholding tax), the profit and the receipt deduction (rates of the gross) and the SOP (an amount).
+     * The estimates and targets typed on the transaction form (no accounting entry comes from them). v37:
+     *   withholding tax   = gross / 1.12 x rate             (50,000 / 1.12 x 6% = 2,678.57)
+     *   cheque amount     = gross - withholding tax          (47,321.43)
+     *   SOP               = gross x rate, or an amount typed (50,000 x 2% = 1,000.00)
+     *   profit            = gross x rate                     (50,000 x 15% = 7,500.00)
+     *   receipt deduction = 80% of the gross x rate          (50,000 x 80% x 3% = 1,200.00)
+     *   amount to release = gross - withholding tax - SOP - profit - receipt deduction (37,621.43)
+     * The divisor (1.12) and the 80% are set on Contracting Settings.
      */
     public static function estimates(array $p): array
     {
@@ -393,12 +437,21 @@ final class Brgy
         $wtRate = $rate('est_wt_rate');
         $profitRate = $rate('est_profit_rate');
         $receiptRate = $rate('est_receipt_rate');
-        $wt = $wtRate !== null ? r2($gross * $wtRate / 100) : 0.0;
-        $sop = ($p['est_sop'] ?? null) !== null && $p['est_sop'] !== '' ? r2((float)$p['est_sop']) : null;
-        return ['gross' => $gross, 'wt_rate' => $wtRate, 'wt' => $wt, 'cheque' => r2($gross - $wt), 'release' => r2($gross - $wt),
-            'profit_rate' => $profitRate, 'profit' => $profitRate !== null ? r2($gross * $profitRate / 100) : 0.0,
-            'receipt_rate' => $receiptRate, 'receipt' => $receiptRate !== null ? r2($gross * $receiptRate / 100) : 0.0,
-            'sop' => $sop, 'any' => $gross > 0 || $wtRate !== null || $profitRate !== null || $receiptRate !== null || $sop !== null];
+        $sopRate = $rate('est_sop_rate');
+        $div = self::estWtDivisor();
+        $base = self::estReceiptBase();
+        $wt = $wtRate !== null ? r2($gross / $div * $wtRate / 100) : 0.0;
+        $sop = $sopRate !== null ? r2($gross * $sopRate / 100)
+            : (($p['est_sop'] ?? null) !== null && $p['est_sop'] !== '' ? r2((float)$p['est_sop']) : null);
+        $profit = $profitRate !== null ? r2($gross * $profitRate / 100) : 0.0;
+        $receipt = $receiptRate !== null ? r2($gross * $base / 100 * $receiptRate / 100) : 0.0;
+        $cheque = r2($gross - $wt);
+        return ['gross' => $gross, 'wt_rate' => $wtRate, 'wt' => $wt, 'wt_divisor' => $div, 'cheque' => $cheque,
+            'release' => r2($cheque - (float)$sop - $profit - $receipt),
+            'profit_rate' => $profitRate, 'profit' => $profit,
+            'receipt_rate' => $receiptRate, 'receipt' => $receipt, 'receipt_base' => $base,
+            'sop' => $sop, 'sop_rate' => $sopRate,
+            'any' => $gross > 0 || $wtRate !== null || $profitRate !== null || $receiptRate !== null || $sop !== null];
     }
 
     // ---------------------------------------------------------------- v33: tradenames

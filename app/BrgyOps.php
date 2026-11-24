@@ -237,7 +237,26 @@ final class BrgyOps
         // v34: the estimates and targets of the transaction form (no accounting entry is made from them)
         if (Brgy::v34Ready()) {
             $was = $id ? Brgy::project($id) : null;
+            // v37: the SOP is an amount or a % of the gross (est_sop_kind "pct": est_sop is the %; est_sop_rate alone does the same)
+            if (!isset($d['est_sop_kind']) && trim((string)($d['est_sop_rate'] ?? '')) !== '') {
+                $d['est_sop_kind'] = 'pct';
+                $d['est_sop'] = $d['est_sop_rate'];
+            }
+            $sopPct = Brgy::v37Ready() && ($d['est_sop_kind'] ?? '') === 'pct';
+            if ($sopPct) {
+                $raw = trim(str_replace(['%', ' '], '', (string)($d['est_sop'] ?? '')));
+                if ($raw !== '' && (!is_numeric($raw) || (float)$raw <= 0 || (float)$raw >= 100)) {
+                    fail('Enter the SOP as a percentage of the gross amount above 0 and below 100 (for example 2), or choose an amount.');
+                }
+                $row['est_sop_rate'] = $raw === '' ? null : round((float)$raw, 2);
+                $row['est_sop'] = null;
+            } elseif (Brgy::v37Ready() && array_key_exists('est_sop', $d)) {
+                $row['est_sop_rate'] = null;
+            }
             foreach (['est_gross' => 'gross amount', 'est_sop' => 'SOP'] as $k => $what) {
+                if ($k === 'est_sop' && $sopPct) {
+                    continue;
+                }
                 if (array_key_exists($k, $d)) {
                     $raw = trim(str_replace([',', '₱', ' '], '', (string)$d[$k]));
                     if ($raw !== '' && !is_numeric($raw)) {
@@ -309,7 +328,9 @@ final class BrgyOps
                 if (!in_array($old['bid_status'], ['draft', 'returned'], true) || $old['status'] !== 'open') {
                     // the offer is approved or out: only descriptive fields change; dates of the contract change on the Award tab
                     foreach ($row as $k => $v) {
-                        if (!in_array($k, self::AFTER_BID, true) && in_array($k, ['abc_amount', 'mode_id', 'category', 'regime', 'entity_id', 'bid_deadline'], true) && (string)$v !== (string)$old[$k]) {
+                        // v37: the ABC is compared as an amount (the form sends back "300000.00", the row holds 300000.0)
+                        $changed = $k === 'abc_amount' ? abs((float)$v - (float)$old[$k]) >= 0.005 : (string)$v !== (string)$old[$k];
+                        if (!in_array($k, self::AFTER_BID, true) && in_array($k, ['abc_amount', 'mode_id', 'category', 'regime', 'entity_id', 'bid_deadline'], true) && $changed) {
                             fail('The ' . str_replace('_', ' ', $k) . ' cannot change once the bid is ' . (Brgy::WF[$old['bid_status']] ?? $old['bid_status']) . '. An approver can reopen the bid.');
                         }
                     }
@@ -1709,7 +1730,10 @@ final class BrgyOps
         $L = BrgyLayout::layout($t);
         $ctx = BrgyDocs::context($p, $f['related_type'] ? [$f['related_type'], (int)$f['related_id']] : null, $f['form_no'], $L);
         $body = BrgyDocs::render($t['body'], $ctx);
-        DB::update('brgy_forms', ['body' => $body, 'template_version' => $t['version_no'], 'needs_approval' => (int)$t['needs_approval'],
+        // v37: the form follows its template in being a prescribed form or not (the sworn statements are no longer shells), and
+        // takes the paper of a template changed since the form was made
+        $paper = (int)$f['template_version'] < (int)$t['version_no'] && $L['paper'] !== 'Custom' ? ['paper' => $L['paper'], 'orientation' => $L['orientation']] : [];
+        DB::update('brgy_forms', $paper + ['body' => $body, 'template_version' => $t['version_no'], 'needs_approval' => (int)$t['needs_approval'], 'is_prescribed' => (int)$t['is_prescribed'],
             'values_json' => json_encode(BrgyLayout::values($ctx, $p ? Brgy::lines((int)$p['id']) : [], $L), JSON_UNESCAPED_UNICODE), 'updated_at' => date('Y-m-d H:i:s')], 'id = :id', ['id' => $formId]);
         Brgy::bumpVersion('brgy_forms', $formId);
         Brgy::log('refresh', 'form', $formId, $f['form_no'], ['page_key' => 'brgy.forms']);

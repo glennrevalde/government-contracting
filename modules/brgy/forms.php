@@ -173,6 +173,12 @@ if ($a === 'edit' && $id) {
         . ' ' . page_link($pageKey, ['a' => 'print', 'id' => $id], 'Print draft', 'btn-outline-secondary', 'printer', 'print')]));
     ?>
     <?php if ($why): ?><div class="alert alert-danger small"><b>Returned:</b> <?= h($why) ?></div><?php endif; ?>
+    <?php // v37: a form made from an older version of its template (the sworn statements were shells before version 37)
+    if ((int)$f['template_current'] > (int)$f['template_version']): ?>
+      <div class="alert alert-info small d-flex flex-wrap align-items-center gap-2"><span class="me-auto"><b>The template has changed.</b> This form was made from version <?= (int)$f['template_version'] ?> of <?= h($f['template_name']) ?>; it is now at version <?= (int)$f['template_current'] ?>.
+        Fill it again from the records to take the new text and format (what was typed on this form is replaced).</span>
+        <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#mRefresh"><i class="bi bi-arrow-repeat"></i> Fill again from the records</button></div>
+    <?php endif; ?>
     <?php if ((int)$f['is_prescribed']): ?><div class="alert alert-warning small"><b>Prescribed form.</b> Its wording follows a form issued by the GPPB or the procuring entity. Check it against the bidding documents of this procurement before use, and state the official version you followed; change only what the form asks you to fill.</div><?php endif; ?>
     <form method="post" id="formEdit" data-no-class-check><?= csrf_field() ?><input type="hidden" name="do" value="save"><?= Brgy::versionField($f['lock_version']) ?>
       <textarea name="body" id="formBody" hidden><?= h($body) ?></textarea>

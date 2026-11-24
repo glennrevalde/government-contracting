@@ -67,22 +67,50 @@
   const estBlock = $('#estBlock');
   if (estBlock) {
     const g = $('#f_est_gross');
+    const sopIn = $('#f_est_sop');
+    const sopKind = $('#f_est_sop_kind');
+    // v37: withholding tax on the gross / 1.12, receipt deduction on 80% of the gross (Contracting Settings)
+    const div = parseFloat(estBlock.dataset.wtDiv) || 1.12;
+    const rcBase = parseFloat(estBlock.dataset.rcBase) || 80;
+    // rounded as the server rounds (PHP round(): 15 significant digits first, then half away from zero)
+    const rr = (v) => { const s = v < 0 ? -1 : 1; return s * Math.round(Number((Math.abs(v) * 100).toPrecision(15))) / 100; };
     const rate = (id) => { const el = $(id); return el && el.value !== '' ? parseFloat(el.value) : null; };
     const amt = (v) => (v === null ? '' : fmt(v));
+    const isPct = () => !!sopKind && sopKind.value === 'pct';
     const calc = () => {
       const gross = Math.max(0, num(String(g.value).replace(/[^0-9.,-]/g, '')));
       const wtR = rate('#f_est_wt_rate');
       const prR = rate('#f_est_profit_rate');
       const rcR = rate('#f_est_receipt_rate');
-      const wt = wtR === null ? 0 : r2(gross * wtR / 100);
+      const wt = wtR === null ? 0 : rr(gross / div * wtR / 100);
+      const profit = prR === null ? 0 : rr(gross * prR / 100);
+      const receipt = rcR === null ? 0 : rr(gross * rcBase / 100 * rcR / 100);
+      const sopRaw = sopIn ? String(sopIn.value).replace(/[^0-9.,-]/g, '') : '';
+      const sop = sopRaw === '' ? 0 : (isPct() ? rr(gross * num(sopRaw) / 100) : rr(num(sopRaw)));
+      const cheque = rr(gross - wt);
       $('#estWt').textContent = wtR === null ? '' : amt(wt);
-      $('#estCheque').value = gross > 0 ? fmt(r2(gross - wt)) : '';
-      $('#estRelease').value = gross > 0 ? fmt(r2(gross - wt)) : '';
-      $('#estProfit').textContent = prR === null ? '' : amt(r2(gross * prR / 100));
-      $('#estReceipt').textContent = rcR === null ? '' : amt(r2(gross * rcR / 100));
+      $('#estCheque').value = gross > 0 ? fmt(cheque) : '';
+      $('#estRelease').value = gross > 0 ? fmt(rr(cheque - sop - profit - receipt)) : '';
+      $('#estProfit').textContent = prR === null ? '' : amt(profit);
+      $('#estReceipt').textContent = rcR === null ? '' : amt(receipt);
+      const sopOut = $('#estSop');
+      if (sopOut) sopOut.textContent = isPct() && sopRaw !== '' ? amt(sop) : '';
     };
     $$('input, select', estBlock).forEach((el) => el.addEventListener(el.tagName === 'SELECT' ? 'change' : 'input', calc));
-    [g, $('#f_est_sop')].forEach((el) => el && el.addEventListener('blur', () => { if (el.value.trim() !== '' && !isNaN(num(el.value))) el.value = fmt(num(el.value)); }));
+    // amounts take their commas when left; a % of the gross stays as typed
+    [g, sopIn].forEach((el) => el && el.addEventListener('blur', () => {
+      if (el === sopIn && isPct()) return;
+      if (el.value.trim() !== '' && !isNaN(num(el.value))) el.value = fmt(num(el.value));
+    }));
+    if (sopKind) {
+      sopKind.addEventListener('change', () => {
+        // switching kind: an amount with commas becomes a plain number to type over, and the other way round
+        const v = num(String(sopIn.value).replace(/[^0-9.,-]/g, ''));
+        sopIn.placeholder = isPct() ? '0' : '0.00';
+        if (sopIn.value.trim() !== '' && !isNaN(v)) sopIn.value = isPct() ? String(v) : fmt(v);
+        calc();
+      });
+    }
     calc();
   }
 

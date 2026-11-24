@@ -2736,6 +2736,14 @@ body.sig-public { background: #eef1f5; min-height: 100vh; display: flex; flex-di
 .est-calc { background: #fff; color: #212529; font-weight: 600; text-align: right; font-variant-numeric: tabular-nums; }
 .est-calc:focus { box-shadow: none; border-color: var(--line); }
 .est-amt { min-height: 1.1rem; margin-top: .2rem; font-size: .76rem; color: #6c757d; text-align: right; font-variant-numeric: tabular-nums; }
+/* v37: the SOP as an amount or a % of the gross: the choice sits on the label line, so every box of the row stays the same width */
+.est-f-head { position: relative; min-width: 0; }
+.est-f-head .form-label { max-width: calc(100% - 6.2rem); }
+.est-block .est-kind { position: absolute; top: 0; right: 0; width: auto; max-width: 6rem; min-height: 0; height: auto; margin: 0; padding: 0 1.05rem 0 .3rem; border: 0; border-radius: .3rem;
+  font-size: .76rem; line-height: 1.25; font-weight: 600; text-align-last: right; color: #0d6efd; background-color: transparent; background-position: right .1rem center; background-size: 10px 8px; box-shadow: none; cursor: pointer; }
+.est-block .est-kind:hover { background-color: rgba(13, 110, 253, .08); }
+.est-block .est-kind:focus { box-shadow: none; }
+.est-block .est-kind:focus-visible { outline: 2px solid rgba(13, 110, 253, .45); outline-offset: 1px; }
 .est-sum { display: flex; flex-wrap: wrap; gap: .15rem 1rem; }
 .est-sum b { font-variant-numeric: tabular-nums; }
 

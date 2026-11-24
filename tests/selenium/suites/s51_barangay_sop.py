@@ -339,8 +339,9 @@ def svp_new(t):
     dl = card(a, 'svp1').find_element(By.CSS_SELECTOR, 'dl').text
     for v in ('Liza M. Tumulak', 'Engr. Ramon P. Ybanez', '20,000.00', 'For Barangay Office Use'):
         t.contains(dl, v, 'details of step 1')
-    # v34: gross 20,000.00, withholding tax 1% = 200.00, cheque amount 19,800.00, profit 13% = 2,600.00
-    for v in ('Estimates and targets', '19,800.00', '2,600.00', '600.00'):
+    # v37: gross 20,000.00, withholding tax 1% of 20,000 / 1.12 = 178.57, cheque amount 19,821.43, profit 13% = 2,600.00,
+    # receipt deduction 3% of 80% = 480.00, SOP 500.00, amount to release 16,241.43
+    for v in ('Estimates and targets', '19,821.43', '2,600.00', '480.00', '16,241.43'):
         t.contains(dl, v, 'the estimates of step 1')
 
 

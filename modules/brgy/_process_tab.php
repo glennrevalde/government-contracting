@@ -144,11 +144,11 @@ $lt = Brgy::lineTotals($id);
                     <span>Gross <b><?= money($est['gross']) ?></b></span>
                     <span>Withholding tax<?= h($pc($est['wt_rate'])) ?> <b><?= money($est['wt']) ?></b></span>
                     <span>Cheque amount <b><?= money($est['cheque']) ?></b></span>
-                    <span>Amount to release <b><?= money($est['release']) ?></b></span>
+                    <?php if ($est['sop'] !== null): ?><span>SOP<?= h($pc($est['sop_rate'])) ?> <b><?= money($est['sop']) ?></b></span><?php endif; ?>
                     <?php if ($est['profit_rate'] !== null): ?><span>Profit<?= h($pc($est['profit_rate'])) ?> <b><?= money($est['profit']) ?></b></span><?php endif; ?>
                     <?php if ($est['receipt_rate'] !== null): ?><span>Receipt deduction<?= h($pc($est['receipt_rate'])) ?> <b><?= money($est['receipt']) ?></b></span><?php endif; ?>
-                    <?php if ($est['sop'] !== null): ?><span>SOP <b><?= money($est['sop']) ?></b></span><?php endif; ?>
-                  </div><div class="text-muted">Estimates only: no accounting entry.</div></dd>
+                    <span>Amount to release <b><?= money($est['release']) ?></b></span>
+                  </div><div class="text-muted">Estimates only: no accounting entry. Amount to release = gross less the withholding tax, SOP, profit and receipt deduction.</div></dd>
                 <?php endif; ?>
               </dl>
               <?php if ($isCur && $canEdit): ?><div class="d-flex flex-wrap gap-1 mb-2"><a class="btn btn-sm btn-outline-primary" href="<?= h(url($pageKey, ['a' => 'edit', 'id' => $id])) ?>"><i class="bi bi-pencil"></i> Edit the details</a>

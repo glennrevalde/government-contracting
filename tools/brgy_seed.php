@@ -521,13 +521,114 @@ function brgy_templates(): array
     };
     $f = '<tr><td style="width:36%">Name of bidder</td><td>{{company.name}}</td></tr><tr><td>Address</td><td>{{company.address}}</td></tr><tr><td>Authorized representative</td><td>{{signatory.name}}, {{signatory.position}}</td></tr>'
         . '<tr><td>Procuring entity</td><td>{{entity.name}}</td></tr><tr><td>Project / reference</td><td>{{project.title}} ({{project.reference_no}})</td></tr>';
-    $out[] = ['omnibus_sworn_statement', 'Omnibus sworn statement (prescribed form)', 'prescribed', 'bid', 'omnibus', 1, 'company.name,signatory.name',
-        'Shell for the prescribed omnibus sworn statement: the official text is pasted in, the program fills its blanks and keeps its review.', $shell('Omnibus sworn statement', $f)];
-    $out[] = ['bid_securing_declaration', 'Bid securing declaration (prescribed form)', 'prescribed', 'bid', 'bid_security', 1, 'company.name,signatory.name',
-        'Shell for the prescribed bid securing declaration.', $shell('Bid securing declaration', $f . '<tr><td>ABC</td><td>{{project.abc}}</td></tr>')];
+    // v37: the omnibus sworn statement and the bid securing declaration are whole forms, like the other forms: their text is changed
+    // on the template (Edit text), their header (the letterhead), footer and affiant(s) on its Format tab (brgy_sworn_layout)
+    $out[] = ['omnibus_sworn_statement', 'Omnibus sworn statement', 'proforma', 'bid', 'omnibus', 0, 'company.name,signatory.name', BRGY_OSS_DESC, brgy_oss_body()];
+    $out[] = ['bid_securing_declaration', 'Bid securing declaration', 'proforma', 'bid', 'bid_security', 0, 'company.name,signatory.name', BRGY_BSD_DESC, brgy_bsd_body()];
     $out[] = ['bid_form', 'Bid form / price quotation form (prescribed by the entity)', 'prescribed', 'bid', 'quotation', 1, 'company.name,signatory.name',
         'Shell for the bid or quotation form the entity issued; the price schedule of the project is below to copy the figures.', $shell('Bid form / price quotation form', $f . '<tr><td>Total bid</td><td>{{project.bid_amount}} ({{project.bid_amount_words}})</td></tr>') . '{{lines.table}}'];
     return $out;
+}
+
+// ---------------------------------------------------------------- v37: the sworn statements of the bid
+const BRGY_OSS_DESC = 'The bidder\'s omnibus sworn statement (RA 12009 IRR), for notarization, filled from Contracting Settings and the transaction. The text is changed with Edit text; the header, footer and affiant on the Format tab.';
+const BRGY_BSD_DESC = 'The bidder\'s bid securing declaration (RA 12009 IRR), for notarization, filled from Contracting Settings and the transaction. The text is changed with Edit text; the header, footer and affiant on the Format tab.';
+
+/** "REPUBLIC OF THE PHILIPPINES ) / CITY/MUNICIPALITY OF ____ ) S.S." */
+function brgy_sworn_venue(): string
+{
+    $td = 'style="padding:0 8px 0 0;white-space:nowrap"';
+    return '<div data-section="venue" title="Venue (Republic of the Philippines, S.S.)"><table class="fx-plain" style="width:auto;margin:0 0 6px"><tbody>'
+        . '<tr><td ' . $td . '>REPUBLIC OF THE PHILIPPINES</td><td ' . $td . '>)</td><td></td></tr>'
+        . '<tr><td ' . $td . '>CITY/MUNICIPALITY OF ____________________</td><td ' . $td . '>)</td><td>S.S.</td></tr></tbody></table></div>';
+}
+
+/** The jurat of the notary public; $idText: what the affiant exhibited */
+function brgy_sworn_jurat(string $idText): string
+{
+    return '<div data-section="jurat" title="Jurat of the notary public">'
+        . '<p style="text-align:justify;margin-top:22px"><b>SUBSCRIBED AND SWORN</b> to before me this _____ day of ______________, 20_____ at <u>{{company.notary_place}}, Philippines</u>. '
+        . 'Affiant/s is/are personally known to me and was/were identified by me through competent evidence of identity as defined in the 2004 Rules on Notarial Practice (A.M. No. 02-8-13-SC). '
+        . 'Affiant/s exhibited to me his/her ' . $idText . ' photograph and signature appearing thereon, with <u>{{signatory.id_type}} No. {{signatory.id_no}}</u>.</p>'
+        . '<p style="margin-top:16px">WITNESS MY HAND AND SEAL this _____ day of ______________, 20_____.</p>'
+        . '<p style="margin-top:20px;line-height:1.55">Doc. No. __________<br>Page No. __________<br>Book No. __________<br>Series of {{date.year}}.</p></div>';
+}
+
+/** a) b) c) d): a lettered line hanging under its item */
+function brgy_sworn_sub(string $letter, string $text): string
+{
+    return '<p style="margin:0 0 6px 2.2em;text-indent:-1.8em;text-align:justify"><span style="display:inline-block;width:1.8em;text-indent:0">' . $letter . ')</span>' . $text . '</p>';
+}
+
+/** The omnibus sworn statement (the bidder's own wording of the GPPB form under RA 12009) */
+function brgy_oss_body(): string
+{
+    $b = '<b>{{company.bidder_upper}}</b>';
+    $li = fn(string $t) => '<li style="margin-bottom:8px">' . $t . '</li>';
+    return '<div>{{letterhead}}</div>' . brgy_sworn_venue()
+        . '<p style="text-align:center;margin:18px 0 16px;letter-spacing:.16em"><b>OMNIBUS SWORN STATEMENT</b></p>'
+        . '<p style="text-align:justify;text-indent:2.5em">I, <b>{{signatory.name}}</b>, of legal age, {{signatory.civil_status}}, {{signatory.citizenship}}, and with residence at {{signatory.residence}}, after having been duly sworn in accordance with law, do hereby depose and state that:</p>'
+        . '<ol style="text-align:justify;padding-left:2.4em;margin:10px 0 0">'
+        . $li('I am the sole proprietor or authorized representative of ' . $b . ' with office address at {{company.address}};')
+        . $li('As the owner and sole proprietor or authorized representative of ' . $b . ', I have full power and authority to do, execute and perform any and all acts necessary or appoint {{project.submitter}} to represent my company for the bidding of the <b>{{project.title}}</b> at {{entity.title}}, {{entity.city}}, {{entity.province}};')
+        . $li($b . ' is not &ldquo;blacklisted&rdquo; or barred from bidding by the Government of the Philippines or any of its agencies, offices, corporations, or Local Government Units, foreign government/foreign or international financing institution whose blacklisting rules have been recognized by the Government Procurement Policy Board; by itself or by relation, membership, association, affiliation, or controlling interest with another blacklisted person or entity;')
+        . $li('Each of the documents submitted in satisfaction of the bidding requirements is an authentic copy of the original, complete, and all statements and information provided therein are true and correct;')
+        . $li($b . ' is authorizing the Head of the Procuring Entity or its duly authorized representative(s) to verify all the documents submitted;')
+        . $li('I am not related to the Head of the Procuring Entity, members of the Bids and Awards Committee (BAC), the Technical Working Group, and the BAC Secretariat, the head of the Project Management Office or the end-user unit, and the project consultants by consanguinity or affinity up to the third civil degree;')
+        . $li('It is understood that failure to faithfully disclose its relationship with the Head of the Procuring Entity, members of the BAC, the TWG, and the BAC Secretariat, the head of the PMO or the end-user unit or implementing unit, and the project consultants of the Procuring Entity, or of the procurement agent by consanguinity or affinity up to the third civil degree, as well as its submission of beneficial ownership information containing false entries shall be subject to blacklisting under Section 100 of the Implementing Rules and Regulations (IRR) of Republic Act (RA) No. 12009, without prejudice to criminal and civil liabilities under applicable laws, including their accessory penalties, if any;')
+        . $li($b . ' complies with existing labor laws and standards; and')
+        . '<li style="margin-bottom:8px">' . $b . ' is aware of and has undertaken the following responsibilities as a Bidder:'
+        . '<div style="margin-top:6px">' . brgy_sworn_sub('a', 'Carefully examine all of the Bidding Documents;')
+        . brgy_sworn_sub('b', 'Acknowledge all conditions, local or otherwise, affecting the implementation of the Contract;')
+        . brgy_sworn_sub('c', 'Made an estimate of the facilities available and needed for the contract to be bid, if any; and')
+        . brgy_sworn_sub('d', 'Inquire or secure Supplemental Bid Bulletin(s) issued for the <b>{{project.title}}</b>.') . '</div></li>'
+        . $li($b . ' did not give or pay directly or indirectly, any commission, amount, fee, or any form of consideration, pecuniary or otherwise, to any person or official, personnel or representative of the government in relation to any procurement project or activity.')
+        . $li('In case advance payment was made or given to ' . $b . ', failure to perform or deliver any of the obligations and undertakings in the contract shall be sufficient grounds to constitute criminal liability under existing laws.')
+        . '</ol>'
+        . '<p style="text-align:justify;text-indent:2.5em;margin-top:14px">IN WITNESS WHEREOF, I have hereunto set my hand this _____ day of ______________, 20_____ at {{company.notary_place}}, Philippines.</p>'
+        . '<div>{{signatories}}</div>'
+        . brgy_sworn_jurat('{{signatory.id_type}}');
+}
+
+/** The bid securing declaration (the bidder's own wording of the GPPB form under RA 12009) */
+function brgy_bsd_body(): string
+{
+    $li = fn(string $t) => '<li style="margin-bottom:8px">' . $t . '</li>';
+    return '<div>{{letterhead}}</div>' . brgy_sworn_venue()
+        . '<p style="text-align:center;margin:18px 0 2px"><b style="font-size:1.15em">BID SECURING DECLARATION</b></p>'
+        . '<p style="text-align:center;margin:0 0 18px"><b>Project Identification No.: <u>{{project.reference_no}}</u></b></p>'
+        . '<p style="margin:0 0 14px"><b><i>To: {{entity.title}}</i></b><br><b><i><span style="padding-left:2em">{{entity.location}}, {{entity.province}}</span></i></b></p>'
+        . '<p>I/We, the undersigned, declare that:</p>'
+        . '<ol style="text-align:justify;padding-left:2.4em;margin:10px 0 0">'
+        . $li('I/We understand that, according to your conditions, bids must be supported by a Bid Security, which may be in the form of a Bid Securing Declaration;')
+        . $li('I/We accept that: (a) I/we will be automatically disqualified from bidding for any procurement contract with any Procuring Entity upon receipt of your Blacklisting Order; and, (b) I/we will pay the applicable fine provided under the Guidelines on the Use of Bid Securing Declaration, within fifteen (15) days from receipt of the written demand by the Procuring Entity for the commission of acts resulting to the enforcement of the Bid Securing Declaration under Sections 52.2 (a), 63.2, 69.1 and 100, except 100.3 (c), of the IRR of Republic Act No. 12009; without prejudice to other legal action the government may undertake; and')
+        . '<li style="margin-bottom:8px">I/We understand that this Bid Securing Declaration shall cease to be valid on the following circumstances:'
+        . '<div style="margin-top:6px">' . brgy_sworn_sub('a', 'Upon expiration of the bid validity period, or any extension thereof pursuant to your request;')
+        . brgy_sworn_sub('b', 'I am/we are declared ineligible or post-disqualified upon receipt of your notice to such effect, and (i) I/we failed to timely file a request for reconsideration or (ii) I/we filed a waiver to avail of said right;')
+        . brgy_sworn_sub('c', 'Upon contract award and the LCCRB is not the original offeror; or')
+        . brgy_sworn_sub('d', 'I am/we are declared the bidder with the Lowest Calculated and Responsive/Highest Rated and Responsive Bid and I/we have furnished the performance security and signed the Contract.') . '</div></li>'
+        . '</ol>'
+        . '<p style="text-align:justify;text-indent:2.5em;margin-top:14px">IN WITNESS WHEREOF, I/We have hereunto set my/our hand/s this _____ day of ______________, 20_____ at {{company.notary_place}}, Philippines.</p>'
+        . '<div>{{signatories}}</div>'
+        . brgy_sworn_jurat('');
+}
+
+/** The format of the sworn statements: Legal, one-inch margins, a header of their own (the title over a rule), the affiant centred */
+function brgy_sworn_layout(string $code): ?array
+{
+    $head = ['omnibus_sworn_statement' => '# Omnibus Sworn Statement', 'bid_securing_declaration' => "# Bid Securing Declaration\n({{project.title}})"][$code] ?? null;
+    if ($head === null) {
+        return null;
+    }
+    return ['paper' => 'Legal', 'orientation' => 'portrait', 'margin_top' => 20, 'margin_right' => 25.4, 'margin_bottom' => 20, 'margin_left' => 25.4,
+        'font' => 'CG Omega', 'font_size' => 11, 'line_height' => 1.3, 'title_size' => 14, 'table_size' => 10, 'cell_pad' => 2, 'date_style' => 'mdy',
+        'blank_rows' => 0, 'nothing_follows' => 0,
+        'lh_style' => 'own', 'lh_left' => 'none', 'lh_right' => 'none', 'lh_lines' => $head, 'lh_align' => 'center', 'lh_font' => '', 'lh_size' => 11, 'lh_big' => 14,
+        'lh_pic_mm' => 24, 'lh_box' => 0, 'lh_box_bg' => '#ffffff', 'lh_box_fg' => '#111111', 'lh_rule' => 1, 'lh_rule_color' => '#111111', 'lh_space' => 8,
+        'lh_pic_a' => '', 'lh_pic_b' => '',
+        'footer' => '', 'footer_align' => 'center', 'footer_bold' => 0, 'footer_size' => 8, 'footer_pos' => 'bottom',
+        'sig_cols' => 1, 'sig_top' => 14, 'sig_space' => 12, 'sig_gap' => 8,
+        'signatories' => [BrgyLayout::sigBlock(['lead' => '', 'name' => '{{signatory.name}}', 'pos' => 'Affiant', 'extra' => '', 'align' => 'center', 'bold' => 1])]];
 }
 
 function brgy_seed_templates(): void
@@ -540,9 +641,11 @@ function brgy_seed_templates(): void
         }
         [$body, $layout] = brgy_tpl_split($body);
         $body = BrgyDocs::sanitize($body);
+        $layout = brgy_sworn_layout($code) ?? $layout;   // v37: the sworn statements have a format of their own
+        $paper = $layout['paper'] ?? (in_array($code, ['contract_goods', 'contract_services', 'contract_works'], true) ? 'Folio' : 'A4');
         $layout = $layout ? json_encode($layout, JSON_UNESCAPED_UNICODE) : null;
         $id = DB::insert('brgy_templates', ['code' => $code, 'name' => $name, 'category' => $cat, 'stage' => $stage, 'doc_type' => $doc, 'description' => $desc, 'body' => $body,
-            'paper' => in_array($code, ['contract_goods', 'contract_services', 'contract_works'], true) ? 'Folio' : 'A4', 'is_prescribed' => $pres,
+            'paper' => $paper, 'is_prescribed' => $pres,
             'official_source' => $pres ? 'https://www.gppb.gov.ph/ (and the bidding documents of the procuring entity)' : null, 'required_fields' => $req, 'sort_order' => $n, 'layout_json' => $layout]);
         DB::insert('brgy_template_versions', ['template_id' => $id, 'version_no' => 1, 'name' => $name, 'body' => $body, 'layout_json' => $layout, 'change_note' => 'Supplied with the program']);
     }

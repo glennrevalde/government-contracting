@@ -8,7 +8,7 @@ declare(strict_types=1);
  */
 final class Schema
 {
-    private const FLAG = 'schema_ok_2026_11_23';
+    private const FLAG = 'schema_ok_2026_11_24';
 
     /**
      * file => one cheap probe.
@@ -128,6 +128,9 @@ final class Schema
         // v35: the zip code and the treasurer name of a customer
         'database/migrations/2026_11_23_customer_zip_treasurer.sql' =>
             'SELECT COUNT(zip_code) + COUNT(treasurer_name) FROM customers WHERE 1 = 0',
+        // v37: the SOP as a % of the gross on the transaction form (the query fails without the column); the sworn statements are in the same file
+        'database/migrations/2026_11_24_estimates_sworn_statements.sql' =>
+            'SELECT COUNT(est_sop_rate) FROM brgy_projects WHERE 1 = 0',
     ];
 
     private static ?array $pending = null;

@@ -482,6 +482,11 @@ final class BrgyDocs
             'company.manager_phone' => 'Telephone of the manager', 'company.manager_mobile' => 'Cellphone of the manager',
             'company.liaison' => 'Authorized liaison officer', 'company.liaison_upper' => 'Authorized liaison officer (capitals)', 'company.liaison_position' => 'Designation of the liaison officer',
             'company.liaison_phone' => 'Telephone of the liaison officer', 'company.liaison_mobile' => 'Cellphone of the liaison officer',
+            // v37: the bidder and its representative in the sworn statements (omnibus sworn statement, bid securing declaration)
+            'company.bidder' => 'Name of the bidder (the tradename of the transaction, or the default tradename)', 'company.bidder_upper' => 'Name of the bidder (capitals)',
+            'signatory.civil_status' => 'Civil status of the representative (sworn statements)', 'signatory.citizenship' => 'Citizenship of the representative',
+            'signatory.residence' => 'Residence of the representative', 'signatory.id_type' => 'ID shown to the notary (SSS ID, passport ...)', 'signatory.id_no' => 'Number of that ID',
+            'company.notary_place' => 'Place the sworn statements are signed and notarized',
         ],
         'Letterhead and signatures' => [
             'letterhead' => 'Letterhead (pictures and lines set in the Format tab)', 'signatories' => 'Signatures (the signatories set in the Format tab)',
@@ -542,6 +547,7 @@ final class BrgyDocs
             'txn.profit' => 'Profit (internal)', 'txn.requestor' => 'Requestor', 'txn.inspector' => 'Inspector', 'txn.purpose' => 'Purpose', 'txn.prepared_by' => 'Prepared / received by',
             'txn.amount_to_release' => 'Amount to release (estimate)', 'txn.receipt_deduction' => 'Receipt deduction (estimate)', 'txn.sop' => 'SOP (estimate)',
             'txn.wht_rate' => 'Withholding tax rate (estimate)', 'txn.profit_rate' => 'Profit rate (estimate)', 'txn.receipt_rate' => 'Receipt deduction rate (estimate)',
+            'txn.sop_rate' => 'SOP rate, when a % of the gross (estimate)',
         ],
         'Barangay papers (SOP)' => [
             'entity.short' => 'Barangay name (short)', 'entity.short_upper' => 'Barangay name (short, capitals)', 'entity.name_upper' => 'Official name (capitals)', 'entity.phone' => 'Telephone',
@@ -567,7 +573,7 @@ final class BrgyDocs
             'transmittal.no' => 'Transmittal no.', 'transmittal.date' => 'Transmittal date', 'transmittal.released_by' => 'Released by', 'sop.papers_table' => 'Papers transmitted (table)',
         ],
         'Document' => ['doc.no' => 'Form no.', 'date.today' => "Today's date (as the Format tab sets the dates)", 'date.today_mdy' => "Today's date (October 14, 2026)",
-            'date.today_dmy' => "Today's date (14 October 2026)", 'date.today_short' => "Today's date (10/14/2026)"],
+            'date.today_dmy' => "Today's date (14 October 2026)", 'date.today_short' => "Today's date (10/14/2026)", 'date.year' => 'This year (2026)'],
     ];
 
     /** Fields whose value is a picture, a table or boxes (not placed on pre-printed paper as text) */
@@ -646,6 +652,7 @@ final class BrgyDocs
             'signatory.name' => Brgy::setting('brgy_signatory_name'), 'signatory.position' => Brgy::setting('brgy_signatory_position'),
             'company.name_upper' => mb_strtoupper((string)($s['company_name'] ?? '')),
             'doc.no' => $docNo, 'date.today' => '', 'date.today_mdy' => date('F j, Y'), 'date.today_dmy' => date('j F Y'), 'date.today_short' => date('m/d/Y'),
+            'date.year' => date('Y'),
         ];
         self::$dateStyle = ($L['date_style'] ?? 'dmy') === 'mdy' ? 'mdy' : 'dmy';
         $c['date.today'] = self::d(date('Y-m-d'));
@@ -661,7 +668,14 @@ final class BrgyDocs
             'company.manager_phone' => Brgy::setting('brgy_manager_phone') ?: (string)($s['company_phone'] ?? ''), 'company.manager_mobile' => Brgy::setting('brgy_manager_mobile') ?: Brgy::setting('brgy_signatory_mobile'),
             'company.liaison' => Brgy::setting('brgy_liaison_name'), 'company.liaison_upper' => $up(Brgy::setting('brgy_liaison_name')), 'company.liaison_position' => Brgy::setting('brgy_liaison_position'),
             'company.liaison_phone' => Brgy::setting('brgy_liaison_phone'), 'company.liaison_mobile' => Brgy::setting('brgy_liaison_mobile'),
+            // v37: the sworn statements
+            'signatory.civil_status' => Brgy::setting('brgy_signatory_civil_status'), 'signatory.citizenship' => Brgy::setting('brgy_signatory_citizenship'),
+            'signatory.residence' => Brgy::setting('brgy_signatory_residence'), 'signatory.id_type' => Brgy::setting('brgy_signatory_id_type'),
+            'signatory.id_no' => Brgy::setting('brgy_signatory_id_no'), 'company.notary_place' => Brgy::setting('brgy_notary_place'),
         ];
+        // v37: the bidder is the business the transaction is made under (its tradename), else the default tradename
+        $bidder = trim((string)(($p['tradename'] ?? '') ?: Brgy::defaultTradename()));
+        $c += ['company.bidder' => $bidder, 'company.bidder_upper' => $up($bidder)];
         if (!$p) {
             return self::framing($c, $L, null);
         }
@@ -1057,6 +1071,7 @@ final class BrgyDocs
             'txn.amount_to_release' => self::money2($estOn ? $est['release'] : 0.0), 'txn.receipt_deduction' => self::money2($estOn && $est['receipt_rate'] !== null ? $est['receipt'] : 0.0),
             'txn.sop' => $est && $est['sop'] !== null ? self::money2($est['sop']) : '', 'txn.wht_rate' => $rateTxt($est['wt_rate'] ?? null),
             'txn.profit_rate' => $rateTxt($est['profit_rate'] ?? null), 'txn.receipt_rate' => $rateTxt($est['receipt_rate'] ?? null),
+            'txn.sop_rate' => $rateTxt($est['sop_rate'] ?? null),
             // v33: the transaction form shows the requestor and the inspector without their positions
             'txn.requestor' => trim((string)$p['requestor']),
             'txn.inspector' => trim((string)$p['inspector']),

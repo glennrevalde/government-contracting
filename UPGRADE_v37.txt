@@ -1,0 +1,140 @@
+G-SMaRT Integrated Accounting and Government Contracting System - version 37 (2026-11-24)
+=========================================================================================
+
+The requests of ADDITIONAL_MODULE_FOR_GOVERNMENT_CONTRUCTING_SYSTEM_v5.xlsx:
+ 1. The estimates and targets of the transaction form worked out as the sample transaction.
+ 2. The omnibus sworn statement as a whole form, like the other forms.
+ 3. The bid securing declaration as a whole form, like the other forms.
+
+This package holds ONLY the files that are new or changed since version 36, in the same
+folders. Copy them over your installation (folder government-contracting-system); every
+other file stays as it is.
+
+Upgrading an installation of version 36
+---------------------------------------
+1. Back up the database and the program folder (storage/ and config/config.php too).
+2. Copy the files of this package over your installation. config/config.php is not in the
+   package; yours stays.
+3. Run the new migration on your database (phpMyAdmin: select the database > Import;
+   Navicat: Execute SQL File):
+
+       database/migrations/2026_11_24_estimates_sworn_statements.sql
+
+   It needs 2026_11_23_customer_zip_treasurer.sql (version 35) to have been run first.
+   With several companies, run it on every company database (Super Admin: Companies >
+   Database updates > Update all companies). Until it is run, the program shows a page
+   naming it. It is safe to run a second time.
+4. Press Ctrl+F5 once in the browser.
+5. Barangay Contracts > Contracting Settings > The company on the forms: fill in the
+   representative in the sworn statements (civil status, citizenship, residence, the ID
+   shown to the notary and its number, where the statements are signed and notarized).
+   Left blank, they are blanks to fill on each form.
+6. Drafts made from the old shells (BFM-00028 and BFM-00029 in the demo): open the draft
+   > Edit; the page says the template has changed. Click "Fill again from the records".
+
+What the migration does
+-----------------------
+ - One empty column on brgy_projects: est_sop_rate DECIMAL(5,2) (after est_sop), the SOP
+   as a % of the gross amount. Blank: the SOP is the amount in est_sop, as before.
+ - The templates "Omnibus sworn statement (prescribed form)" and "Bid securing declaration
+   (prescribed form)" get a new version: the whole form (text, header, footer and affiant),
+   category Proforma, no longer marked prescribed, Legal paper. The version before is kept
+   (Proforma & Form Templates > the template > Versions; "Put back" restores it).
+ - One line in the audit trail saying the migration was run.
+Nothing is deleted, no amount changes and nothing is posted to the books. Forms already
+prepared keep their text.
+
+What is new
+-----------
+1. Projects & Contracts > New transaction / Edit > Transaction form > Estimates and targets
+   The sample transaction of the Excel file (purchase order 50,000.00):
+     Withholding tax    gross / 1.12 x rate          50,000 / 1.12 x 6%  =  2,678.57
+     Cheque amount      gross - withholding tax                             47,321.43
+     SOP                % of the gross, or an amount 50,000 x 2%         =  1,000.00
+     Profit             gross x rate                 50,000 x 15%        =  7,500.00
+     Receipt deduction  80% of the gross x rate      50,000 x 80% x 3%   =  1,200.00
+     Amount to release  gross - tax - SOP - profit - receipt deduction      37,621.43
+ - SOP: choose "amount" or "% of gross" beside its label. A % shows its amount under the
+   box. Saved either way; editing shows it as it was typed.
+ - The boxes work out as you type; the Process tab (step 1) shows the same figures, with
+   the SOP rate, and the amount to release last.
+ - Contracting Settings > The SOP: "Withholding tax: the gross divided by" (1.12; 1 for a
+   supplier that is not VAT-registered) and "Receipt deduction: % of the gross" (80).
+ - Transactions saved before keep their gross amount, rates and SOP; their figures are
+   worked out the new way.
+ - The printed transaction form takes the new figures; new field {{txn.sop_rate}}.
+ - Fixed: a transaction whose bid was already submitted or awarded could not be saved
+   again from Edit ("The abc amount cannot change once the bid is Submitted"), because
+   the ABC sent back by the form (300000.00) was compared as text with 300000. It is now
+   compared as an amount, so the estimates of an awarded transaction can be changed.
+
+2. and 3. Forms & Proformas: the omnibus sworn statement and the bid securing declaration
+ - Whole forms under RA 12009 and its IRR, as in the samples of the Excel file: the venue,
+   the eleven items (omnibus) or the three (declaration) with a) to d), IN WITNESS WHEREOF,
+   the affiant, the jurat of the notary public (Doc. No., Page No., Book No., Series of the
+   year).
+ - Filled from the records: the affiant (the authorized representative) and his details
+   (Contracting Settings), the bidder (the tradename of the transaction, else the default
+   tradename) and its address, the representative for the bidding (authorized submitter),
+   the project title and PR / RFQ / ITB no., the barangay, city and province.
+ - Changed like the other forms, on Proforma & Form Templates > the template:
+     Text           Edit the text (or on each form, for that form only)
+     Header         Format > Letterhead and logos (its own letterhead: the title over a rule)
+     Footer         Format > Copies and printer > Footer
+     Affiant(s)     Format > Signatories (another affiant can be added)
+     Venue, jurat   Format > Parts printed (can be hidden)
+ - New fields for any template: {{company.bidder}}, {{company.bidder_upper}},
+   {{signatory.civil_status}}, {{signatory.citizenship}}, {{signatory.residence}},
+   {{signatory.id_type}}, {{signatory.id_no}}, {{company.notary_place}}, {{date.year}}.
+ - A draft whose template changed since it was made says so on its Edit page, with
+   "Fill again from the records"; filled again, it takes the template's paper and is no
+   longer a prescribed form.
+ - The bid form stays a prescribed form (not asked to change).
+ - In item 3 b) of the declaration the sample's line ends "...filed a waiver to avail of
+   said"; the form ends it "...to avail of said right;" as the GPPB form does.
+
+The User's Manual (Barangay Contracts > Projects & Contracts > Estimates and targets,
+Forms & Proformas, Contracting Settings) explains it, with new pictures.
+
+Tested
+------
+ - php tools/test_v37.php --yes (30 checks: the sample transaction to the centavo with the
+   SOP as a % and as an amount, a wrong % refused, the printed transaction form, the 1.12
+   and the 80% from Contracting Settings, no accounting entry; both forms made for a
+   transaction with every detail filled, changed on the template (text, header, a second
+   affiant, footer), and an old shell draft filled again). It runs in one transaction rolled
+   back at the end; still, run it on a copy.
+ - php tools/test_v36.php (13), test_v35.php (11), test_v34.php (62, its estimates updated to
+   the new computation), test_v33.php (35), test_brgy.php (172), test_accounting.php (75).
+ - The page and the server work out the same figures (5,000 random transactions compared).
+ - A fresh install gives the same two templates as the migration; the demo and clean
+   databases import with no migration pending.
+ - In the browser: the sample typed on BCP-00010 (awarded), saved and shown on the Process
+   tab; Contracting Settings saved; BFM-00028 and BFM-00029 filled again and printed.
+   Every page of the menu opened with no PHP error, and every page and saved record on a
+   390 px phone with nothing running past the screen.
+
+Files
+-----
+New:
+  database/migrations/2026_11_24_estimates_sworn_statements.sql   the migration
+  tools/test_v37.php                                              the checks above
+  assets/manual/img/brgy_forms__oss.jpg                           manual picture
+  UPGRADE_v37.txt                                                 this file
+Changed:
+  app/Brgy.php                     estimates(): the new computation; settings
+  app/BrgyOps.php                  SOP as a %; the ABC compared as an amount; refreshed forms
+  app/BrgyDocs.php                 the new fields of the forms
+  app/Schema.php                   the new migration
+  modules/brgy/projects.php        the estimates of the transaction form
+  modules/brgy/_process_tab.php    the estimates on step 1
+  modules/brgy/settings.php        the 1.12, the 80% and the affiant of the sworn statements
+  modules/brgy/forms.php           "The template has changed" on a draft
+  assets/js/brgy.js, assets/css/app.css
+  tools/brgy_seed.php              the two forms for a new installation
+  tools/test_v34.php, tests/selenium/suites/s51_barangay_sop.py   the new figures
+  database/schema.sql, database/government_contracting_system.sql,
+  database/government_contracting_system_clean.sql
+  views/manual/chapters/11-barangay-contracts.html, views/manual/search.json,
+  assets/manual/img/brgy_projects__new.jpg, assets/manual/img/brgy_projects__txn_form.jpg
+  README.md

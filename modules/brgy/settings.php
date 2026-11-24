@@ -57,7 +57,10 @@ if (is_post()) {
         };
         foreach (['brgy_company_reg_no' => 60, 'brgy_philgeps_no' => 40, 'brgy_philgeps_class' => 40, 'brgy_signatory_name' => 120, 'brgy_signatory_position' => 120, 'brgy_bank_details' => 500,
                      'brgy_signatory_title' => 20, 'brgy_signatory_mobile' => 40, 'brgy_manager_name' => 120, 'brgy_manager_position' => 120, 'brgy_manager_phone' => 40, 'brgy_manager_mobile' => 40,
-                     'brgy_liaison_name' => 120, 'brgy_liaison_position' => 120, 'brgy_liaison_phone' => 40, 'brgy_liaison_mobile' => 40] as $k => $len) {
+                     'brgy_liaison_name' => 120, 'brgy_liaison_position' => 120, 'brgy_liaison_phone' => 40, 'brgy_liaison_mobile' => 40,
+                     // v37: the representative in the sworn statements
+                     'brgy_signatory_civil_status' => 30, 'brgy_signatory_citizenship' => 40, 'brgy_signatory_residence' => 255, 'brgy_signatory_id_type' => 60,
+                     'brgy_signatory_id_no' => 60, 'brgy_notary_place' => 120] as $k => $len) {
             $set($k, mb_substr(trim((string)p($k)), 0, $len));
         }
         $set('brgy_bir_status', p('brgy_bir_status') === 'non_vat' ? 'non_vat' : 'vat');
@@ -100,6 +103,21 @@ if (is_post()) {
             }
             asort($rates);
             $set($k, implode(',', array_keys($rates)));
+        }
+        // v37: the withholding tax on the gross divided by this (1.12 = less VAT; 1 = the gross), the receipt deduction on this % of the gross
+        if (array_key_exists('brgy_est_wt_divisor', $_POST)) {
+            $v = trim((string)p('brgy_est_wt_divisor'));
+            if (!is_numeric($v) || (float)$v < 1 || (float)$v > 2) {
+                fail('Withholding tax base: enter the number the gross amount is divided by, from 1 to 2 (1.12 for the gross less VAT, 1 for the gross itself).');
+            }
+            $set('brgy_est_wt_divisor', rtrim(rtrim(number_format((float)$v, 4, '.', ''), '0'), '.'));
+        }
+        if (array_key_exists('brgy_est_receipt_base', $_POST)) {
+            $v = trim(str_replace('%', '', (string)p('brgy_est_receipt_base')));
+            if (!is_numeric($v) || (float)$v <= 0 || (float)$v > 100) {
+                fail('Receipt deduction base: enter the % of the gross amount the rate is applied to, above 0 and up to 100 (for example 80).');
+            }
+            $set('brgy_est_receipt_base', rtrim(rtrim(number_format((float)$v, 2, '.', ''), '0'), '.'));
         }
         $site = (int)p('brgy_delivered_site_id');
         if ($site && !DB::value('SELECT id FROM sites WHERE id = :id', ['id' => $site])) {
@@ -194,6 +212,16 @@ layout_start('Contracting Settings', brgy_layout(['actions' => page_link('coa.de
       <?= input_field('brgy_liaison_position', 'Designation', $s('brgy_liaison_position'), ['class' => 'col-md-6', 'extra' => 'maxlength="120" ' . $ro]) ?>
       <?= input_field('brgy_liaison_phone', 'Telephone', $s('brgy_liaison_phone'), ['class' => 'col-6', 'extra' => 'maxlength="40" inputmode="tel" ' . $ro]) ?>
       <?= input_field('brgy_liaison_mobile', 'Cellphone', $s('brgy_liaison_mobile'), ['class' => 'col-6', 'extra' => 'maxlength="40" inputmode="tel" ' . $ro]) ?>
+      <div class="col-12 settings-sub">The representative in the sworn statements <span class="text-muted fw-normal">(omnibus sworn statement, bid securing declaration)</span></div>
+      <?= input_field('brgy_signatory_civil_status', 'Civil status', $s('brgy_signatory_civil_status'), ['class' => 'col-6 col-md-3', 'extra' => 'maxlength="30" placeholder="married" list="civilStatus" ' . $ro]) ?>
+      <datalist id="civilStatus"><option value="single"><option value="married"><option value="widowed"><option value="legally separated"></datalist>
+      <?= input_field('brgy_signatory_citizenship', 'Citizenship', $s('brgy_signatory_citizenship'), ['class' => 'col-6 col-md-3', 'extra' => 'maxlength="40" placeholder="Filipino" ' . $ro]) ?>
+      <?= input_field('brgy_notary_place', 'Signed and notarized at', $s('brgy_notary_place'), ['class' => 'col-md-6', 'extra' => 'maxlength="120" placeholder="Lapu-Lapu City, Cebu" ' . $ro]) ?>
+      <?= input_field('brgy_signatory_residence', 'Residence', $s('brgy_signatory_residence'), ['class' => 'col-12', 'extra' => 'maxlength="255" placeholder="House no., street, barangay, city, province" ' . $ro]) ?>
+      <?= input_field('brgy_signatory_id_type', 'ID shown to the notary', $s('brgy_signatory_id_type'), ['class' => 'col-6', 'extra' => 'maxlength="60" placeholder="SSS ID" list="idTypes" ' . $ro]) ?>
+      <datalist id="idTypes"><option value="SSS ID"><option value="UMID"><option value="Philippine Passport"><option value="Driver's License"><option value="PhilSys National ID"><option value="TIN ID"><option value="PRC ID"></datalist>
+      <?= input_field('brgy_signatory_id_no', 'ID no.', $s('brgy_signatory_id_no'), ['class' => 'col-6', 'extra' => 'maxlength="60" placeholder="06-1474911-3" ' . $ro]) ?>
+      <div class="col-12 form-text">Filled into the sworn statements with the authorized representative above as the affiant. Left blank, they are blanks to fill on each form.</div>
       <div class="col-12"><label class="form-label">Bank details for payment (statement of account, billing letters)</label><textarea class="form-control form-control-sm" name="brgy_bank_details" rows="2" <?= $ro ?>><?= h($s('brgy_bank_details')) ?></textarea></div>
       <div class="col-12 form-text">Name, address, TIN, phone and logo come from Company Information.</div>
     </div></div>
@@ -248,7 +276,10 @@ layout_start('Contracting Settings', brgy_layout(['actions' => page_link('coa.de
       <?= input_field('brgy_est_wt_rates', 'Withholding tax', $s('brgy_est_wt_rates'), ['class' => 'col-md-4', 'extra' => 'maxlength="60" ' . $ro]) ?>
       <?= input_field('brgy_est_profit_rates', 'Profit', $s('brgy_est_profit_rates'), ['class' => 'col-md-4', 'extra' => 'maxlength="60" ' . $ro]) ?>
       <?= input_field('brgy_est_receipt_rates', 'Receipt deduction', $s('brgy_est_receipt_rates'), ['class' => 'col-md-4', 'extra' => 'maxlength="60" ' . $ro]) ?>
-      <div class="col-12 form-text">What the drop-downs of the transaction form offer. They are estimates and targets only: no accounting entry is made from them.</div>
+      <?= input_field('brgy_est_wt_divisor', 'Withholding tax: the gross divided by', $s('brgy_est_wt_divisor'), ['class' => 'col-md-6', 'extra' => 'inputmode="decimal" maxlength="8" ' . $ro]) ?>
+      <?= input_field('brgy_est_receipt_base', 'Receipt deduction: % of the gross', $s('brgy_est_receipt_base'), ['class' => 'col-md-6', 'extra' => 'inputmode="decimal" maxlength="6" ' . $ro]) ?>
+      <div class="col-12 form-text">What the drop-downs of the transaction form offer, and how the amounts are worked out: withholding tax = gross &divide; <?= h($s('brgy_est_wt_divisor')) ?> &times; rate
+        (1.12: the gross less VAT; 1: the gross itself); receipt deduction = <?= h($s('brgy_est_receipt_base')) ?>% of the gross &times; rate. They are estimates and targets only: no accounting entry is made from them.</div>
     </div></div>
     <div class="card mb-3"><div class="card-header"><i class="bi bi-percent"></i> Defaults of a new project</div><div class="card-body row g-2">
       <?= input_field('brgy_default_retention_pct', 'Retention %', $s('brgy_default_retention_pct'), ['class' => 'col-md-6', 'extra' => 'inputmode="decimal" ' . $ro]) ?>
