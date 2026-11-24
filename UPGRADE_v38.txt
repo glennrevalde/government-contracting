@@ -1,0 +1,193 @@
+G-SMaRT Integrated Accounting and Government Contracting System - version 38 (2026-11-25)
+=========================================================================================
+
+The requests of ADDITIONAL_MODULE_FOR_GOVERNMENT_CONTRUCTING_SYSTEM_v6.xlsx:
+ 1. Customer Center: add, edit or delete a City/Municipality; delete only one not used.
+ 2. Forms: the Signatory / Position beside the form and the signature in the page kept
+    the same ("Jerome T. Cuizon / Affiant" on the omnibus sworn statement).
+ 3. Undo and redo on filling the blanks, and on every form to be filled up.
+ 4. The IAR's [Purchase order no.] and [Purchase order date] filled from the step before.
+ 5. Fill in the blanks fields for the signatories of the IAR (Inspection Officer, Supply
+    and/or Property Custodian) and of every other form with signatories.
+
+This package holds ONLY the files that are new or changed since version 37, in the same
+folders. Copy them over your installation (folder government-contracting-system); every
+other file stays as it is.
+
+Upgrading an installation of version 37
+---------------------------------------
+1. Back up the database and the program folder (storage/ and config/config.php too).
+2. Copy the files of this package over your installation. config/config.php is not in the
+   package; yours stays.
+3. Run the new migration on your database (phpMyAdmin: select the database > Import;
+   Navicat: Execute SQL File):
+
+       database/migrations/2026_11_25_cities_form_values_signatories.sql
+
+   It needs 2026_11_24_estimates_sworn_statements.sql (version 37) to have been run first.
+   With several companies, run it on every company database (Super Admin: Companies >
+   Database updates > Update all companies). Until it is run, the program shows a page
+   naming it. It is written for MySQL 5.5 and is safe to run a second time.
+4. Press Ctrl+F5 once in the browser (the scripts and styles changed).
+5. Customers > Lists > City/Municipality List: check the list (it starts with the cities
+   of your procuring entities), add the others your customers are in, and give the zip
+   codes. Then choose the City/Municipality on each customer.
+6. Drafts of the disbursement voucher, requisition and issue slip, transaction form and
+   the two statements (ongoing and similar contracts) made before version 38: open the
+   draft > Edit > "Fill again from the records" to have their signatories listed in the
+   Fill in the blanks panel. What was typed on such a draft is replaced, so do it before
+   filling it in. Every other form lists its signatories as it is.
+
+What the migration does
+-----------------------
+ - New table cities (id, name, province, zip_code, is_active, who and when), filled with
+   the cities and municipalities of the procuring entities (Barangays & Procuring
+   Entities), each once.
+ - One empty column on customers: city_id (after zip_code), with a foreign key to cities,
+   so the database itself refuses to delete a city a customer uses. The customers made
+   for the procuring entities get the entity's city.
+ - The page Customers > Lists > City/Municipality List, given to every role that can open
+   the Customer Center, with the same rights (Administrator: everything).
+ - New table brgy_form_values (transaction, field, value, the form it came from): what is
+   filled into the blanks of a transaction's forms, for its next forms.
+ - The templates "Transaction form", "Requisition and issue slip (RIS)", "Disbursement
+   voucher (DV)", "Statement of all ongoing government and private contracts" and
+   "Statement of the single largest completed contract similar to the contract to be bid
+   (SLCC)": their signatures are marked so the forms list
+   them. Only the markup around the names and positions changes; nothing prints
+   differently. Each gets a new version and the one before is kept (Proforma & Form
+   Templates > the template > Versions; "Put back" restores it). A template you had
+   changed so that its signature lines are no longer the ones supplied is left as it is.
+ - One line in the audit trail saying the migration was run.
+Nothing is deleted, no amount changes and nothing is posted to the books. Forms already
+prepared keep their text.
+
+What is new
+-----------
+1. Customers > Lists > City/Municipality List (also "Edit the list" on the customer form)
+ - The list with Type to find, and for each: City / municipality, Province, Zip code, how
+   many customers use it (Customers), Edit and Delete.
+ - Add a city or municipality: name (required), province, zip code, Active. The same name
+   twice only with different provinces ("Lapu-Lapu City, Cebu is already on the list.").
+ - Delete only when no customer uses it: for one in use the bin is greyed out ("Used by 2
+   customer(s): it cannot be deleted"), and a delete sent anyway is refused: "Cebu City
+   cannot be deleted: 2 customers use it. Choose another city or municipality on those
+   customers first, or make it inactive so it is no longer offered."
+ - Untick Active to stop offering one; a customer that has it keeps it.
+ - Every add, change and delete is in the audit trail; rights per role on User Role
+   Configuration (view, create, edit, delete).
+ Customer Center
+ - The customer form has City/Municipality (after Active, where the Excel file marks it),
+   a list you can type in showing "Name, Province". Choosing one with a zip code fills an
+   empty Zip code. "Edit the list" opens the list in a new tab; when you come back to the
+   form the box shows the list as it is now and keeps what you chose.
+ - The customer's card shows the city with its province; the list finds the customers of
+   a city by its name (Enter); Export list has City/Municipality and Province; custom
+   reports have a City/Municipality column; Import from CSV (Customers) has a
+   City/Municipality column (the name as on the list, or "Name, Province").
+
+2. Forms & Proformas > a form > Edit: the Signatory and Position, kept the same
+ - When the name in the Signatory box is a signature of the page, the two are linked: a
+   change in Signatory or Position changes that signature in the page, and a change in
+   the page (or in the Signatories part of the panel) changes the boxes. The note under
+   the boxes says which signatory of the page they follow.
+ - A new form takes its Position from the page: the omnibus sworn statement shows
+   "Affiant" (as printed under the name), no longer the position of Contracting Settings.
+
+3. Undo and Redo on every form and template
+ - The arrows on the editor's toolbar, the same pair on the Fill in the blanks panel,
+   Ctrl+Z (Undo) and Ctrl+Y or Ctrl+Shift+Z (Redo), and the browser's Edit > Undo.
+ - They take back everything changed on the page, step by step: text typed in the page,
+   a blank filled in or cleared, a signatory's name or position, the Signatory and
+   Position boxes, and the gross amount, VAT and EWT of a disbursement voucher. Typing is
+   taken back a few words at a time. The steps last until the page is closed.
+ - Proforma & Form Templates > Edit the text has the same Undo and Redo.
+ - A blank filled in now stays a field: it is still on the Fill in the blanks list with
+   what was typed, so a mistake is corrected there (or by clicking it in the page), and
+   clearing the box makes it blank again. No more "Fill again from the records" to fix a
+   typing mistake. The same field used twice in the page changes in both places. Filled
+   fields are lightly underlined while editing; the underline does not print.
+
+4. The IAR's purchase order no. and date filled from the purchase order
+ - What is filled into a blank and saved is kept for the transaction and fills the same
+   blank on its other forms: the PO no. and date typed on the purchase order fill
+   [Purchase order no.] and [Purchase order date] on the inspection and acceptance report.
+ - An IAR made after the PO is saved has them at once. An IAR made before shows them filled
+   on opening, with "Filled from the transaction's earlier forms: Purchase order no.
+   (BFM-00031), Purchase order date (BFM-00031). Save to keep, or Undo to take them back."
+ - Works for every field filled into a blank (IAR no., RIS no., fund, inspector ...). Not
+   carried: dates of the day, the DV amounts, and the fields of a delivery, billing or
+   collection (each form has its own). The transaction's own records come first. A field
+   made blank again on the form it came from is no longer carried.
+
+5. The signatories in Fill in the blanks
+ - Under the blanks, "Signatories" lists every signature of the page with a Name and a
+   Position box: the IAR's Inspection Officer / Inspection Committee and Supply and/or
+   Property Custodian, the purchase order, the four of the requisition and issue slip, the
+   six of the disbursement voucher (A, B, C, D, prepared by, approved by), the transaction
+   form, the statements, the contracts, letters and receipts, and every form whose
+   signatories are set on the template's Format tab.
+ - Typing there changes the page; clicking a box outlines the signature it changes. A
+   name that is a blank (the IAR's [Inspector]) is filled as that blank, everywhere.
+
+The User's Manual (Customers > City/Municipality List and the Customer Center fields;
+Barangay Contracts > Forms & Proformas > Undo and redo, filled fields and signatories)
+explains it, with two new pictures.
+
+Tested
+------
+ - php tools/test_v38.php --yes (38 checks: the list, the rights, add, inactive, the
+   delete refused by the page and by the database, the customer form, import and reports;
+   "Affiant" on the omnibus sworn statement; undo and redo on the pages; filled fields
+   read back; the PO no. and date of a saved purchase order filling an IAR made after and
+   offered to one made before, not to the PO itself, records first, forgotten when made
+   blank; the signatories of the IAR, PO, RIS, DV, transaction form, statement and older
+   templates). It runs in one transaction rolled back at the end; still, run it on a copy.
+ - php tools/test_v37.php (30), test_v36.php (13), test_v35.php (11, its export check
+   updated for the two new columns), test_v34.php (62), test_v33.php (35), test_brgy.php
+   (172), test_accounting.php (75): all pass on a copy of the demo upgraded with the
+   migration.
+ - In the browser: 34 checks on the forms (a purchase order filled, undone, redone and
+   corrected with the buttons and with Ctrl+Z / Ctrl+Y; saved; an IAR made before filled
+   with the note and taken back with Undo; the IAR's two signatories filled from the panel;
+   an IAR made after pre-filled; the omnibus sworn statement's Signatory and Position kept
+   the same both ways; the DV's six and the RIS's four signatories; no script error), and
+   17 on the City/Municipality List and the customer form (add, duplicate refused, edit,
+   delete refused when used, deleted when not, find, the form's box refreshed from another
+   tab, zip code filled, saved, card, search, export).
+ - The migration run twice on the demo: same result. A fresh install gives the same five
+   templates, the same cities, the same customer cities and the same page rights as the
+   migration; the demo and clean databases import with no migration pending.
+ - Every page of the menu opened with no PHP error (284), and every page, saved record,
+   the new list, the customer form and the forms' edit pages on a 390 px phone with
+   nothing running past the screen (342).
+
+Files
+-----
+New:
+  database/migrations/2026_11_25_cities_form_values_signatories.sql   the migration
+  app/Cities.php                         the City/Municipality List
+  modules/customers/cities.php           the page Customers > Lists > City/Municipality List
+  tools/test_v38.php                     the checks above
+  assets/manual/img/cust_cities__list.jpg, assets/manual/img/brgy_forms__fill.jpg
+  UPGRADE_v38.txt                        this file
+Changed:
+  app/registry.php, app/Schema.php       the new page and migration
+  modules/customers/center.php           the City/Municipality box, card, search, export
+  app/Importer.php, modules/admin/import.php, app/ReportFields.php   import and reports
+  app/BrgyDocs.php                       filled fields read back and carried forward; signatures
+  app/BrgyOps.php                        saving the filled fields; the position from the page
+  app/Brgy.php                           the migration check
+  modules/brgy/forms.php                 Undo / Redo, the Signatories part, the linked boxes
+  modules/brgy/templates.php             Undo / Redo
+  assets/js/brgy.js                      the page's history, filled fields, signatories
+  assets/js/app.js                       the City/Municipality box
+  assets/css/app.css
+  tools/brgy_sop_seed.php                the five templates for a new installation
+  tools/install.php, tools/seed.php      the cities and the rights in a new installation
+  tools/test_v35.php                     its export check
+  database/schema.sql, database/government_contracting_system.sql,
+  database/government_contracting_system_clean.sql
+  views/manual/chapters/05-customers.html, views/manual/chapters/11-barangay-contracts.html,
+  views/manual/manual.json, views/manual/search.json
+  README.md

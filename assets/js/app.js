@@ -1052,3 +1052,39 @@
     bill.title = supplier ? 'Only a cost for a customer can be billed' : '';
   });
 })();
+
+// v38 Customer form: the City/Municipality box. Choosing a city fills an empty zip code with the city's zip code, and the
+// list is read again when the window comes back, so a city added on the City/Municipality List in another tab is offered
+// at once, without losing what was typed on the customer form.
+(function () {
+  const sel = document.querySelector('select[data-cities-url]');
+  if (!sel) return;
+  const zip = sel.form ? sel.form.querySelector('input[name="zip_code"]') : null;
+  sel.addEventListener('change', () => {
+    const opt = sel.options[sel.selectedIndex];
+    if (zip && opt && opt.dataset.zip && zip.value.trim() === '') zip.value = opt.dataset.zip;
+  });
+  let busy = false;
+  const reload = () => {
+    if (busy || !window.fetch) return;
+    busy = true;
+    fetch(sel.dataset.citiesUrl, { credentials: 'same-origin', headers: { Accept: 'application/json' } })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((list) => {
+        if (!Array.isArray(list)) return;
+        const cur = sel.value;
+        // the city the customer has stays offered even if it was made inactive meanwhile
+        const keep = cur && !list.some((c) => String(c.id) === cur) ? sel.options[sel.selectedIndex] : null;
+        sel.textContent = '';
+        sel.appendChild(new Option(list.length || keep ? '' : 'None on the list yet', ''));
+        if (keep) sel.appendChild(keep);
+        list.forEach((c) => { const o = new Option(c.label, String(c.id)); if (c.zip) o.dataset.zip = c.zip; sel.appendChild(o); });
+        sel.value = cur;
+        if (window.AppCombo) window.AppCombo.sync(sel.parentNode);
+      })
+      .catch(() => {})
+      .then(() => { busy = false; });
+  };
+  window.addEventListener('focus', reload);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) reload(); });
+})();

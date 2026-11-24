@@ -420,14 +420,14 @@ function import_write_record(string $type, array $r, string $pageKey): array
             ['n' => $name] + ($parentId ? ['p' => $parentId] : []));
         // column of the file => field of the customer record
         $map = ['company_name' => 'company_name', 'contact_person' => 'contact_person', 'treasurer_name' => 'treasurer_name', 'phone' => 'phone', 'mobile' => 'mobile', 'email' => 'email',
-            'billing_address' => 'billing_address', 'shipping_address' => 'shipping_address', 'zip_code' => 'zip_code', 'tin' => 'tin', 'terms' => 'terms_id',
+            'billing_address' => 'billing_address', 'shipping_address' => 'shipping_address', 'zip_code' => 'zip_code', 'city' => 'city_id', 'tin' => 'tin', 'terms' => 'terms_id',
             'credit_limit' => 'credit_limit', 'price_level' => 'price_level_id', 'tax_code' => 'tax_code_id', 'customer_type' => 'customer_type_id',
             'sales_rep' => 'sales_rep_id', 'allow_pos_charge' => 'allow_pos_charge', 'notes' => 'notes'];
         $d = [
             'parent_id' => $parentId, 'name' => $name, 'company_name' => $r['company_name'], 'contact_person' => $r['contact_person'],
             'treasurer_name' => ($r['treasurer_name'] ?? '') !== '' ? mb_substr((string)$r['treasurer_name'], 0, 120) : null,
             'phone' => $r['phone'], 'mobile' => $r['mobile'], 'email' => $r['email'], 'billing_address' => $r['billing_address'],
-            'shipping_address' => $r['shipping_address'], 'zip_code' => ($r['zip_code'] ?? '') !== '' ? mb_substr((string)$r['zip_code'], 0, 10) : null, 'tin' => $r['tin'], 'terms_id' => $r['terms'], 'credit_limit' => (float)$r['credit_limit'],
+            'shipping_address' => $r['shipping_address'], 'zip_code' => ($r['zip_code'] ?? '') !== '' ? mb_substr((string)$r['zip_code'], 0, 10) : null, 'city_id' => $r['city'] ?? null, 'tin' => $r['tin'], 'terms_id' => $r['terms'], 'credit_limit' => (float)$r['credit_limit'],
             'price_level_id' => $r['price_level'], 'tax_code_id' => $r['tax_code'], 'customer_type_id' => $r['customer_type'],
             'sales_rep_id' => $r['sales_rep'], 'allow_pos_charge' => (int)$r['allow_pos_charge'], 'notes' => $r['notes'], 'is_active' => 1,
         ];

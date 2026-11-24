@@ -52,6 +52,11 @@ if (isset($opts['demo'])) {
     require __DIR__ . '/demo_brgy.php';
     out('Recording sample barangay contracts ...');
     load_brgy_demo_data();
+    // v38: the City/Municipality List starts with the cities of the procuring entities, given to their customers
+    DB::run("INSERT INTO cities (name, province) SELECT DISTINCT TRIM(city_municipality), NULLIF(TRIM(province), '') FROM brgy_entities WHERE TRIM(COALESCE(city_municipality, '')) <> ''");
+    DB::run("UPDATE customers c JOIN brgy_entities e ON e.customer_id = c.id
+                JOIN cities t ON t.name = TRIM(e.city_municipality) AND COALESCE(t.province, '') = COALESCE(NULLIF(TRIM(e.province), ''), '')
+                SET c.city_id = t.id WHERE c.city_id IS NULL");
 }
 
 out('Done. Log in as admin / Admin@12345 (you will be asked to choose a new password).');

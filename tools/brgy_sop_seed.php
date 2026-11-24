@@ -273,7 +273,7 @@ function brgy_sop_templates(): array
         . $row('WITHHOLDING TAX:', '{{txn.wht}}') . $row('CHEQUE AMOUNT:', '{{txn.cheque_amount}}') . $row('PROFIT:', '{{txn.profit}}', 'profit')
         . $row('REQUESTOR:', '{{txn.requestor}}') . $row('INSPECTOR:', '{{txn.inspector}}') . $row('PURPOSE:', '{{txn.purpose}}')
         . '</tbody></table></td></tr>'
-        . '<tr><td style="padding:6px 10px"><table class="fx-lines" style="width:100%"><tbody><tr><td class="lbl" style="width:48%;text-align:left">PREPARED / RECEIVED BY:</td><td class="val">{{txn.prepared_by}}</td></tr></tbody></table></td></tr>'
+        . '<tr><td style="padding:6px 10px"><table class="fx-lines" style="width:100%"><tbody><tr><td class="lbl" style="width:48%;text-align:left">PREPARED / RECEIVED BY:</td><td class="val"><span class="sg-name">{{txn.prepared_by}}</span></td></tr></tbody></table></td></tr>'
         . '</tbody></table>'];
 
     // ------------------------------------------------------------------ purchase request
@@ -328,7 +328,7 @@ function brgy_sop_templates(): array
 
     // ------------------------------------------------------------------ requisition and issue slip
     $sigCell = fn(string $cap, string $name, string $desig) => '<td style="vertical-align:top;height:110px">' . $cap . '<div style="margin-top:34px;border-bottom:1px solid #000;width:80%;margin-left:auto;margin-right:auto"></div>'
-        . '<div style="text-align:center;font-weight:bold;text-decoration:underline">' . $name . '</div><div style="text-align:center">' . $desig . '</div></td>';
+        . '<div class="sg-name" style="text-align:center;font-weight:bold;text-decoration:underline">' . $name . '</div><div class="sg-cap" style="text-align:center">' . $desig . '</div></td>';
     $out[] = ['requisition_issue_slip', 'Requisition and issue slip (RIS)', 'proforma', 'delivery', 'ris', 'A4', 0, 'entity.name,ris.no',
         'Requisition and issue slip of the barangay: requisition, issuance, and the four signatures.',
         '<table class="fx" style="width:100%"><tbody>'
@@ -378,7 +378,8 @@ function brgy_sop_templates(): array
 
     // ------------------------------------------------------------------ disbursement voucher
     $box = fn(string $tag, string $title) => '<span class="fx-tag">' . $tag . '</span> <b>' . $title . '</b>';
-    $dvSig = fn(string $name, string $pos) => '<div style="margin-top:26px">Signature:<br>Printed Name: <b><u>' . $name . '</u></b><br>Position: ' . $pos . '<br><b>Date:</b></div>';
+    // v38: the names and positions are marked (sg-name, sg-cap) so the Fill in the blanks panel lists them
+    $dvSig = fn(string $name, string $pos) => '<div style="margin-top:26px">Signature:<br>Printed Name: <b><u><span class="sg-name">' . $name . '</span></u></b><br>Position: <span class="sg-cap">' . $pos . '</span><br><b>Date:</b></div>';
     $out[] = ['disbursement_voucher', 'Disbursement voucher (DV)', 'proforma', 'billing', 'dv', 'A4', 0, 'entity.name,dv.gross',
         'Disbursement voucher of the barangay for the payment to the company: particulars, taxes withheld, net amount in words, supporting papers, boxes A to E.',
         '<table class="fx" style="width:100%"><tbody>'
@@ -400,7 +401,7 @@ function brgy_sop_templates(): array
         . '<td style="vertical-align:top">' . $box('C', 'Certified:') . '<br>As to validity, propriety, and legality of claim<br>Approved: FOR PAYMENT' . $dvSig('{{entity.head_name_upper}}', 'Barangay Captain') . '</td>'
         . '</tr></tbody></table></td></tr>'
         . '<tr><td colspan="3" style="vertical-align:top;height:110px">' . $box('D', 'Received Payment:')
-        . '<table class="fx-plain" style="width:100%;margin-top:16px"><tbody><tr><td style="width:50%;padding-left:40px"><b><u>{{company.name_upper}}</u></b><br>Signature Over Printed Name</td>'
+        . '<table class="fx-plain" style="width:100%;margin-top:16px"><tbody><tr><td style="width:50%;padding-left:40px"><b><u><span class="sg-name">{{company.name_upper}}</span></u></b><br><span class="sg-cap">Signature Over Printed Name</span></td>'
         . '<td>Check No. <u>{{dv.check_no}}</u><br>Bank Name: <u>{{dv.bank}}</u><br>OR Number: <u>{{dv.or_no}}</u></td><td style="vertical-align:middle">Date: __________</td></tr>'
         . '<tr><td style="padding-top:10px">Date: __________</td><td></td><td></td></tr></tbody></table></td></tr>'
         . '<tr><td colspan="3" style="padding:0" data-section="entries" title="E. Accounting entries"><table class="fx fx-inner" style="width:100%"><tbody>'
@@ -408,8 +409,8 @@ function brgy_sop_templates(): array
         . '<tr><th style="width:36%">Account</th><th style="width:22%">Account Code</th><th style="width:21%">Debit</th><th>Credit</th></tr>'
         . str_repeat('<tr><td>&nbsp;</td><td></td><td></td><td></td></tr>', 4)
         . '<tr><td style="vertical-align:top;height:150px"></td><td colspan="3" style="vertical-align:top">Prepared By:'
-        . '<table class="fx-plain" style="width:100%;margin-top:26px"><tbody><tr><td style="width:62%;text-align:center"><div style="border-top:1px solid #000;width:70%;margin:0 auto"></div>{{entity.bookkeeper}}<br>Barangay Bookkeeper</td><td style="text-align:center"><div style="border-top:1px solid #000;width:70%;margin:0 auto"></div>Date</td></tr></tbody></table>'
-        . '<div style="margin-top:12px">Approved By:</div><table class="fx-plain" style="width:100%;margin-top:22px"><tbody><tr><td style="width:62%;text-align:center"><div style="border-top:1px solid #000;width:70%;margin:0 auto"></div>{{entity.city_accountant}}<br>City/Municipal Accountant</td><td style="text-align:center"><div style="border-top:1px solid #000;width:70%;margin:0 auto"></div>Date</td></tr></tbody></table>'
+        . '<table class="fx-plain" style="width:100%;margin-top:26px"><tbody><tr><td style="width:62%;text-align:center"><div style="border-top:1px solid #000;width:70%;margin:0 auto"></div><span class="sg-name">{{entity.bookkeeper}}</span><br><span class="sg-cap">Barangay Bookkeeper</span></td><td style="text-align:center"><div style="border-top:1px solid #000;width:70%;margin:0 auto"></div>Date</td></tr></tbody></table>'
+        . '<div style="margin-top:12px">Approved By:</div><table class="fx-plain" style="width:100%;margin-top:22px"><tbody><tr><td style="width:62%;text-align:center"><div style="border-top:1px solid #000;width:70%;margin:0 auto"></div><span class="sg-name">{{entity.city_accountant}}</span><br><span class="sg-cap">City/Municipal Accountant</span></td><td style="text-align:center"><div style="border-top:1px solid #000;width:70%;margin:0 auto"></div>Date</td></tr></tbody></table>'
         . '</td></tr></tbody></table></td></tr>'
         . '</tbody></table>'];
 
@@ -488,8 +489,8 @@ function brgy_sop_templates(): array
         . ($underline ? ';text-decoration:underline' : '') . '">' . $t . '</span></p>';
     $projectHead = '<p style="margin:0;line-height:1.3"><i>Procuring Entity:</i> <b>{{entity.title}}</b><br><i>Name of the Project:</i> <b>{{project.title}}</b><br><i>Location of the Project:</i> <b>{{project.location}}</b></p>';
     $business = '<table class="fx-plain fx-kv" style="margin:4px 0 6px"><tbody><tr><td class="k">Business Name</td><td>: <u>{{company.name}}</u></td></tr><tr><td class="k">Business Address</td><td>: <u>{{company.address}}</u></td></tr></tbody></table>';
-    $submitted = '<table class="fx-plain fx-kv" style="margin-top:22px"><tbody><tr><td class="k" style="width:110px">Submitted by</td><td>: <b><u>{{signatory.name}}</u></b></td></tr>'
-        . '<tr><td></td><td style="padding-left:14px;font-size:.92em">(Printed Name &amp; Signature)</td></tr><tr><td class="k">Designation</td><td>: <u>{{signatory.position}}</u></td></tr>'
+    $submitted = '<table class="fx-plain fx-kv sg-block" style="margin-top:22px"><tbody><tr><td class="k" style="width:110px">Submitted by</td><td>: <b><u><span class="sg-name">{{signatory.name}}</span></u></b></td></tr>'
+        . '<tr><td></td><td style="padding-left:14px;font-size:.92em">(Printed Name &amp; Signature)</td></tr><tr><td class="k">Designation</td><td>: <u><span class="sg-cap">{{signatory.position}}</span></u></td></tr>'
         . '<tr><td class="k">Date</td><td>: {{date.today}}</td></tr></tbody></table>';
 
     $out[] = ['statement_ongoing_contracts', 'Statement of all ongoing government and private contracts', 'proforma', 'bid', 'slcc', 'Legal', 0, 'company.name,project.title',

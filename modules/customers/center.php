@@ -27,6 +27,16 @@ if ($a === 'note_done' && is_post()) {
     redirect(url($pageKey));
 }
 
+// ------------------------------------------------------------------ v38: the City/Municipality List, for the customer form
+// (read again when the form's window comes back, so a city added on the list in another tab is offered at once)
+if ($a === 'cities') {
+    Access::require($pageKey, 'view');
+    header('Content-Type: application/json; charset=utf-8');
+    header('Cache-Control: no-store');
+    echo json_encode(Cities::ready() ? array_map(fn($c) => ['id' => (int)$c['id'], 'label' => Cities::label($c), 'zip' => (string)$c['zip_code']], Cities::active()) : []);
+    exit;
+}
+
 // ------------------------------------------------------------------ new / edit customer
 if ($a === 'new' || $a === 'edit') {
     $c = null;
@@ -53,6 +63,14 @@ if ($a === 'new' || $a === 'edit') {
         }
         foreach ($ids as $f) {
             $data[$f] = pint($f);
+        }
+        if (Cities::ready()) {
+            // v38: the city or municipality, from the City/Municipality List (an inactive one kept only if the customer already has it)
+            $cid = pint('city_id');
+            if ($cid && !DB::value('SELECT id FROM cities WHERE id = :id AND (is_active = 1 OR id = :cur)', ['id' => $cid, 'cur' => (int)($c['city_id'] ?? 0)])) {
+                fail('Choose the city or municipality from the list.');
+            }
+            $data['city_id'] = $cid ?: null;
         }
         if (!$data['name']) {
             fail('Enter the customer name.');
@@ -126,6 +144,17 @@ if ($a === 'new' || $a === 'edit') {
         <?php endif; ?>
         <?= check_field('allow_pos_charge', 'Approved account customer at the POS', fv('allow_pos_charge', $c, 0)) ?>
         <?= check_field('is_active', 'Active', fv('is_active', $c, 1)) ?>
+        <?php if (Cities::ready()):
+            // v38: the city or municipality, from the City/Municipality List (Customers > Lists)
+            $cityCur = (int)fv('city_id', $c, 0);
+            $cityRows = Cities::active($cityCur ?: null);
+            $cityLink = Access::page('cust.cities') ? ' <a class="form-label-link" href="' . h(url('cust.cities')) . '" target="_blank" rel="noopener">Edit the list</a>' : ''; ?>
+        <div class="col-md-4 tn-field"><label class="form-label" for="f_city_id">City/Municipality</label><?= $cityLink ?>
+          <select class="form-select form-select-sm" id="f_city_id" name="city_id" data-combo data-cities-url="<?= h(url($pageKey, ['a' => 'cities'])) ?>">
+            <option value=""><?= $cityRows ? '' : 'None on the list yet' ?></option>
+            <?php foreach ($cityRows as $cr): ?><option value="<?= (int)$cr['id'] ?>" data-zip="<?= h((string)$cr['zip_code']) ?>" <?= (int)$cr['id'] === $cityCur ? 'selected' : '' ?>><?= h(Cities::label($cr)) ?></option><?php endforeach; ?>
+          </select></div>
+        <?php endif; ?>
         <?php if ($c): ?><?= input_field('change_reason', 'Reason for change (required for credit limit changes)', fv('change_reason'), ['class' => 'col-md-8']) ?><?php endif; ?>
         <div class="col-12"><label class="form-label">Notes</label><textarea class="form-control form-control-sm" name="notes" rows="2"><?= h(fv('notes', $c)) ?></textarea></div>
       </div>
@@ -147,14 +176,17 @@ if ($show === 'active') {
     $where[] = 'c.is_active = 1';
 }
 if ($q !== '') {
-    $where[] = '(c.name LIKE :q OR c.company_name LIKE :q OR c.contact_person LIKE :q OR c.treasurer_name LIKE :q OR c.phone LIKE :q)';
+    $where[] = '(c.name LIKE :q OR c.company_name LIKE :q OR c.contact_person LIKE :q OR c.treasurer_name LIKE :q OR c.phone LIKE :q'
+        . (Cities::ready() ? ' OR c.city_id IN (SELECT id FROM cities WHERE name LIKE :q)' : '') . ')';
     $params['q'] = "%$q%";
 }
 [$ain, $ap] = DB::in('ar', Accts::arIds() ?: [0]);
+$cityJoin = Cities::ready();   // v38
 $list = DB::all(
-    "SELECT c.*, p.name AS parent_name, ct.name AS type_name,
+    "SELECT c.*, p.name AS parent_name, ct.name AS type_name, " . ($cityJoin ? 'ci.name AS city_name, ci.province AS city_province,' : "NULL AS city_name, NULL AS city_province,") . "
             (SELECT COALESCE(SUM(j.debit - j.credit),0) FROM journal_lines j WHERE j.customer_id = c.id AND j.account_id IN $ain) AS balance
        FROM customers c LEFT JOIN customers p ON p.id = c.parent_id LEFT JOIN customer_types ct ON ct.id = c.customer_type_id"
+    . ($cityJoin ? ' LEFT JOIN cities ci ON ci.id = c.city_id' : '')
     . ($where ? ' WHERE ' . implode(' AND ', $where) : '') . '
       ORDER BY COALESCE(p.name, c.name), c.parent_id IS NOT NULL, c.name',
     $params + $ap
@@ -166,9 +198,9 @@ if ($show === 'balance') {
 if (g('export') === 'csv') {
     Access::require($pageKey, 'print');
     Audit::log('export', 'cust', 'list', null, 'Customer list', ['page_key' => $pageKey]);
-    csv_download('customers.csv', ['Name', 'Job of', 'Company', 'Contact', 'Treasurer', 'Phone', 'Email', 'Billing address', 'Zip code', 'Terms', 'Credit limit', 'Balance', 'Active'],
+    csv_download('customers.csv', ['Name', 'Job of', 'Company', 'Contact', 'Treasurer', 'Phone', 'Email', 'Billing address', 'Zip code', 'City/Municipality', 'Province', 'Terms', 'Credit limit', 'Balance', 'Active'],
         array_map(fn($r) => [$r['name'], $r['parent_name'], $r['company_name'], $r['contact_person'], $r['treasurer_name'] ?? '', $r['phone'], $r['email'], $r['billing_address'],
-            $r['zip_code'] ?? '', DB::value('SELECT name FROM terms WHERE id = :id', ['id' => $r['terms_id']]), $r['credit_limit'], $r['balance'], $r['is_active']], $list));
+            $r['zip_code'] ?? '', $r['city_name'] ?? '', $r['city_province'] ?? '', DB::value('SELECT name FROM terms WHERE id = :id', ['id' => $r['terms_id']]), $r['credit_limit'], $r['balance'], $r['is_active']], $list));
 }
 
 $selId = gint('id') ?? ($list[0]['id'] ?? null);
@@ -189,12 +221,12 @@ layout_start('Customer Center', ['actions' => $actions]);
                    data-live-filter="#custList .list-group-item" data-live-count="#custCount" data-live-empty="#custNone" aria-label="Find a customer"></div>
           <select class="form-select form-select-sm" name="show" data-autosubmit style="max-width:140px"><?= options(['active' => 'Active', 'all' => 'All', 'balance' => 'With balance'], $show) ?></select>
         </form>
-        <div class="d-flex justify-content-between mt-1"><span class="live-count"><span id="custCount"><?= count($list) ?></span> customer(s) and job(s)</span><span class="live-count d-none d-xl-inline">Type any part of the name, company, contact, treasurer or phone</span></div>
+        <div class="d-flex justify-content-between mt-1"><span class="live-count"><span id="custCount"><?= count($list) ?></span> customer(s) and job(s)</span><span class="live-count d-none d-xl-inline">Type any part of the name, company, contact, treasurer, phone or city</span></div>
       </div>
       <div class="list-group list-group-flush center-list" id="custList" style="max-height:70vh;overflow:auto">
         <?php foreach ($list as $r): ?>
           <a class="list-group-item list-group-item-action d-flex justify-content-between <?= (int)$r['id'] === (int)$selId ? 'active' : '' ?> <?= $r['parent_id'] ? 'ps-4' : '' ?>" href="<?= h(url($pageKey, ['id' => $r['id'], 'show' => $show])) ?>"
-             data-filter-text="<?= h(($r['parent_name'] ? $r['parent_name'] . ' ' : '') . $r['name'] . ' ' . $r['company_name'] . ' ' . $r['contact_person'] . ' ' . ($r['treasurer_name'] ?? '') . ' ' . $r['phone'] . ' ' . $r['mobile']) ?>">
+             data-filter-text="<?= h(($r['parent_name'] ? $r['parent_name'] . ' ' : '') . $r['name'] . ' ' . $r['company_name'] . ' ' . $r['contact_person'] . ' ' . ($r['treasurer_name'] ?? '') . ' ' . $r['phone'] . ' ' . $r['mobile'] . ' ' . ($r['city_name'] ?? '')) ?>">
             <span><?= $r['parent_id'] ? '<i class="bi bi-arrow-return-right"></i> ' : '' ?><?= h($r['name']) ?><?= (int)$r['is_active'] ? '' : ' <span class="badge text-bg-secondary">inactive</span>' ?></span>
             <span class="num"><?= money($r['balance'], true) ?></span>
           </a>
@@ -231,6 +263,8 @@ layout_start('Customer Center', ['actions' => $actions]);
           <div class="small"><?= h($sel['contact_person']) ?> <?= h($sel['phone']) ?> <?= h($sel['mobile']) ?> <?= h($sel['email']) ?></div>
           <?php if (!empty($sel['treasurer_name'])): ?><div class="small"><span class="text-muted">Treasurer:</span> <?= h($sel['treasurer_name']) ?></div><?php endif; ?>
           <div class="small text-muted"><?= h($sel['billing_address']) ?><?= !empty($sel['zip_code']) ? ' ' . h($sel['zip_code']) : '' ?></div>
+          <?php $selCity = Cities::ready() && !empty($sel['city_id']) ? Cities::get((int)$sel['city_id']) : null;
+          if ($selCity): ?><div class="small"><span class="text-muted">City/Municipality:</span> <?= h(Cities::label($selCity)) ?></div><?php endif; ?>
         </div>
         <div class="text-end">
           <div class="small text-muted">Open balance</div>

@@ -405,6 +405,21 @@ final class Brgy
         return $v > 0 && $v <= 100 ? round($v, 2) : 80.0;
     }
 
+    /** v38: the values filled on a transaction's forms are kept (the 2026-11-25 migration has been run) */
+    public static function v38Ready(): bool
+    {
+        static $ok = null;
+        if ($ok === null) {
+            try {
+                DB::value('SELECT COUNT(*) FROM brgy_form_values WHERE 1 = 0');
+                $ok = true;
+            } catch (Throwable $e) {
+                $ok = false;
+            }
+        }
+        return $ok;
+    }
+
     /** v37: the column of the SOP as a % of the gross exists (the 2026-11-24 migration has been run) */
     public static function v37Ready(): bool
     {

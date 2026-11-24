@@ -68,6 +68,7 @@ final class Importer
                     'billing_address' => ['Billing address', 'text'],
                     'shipping_address' => ['Shipping address', 'text'],
                     'zip_code'        => ['Zip code', 'text'],
+                    'city'            => ['City/Municipality, as named in the City/Municipality List', 'ref:cities'],   // v38
                     'tin'             => ['TIN', 'text'],
                     'terms'           => ['Payment terms, as named in the Terms list', 'ref:terms'],
                     'credit_limit'    => ['Credit limit', 'num'],
@@ -78,7 +79,7 @@ final class Importer
                     'allow_pos_charge' => ['Can charge at the POS (yes/no)', 'bool'],
                     'notes'           => ['Notes', 'text'],
                 ],
-                'sample' => ['ABC Trading Corp.', 'ABC Trading Corporation', 'Ana Cruz', '', '(02) 8123-4567', '0917 000 0000', 'ana@abc.example', '12 Rizal Ave., Makati City', '', '1200', '123-456-789-000', 'Net 30', '100000', '', 'VAT12', '', '', 'no', ''],
+                'sample' => ['ABC Trading Corp.', 'ABC Trading Corporation', 'Ana Cruz', '', '(02) 8123-4567', '0917 000 0000', 'ana@abc.example', '12 Rizal Ave., Makati City', '', '1200', '', '123-456-789-000', 'Net 30', '100000', '', 'VAT12', '', '', 'no', ''],
             ],
             'vendors' => [
                 'label' => 'Vendors (suppliers)',
@@ -499,6 +500,11 @@ final class Importer
             if ($id) {
                 break;
             }
+        }
+        if (!$id && $table === 'cities' && str_contains($value, ',')) {
+            // v38: also as the list shows it, "Lapu-Lapu City, Cebu"
+            $at = (int)strrpos($value, ',');
+            $id = Cities::find(substr($value, 0, $at), trim(substr($value, $at + 1)));
         }
         return $cache[$k] = $id ? (int)$id : null;
     }

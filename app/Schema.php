@@ -8,7 +8,7 @@ declare(strict_types=1);
  */
 final class Schema
 {
-    private const FLAG = 'schema_ok_2026_11_24';
+    private const FLAG = 'schema_ok_2026_11_25';
 
     /**
      * file => one cheap probe.
@@ -131,6 +131,9 @@ final class Schema
         // v37: the SOP as a % of the gross on the transaction form (the query fails without the column); the sworn statements are in the same file
         'database/migrations/2026_11_24_estimates_sworn_statements.sql' =>
             'SELECT COUNT(est_sop_rate) FROM brgy_projects WHERE 1 = 0',
+        // v38: the City/Municipality List and the customer's city; the values filled on a transaction's forms
+        'database/migrations/2026_11_25_cities_form_values_signatories.sql' =>
+            'SELECT COUNT(c.city_id) + COUNT(v.value) FROM customers c, brgy_form_values v WHERE 1 = 0',
     ];
 
     private static ?array $pending = null;

@@ -192,13 +192,17 @@ if ($a === 'edit' && $id) {
               <span class="eb-group"><button type="button" class="eb" data-cmd="justifyLeft" title="Align left"><i class="bi bi-text-left"></i></button><button type="button" class="eb" data-cmd="justifyCenter" title="Center"><i class="bi bi-text-center"></i></button><button type="button" class="eb" data-cmd="justifyRight" title="Align right"><i class="bi bi-text-right"></i></button><button type="button" class="eb" data-cmd="justifyFull" title="Justify"><i class="bi bi-justify"></i></button></span>
               <span class="eb-group"><button type="button" class="eb" data-cmd="insertUnorderedList" title="Bullets"><i class="bi bi-list-ul"></i></button><button type="button" class="eb" data-cmd="insertOrderedList" title="Numbering"><i class="bi bi-list-ol"></i></button><button type="button" class="eb" data-cmd="outdent" title="Decrease indent"><i class="bi bi-text-indent-right"></i></button><button type="button" class="eb" data-cmd="indent" title="Increase indent"><i class="bi bi-text-indent-left"></i></button></span>
               <span class="eb-group"><button type="button" class="eb" data-insert-table title="Insert a table"><i class="bi bi-table"></i></button><button type="button" class="eb" data-insert-break title="Page break"><i class="bi bi-file-break"></i></button><button type="button" class="eb" data-cmd="removeFormat" title="Clear formatting"><i class="bi bi-eraser"></i></button></span>
-              <span class="eb-group"><button type="button" class="eb" data-cmd="undo" title="Undo"><i class="bi bi-arrow-counterclockwise"></i></button><button type="button" class="eb" data-cmd="redo" title="Redo"><i class="bi bi-arrow-clockwise"></i></button></span>
+              <span class="eb-group"><button type="button" class="eb" data-hist="undo" title="Undo (Ctrl+Z)" aria-label="Undo" disabled><i class="bi bi-arrow-counterclockwise"></i></button><button type="button" class="eb" data-hist="redo" title="Redo (Ctrl+Y)" aria-label="Redo" disabled><i class="bi bi-arrow-clockwise"></i></button></span>
             </div>
             <div class="doc-stage"><div class="formdoc paper-sheet is-editing" id="formEditor" contenteditable="true" spellcheck="true" style="<?= h(BrgyLayout::styleAttr($L)) ?>"><?= $body ?></div></div>
           </div>
         </div>
         <div class="col-xl-3">
-          <div class="card mb-3"><div class="card-header"><i class="bi bi-ui-checks"></i> Fill in the blanks</div><div class="card-body" id="gapPanel">
+          <?php // v38: what was filled into the blanks of the transaction's other forms, for the blanks this form still has
+          $storedVals = $f['project_id'] ? BrgyDocs::storedValues((int)$f['project_id'], $id) : []; ?>
+          <div class="card mb-3 gap-card"><div class="card-header d-flex align-items-center gap-2"><span class="me-auto"><i class="bi bi-ui-checks"></i> Fill in the blanks</span>
+            <span class="eb-group eb-sm" role="group" aria-label="Undo or redo"><button type="button" class="eb" data-hist="undo" title="Undo (Ctrl+Z)" aria-label="Undo" disabled><i class="bi bi-arrow-counterclockwise"></i></button><button type="button" class="eb" data-hist="redo" title="Redo (Ctrl+Y)" aria-label="Redo" disabled><i class="bi bi-arrow-clockwise"></i></button></span></div>
+            <div class="card-body" id="gapPanel" data-stored="<?= h(json_encode((object)$storedVals, JSON_UNESCAPED_UNICODE)) ?>">
             <?php // v34: a disbursement voucher: its gross amount, VAT and EWT; the check amount and the amount in words follow
             $dvProject = $f['project_id'] && Brgy::v34Ready() && preg_match('/data-ph="dv\.(gross|taxes|net)/', $body) ? Brgy::project((int)$f['project_id']) : null;
             if ($dvProject):
@@ -220,9 +224,9 @@ if ($a === 'edit' && $id) {
               <div class="dv-panel" id="dvPanel">
                 <div class="row g-2">
                   <div class="col-12"><label class="form-label" for="dvGross">Gross amount</label>
-                    <input class="form-control form-control-sm text-end" id="dvGross" name="dv_gross" inputmode="decimal" autocomplete="off" value="<?= h($dvGross) ?>" placeholder="0.00"></div>
-                  <div class="col-6"><label class="form-label" for="dvVat">VAT</label><select class="form-select form-select-sm" id="dvVat" name="dv_vat_rate" data-no-combo><?= $dvOpts(BrgySop::DV_VAT, $dvVat) ?></select></div>
-                  <div class="col-6"><label class="form-label" for="dvEwt">EWT</label><select class="form-select form-select-sm" id="dvEwt" name="dv_ewt_rate" data-no-combo><?= $dvOpts(BrgySop::DV_EWT, $dvEwt) ?></select></div>
+                    <input class="form-control form-control-sm text-end" id="dvGross" name="dv_gross" inputmode="decimal" autocomplete="off" value="<?= h($dvGross) ?>" placeholder="0.00" data-hist-field></div>
+                  <div class="col-6"><label class="form-label" for="dvVat">VAT</label><select class="form-select form-select-sm" id="dvVat" name="dv_vat_rate" data-no-combo data-hist-field><?= $dvOpts(BrgySop::DV_VAT, $dvVat) ?></select></div>
+                  <div class="col-6"><label class="form-label" for="dvEwt">EWT</label><select class="form-select form-select-sm" id="dvEwt" name="dv_ewt_rate" data-no-combo data-hist-field><?= $dvOpts(BrgySop::DV_EWT, $dvEwt) ?></select></div>
                 </div>
                 <table class="dv-calc" aria-live="polite"><tbody>
                   <tr><th scope="row">VAT</th><td id="dvVatAmt">0.00</td></tr>
@@ -236,14 +240,17 @@ if ($a === 'edit' && $id) {
             <?php elseif (($f['template_code'] ?? '') === 'disbursement_voucher' && $f['project_id'] && Brgy::v34Ready()): ?>
               <div class="alert alert-light border small mb-2">This DV was made before the gross amount, VAT and EWT boxes. Use <b>Fill again from the records</b> (below) to have them here.</div>
             <?php endif; ?>
+            <div class="gap-stored small" id="gapStored" role="status" hidden></div>
             <p class="small text-muted mb-2" id="gapNone" <?= $gaps ? 'hidden' : '' ?>>No blanks left.</p>
             <div id="gapList"></div>
-            <div class="form-text">Blanks are fields with no value in the records when the form was made. Fill them here, or click one in the page and type. A form with blanks cannot be sent for review.</div>
+            <div id="sigList" class="fsig-list"></div>
+            <div class="form-text">Blanks are fields with no value in the records when the form was made. Fill them here, or click one in the page and type; what is filled in stays here to change. Undo and Redo take back any change to the page. A form with blanks cannot be sent for review.</div>
           </div></div>
           <div class="card mb-3"><div class="card-body row g-2">
             <?= input_field('title', 'Title', fv('title', $f), ['class' => 'col-12', 'required' => true, 'extra' => 'maxlength="200"']) ?>
-            <?= input_field('signatory_name', 'Signatory', fv('signatory_name', $f), ['class' => 'col-12']) ?>
-            <?= input_field('signatory_position', 'Position', fv('signatory_position', $f), ['class' => 'col-12']) ?>
+            <?= input_field('signatory_name', 'Signatory', fv('signatory_name', $f), ['class' => 'col-12', 'extra' => 'id="f_signatory_name" maxlength="120" autocomplete="off" data-hist-field']) ?>
+            <?= input_field('signatory_position', 'Position', fv('signatory_position', $f), ['class' => 'col-12', 'extra' => 'id="f_signatory_position" maxlength="120" autocomplete="off" data-hist-field']) ?>
+            <div class="col-12 form-text mt-0" id="sigLinkNote" aria-live="polite"></div>
             <?= select_field('paper', 'Paper', array_map(fn($x) => $x[2], array_diff_key(BrgyLayout::PAPERS, ['Custom' => 1])), fv('paper', $f), ['class' => 'col-6', 'extra' => 'data-no-combo']) ?>
             <?= select_field('orientation', 'Orientation', ['portrait' => 'Portrait', 'landscape' => 'Landscape'], fv('orientation', $f), ['class' => 'col-6', 'extra' => 'data-no-combo']) ?>
             <?php if ((int)$f['is_prescribed']): ?><?= input_field('official_version', 'Official version followed', fv('official_version', $f), ['class' => 'col-12', 'extra' => 'placeholder="e.g. GPPB form, issuance and date"']) ?><?php endif; ?>

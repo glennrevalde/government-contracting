@@ -343,10 +343,76 @@
       }
     };
     try { document.execCommand('styleWithCSS', false, true); } catch (e) { /* older browsers */ }
-    $$('[data-cmd]').forEach((b) => b.addEventListener('click', () => { restore(); document.execCommand(b.dataset.cmd, false, null); keepRange(); }));
+
+    // v38: undo and redo of everything done to the page: typing, formatting, and what the Fill in the blanks panel, the
+    // signatories and the DV boxes put into it. The browser's own undo does not see the changes made from the panel, so
+    // the page keeps its own history: a copy after every change (typing is grouped by pauses), with the boxes that go
+    // with the page (the form's signatory and position, the DV amounts) marked data-hist-field.
+    const H = { stack: [], pos: -1, timer: null, mute: false, after: [] };
+    const histFields = () => $$('[data-hist-field]', form);
+    // the marks of the box being typed in (ph-focus, sig-focus) are not part of the page
+    const unmark = (el, cls) => { el.classList.remove(cls); if (!el.className) el.removeAttribute('class'); };
+    const take = () => {
+      const marked = $$('.ph-focus, .sig-focus', editor).map((el) => [el, el.className]);
+      marked.forEach(([el]) => { unmark(el, 'ph-focus'); unmark(el, 'sig-focus'); });
+      const h = editor.innerHTML;
+      marked.forEach(([el, c]) => { el.className = c; });
+      return { h, f: histFields().map((el) => el.value) };
+    };
+    const same = (x, y) => !!x && !!y && x.h === y.h && x.f.join('\u0001') === y.f.join('\u0001');
+    const histBtns = () => {
+      $$('[data-hist="undo"]').forEach((b) => { b.disabled = H.pos <= 0; });
+      $$('[data-hist="redo"]').forEach((b) => { b.disabled = H.pos >= H.stack.length - 1; });
+    };
+    const record = () => {
+      clearTimeout(H.timer);
+      H.timer = null;
+      if (H.mute) return;
+      const snap = take();
+      if (same(H.stack[H.pos], snap)) return;
+      H.stack.splice(H.pos + 1);
+      H.stack.push(snap);
+      if (H.stack.length > 120) H.stack.shift();
+      H.pos = H.stack.length - 1;
+      histBtns();
+    };
+    const recordSoon = () => { if (H.mute) return; clearTimeout(H.timer); H.timer = setTimeout(record, 700); };
+    const goTo = (i) => {
+      const snap = H.stack[i];
+      if (!snap) return;
+      H.mute = true;
+      editor.innerHTML = snap.h;
+      histFields().forEach((el, k) => { if (snap.f[k] !== undefined) el.value = snap.f[k]; });
+      H.pos = i;
+      H.mute = false;
+      lastRange = null;
+      H.after.forEach((fn) => fn());
+      histBtns();
+      editor.dispatchEvent(new CustomEvent('doc:restored'));
+    };
+    const undo = () => { if (H.timer) record(); if (H.pos > 0) goTo(H.pos - 1); };
+    const redo = () => { if (H.timer) record(); if (H.pos < H.stack.length - 1) goTo(H.pos + 1); };
+    /** a change made by the program (panel, DV, insert): the page before it and after it are both kept */
+    const change = (fn) => { record(); fn(); record(); };
+    $$('[data-hist]').forEach((b) => b.addEventListener('click', (e) => { e.preventDefault(); if (b.dataset.hist === 'undo') undo(); else redo(); }));
+    const histKey = (e) => {
+      if (!(e.ctrlKey || e.metaKey) || e.altKey) return;
+      const k = String(e.key).toLowerCase();
+      if (k === 'z' && !e.shiftKey) { e.preventDefault(); undo(); } else if (k === 'y' || (k === 'z' && e.shiftKey)) { e.preventDefault(); redo(); }
+    };
+    editor.addEventListener('keydown', histKey);
+    // Edit > Undo of the browser's menu, or the context menu, on the page
+    editor.addEventListener('beforeinput', (e) => {
+      if (e.inputType === 'historyUndo') { e.preventDefault(); undo(); } else if (e.inputType === 'historyRedo') { e.preventDefault(); redo(); }
+    });
+
+    $$('[data-cmd]').forEach((b) => b.addEventListener('click', () => {
+      if (b.dataset.cmd === 'undo' || b.dataset.cmd === 'redo') { if (b.dataset.cmd === 'undo') undo(); else redo(); return; }
+      record(); restore(); document.execCommand(b.dataset.cmd, false, null); keepRange(); record();
+    }));
     const block = $('[data-cmd-block]');
-    if (block) block.addEventListener('change', () => { restore(); document.execCommand('formatBlock', false, block.value); block.value = 'p'; });
-    const insertHtml = (html) => { restore(); document.execCommand('insertHTML', false, html); keepRange(); };
+    if (block) block.addEventListener('change', () => { record(); restore(); document.execCommand('formatBlock', false, block.value); block.value = 'p'; record(); });
+    const insertHtml = (html) => { record(); restore(); document.execCommand('insertHTML', false, html); keepRange(); record(); };
     const tb = $('[data-insert-table]');
     if (tb) tb.addEventListener('click', () => {
       const rows = Math.max(1, Math.min(40, parseInt(window.prompt('How many rows (besides the heading)?', '3') || '0', 10)));
@@ -442,89 +508,362 @@
         DV_KEYS.forEach((k) => $$('[data-ph="' + k + '"]', editor).forEach((el) => { el.outerHTML = part(k, d); }));
         listGaps();
       };
+      // v38: the DV boxes are part of the page's history (undo puts back the amounts and the boxes together)
+      dvGross.addEventListener('focus', record);
       dvGross.addEventListener('input', fill);
-      dvGross.addEventListener('blur', () => { const d = compute(); if (dvGross.value.trim() !== '') dvGross.value = money(d.g); });
-      vSel.addEventListener('change', fill);
-      eSel.addEventListener('change', fill);
+      dvGross.addEventListener('change', record);
+      dvGross.addEventListener('blur', () => { const d = compute(); if (dvGross.value.trim() !== '') dvGross.value = money(d.g); record(); });
+      vSel.addEventListener('change', () => { fill(); record(); });
+      eSel.addEventListener('change', () => { fill(); record(); });
+      H.after.push(() => show(compute()));
       show(compute());
     }
 
-    // blanks: list them with a box each; typing there fills every blank of that field in the page
+    // ---- v38: the Fill in the blanks panel. Every field that had no value when the form was made has a box here, and keeps
+    // it once filled (it was taken away before): what is filled in stays a marked field of the page (span.ph-set, with
+    // the field and its name), so a mistake is corrected here, or taken back with Undo.
+    let dirty = false;
     const gapList = $('#gapList');
     const gapNone = $('#gapNone');
+    const gapPanel = $('#gapPanel');
+    const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+    const keyOf = (s) => s.dataset.ph || s.textContent;
+    // a blank clicked in the page and left as it was ("[Purchase order no.]") is still a blank
+    const untouched = (s) => s.classList.contains('ph-set') && !!s.title && s.textContent === '[' + s.title + ']';
+    const unclick = () => $$('.ph-set', editor).forEach((s) => {
+      if (untouched(s) || s.textContent.trim() === '') { s.className = 'ph-missing'; s.textContent = '[' + (s.title || keyOf(s)) + ']'; s.removeAttribute('title'); }
+    });
+    const fieldsInPage = () => {
+      const out = new Map();
+      $$('.ph-missing, .ph-set', editor).forEach((s) => {
+        const k = keyOf(s);
+        const missing = s.classList.contains('ph-missing') || untouched(s);
+        const label = missing ? s.textContent.replace(/^\[|\]$/g, '') : (s.title || k);
+        if (!out.has(k)) out.set(k, { label, missing: false, value: '' });
+        const e = out.get(k);
+        if (missing) e.missing = true;
+        else if (e.value === '') e.value = s.textContent;
+        if (s.title) e.label = s.title;
+      });
+      return out;
+    };
+    const spansOf = (k) => $$('.ph-missing, .ph-set', editor).filter((s) => keyOf(s) === k);
+    let focusKey = null;
+    /** puts a value into every place of a field in the page; an empty value makes it a blank again */
+    const applyGap = (k, v, label) => {
+      spansOf(k).forEach((s) => {
+        if (!s.dataset.ph) s.dataset.ph = k;
+        if (v.trim() === '') {
+          s.className = 'ph-missing';
+          s.removeAttribute('title');
+          s.textContent = '[' + label + ']';
+        } else {
+          s.className = 'ph-set';
+          s.title = label;
+          s.textContent = v;
+        }
+        if (focusKey === k) s.classList.add('ph-focus');
+      });
+      dirty = true;
+    };
+    const mark = (k, on) => {
+      spansOf(k).forEach((s) => { if (on) s.classList.add('ph-focus'); else unmark(s, 'ph-focus'); });
+      const first = spansOf(k)[0];
+      if (on && first) first.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    };
     const listGaps = () => {
       if (!gapList) return;
-      const seen = {};
-      $$('.ph-missing', editor).forEach((s) => {
-        const k = s.dataset.ph || s.textContent;
-        if (!seen[k]) seen[k] = s.textContent.replace(/^\[|\]$/g, '');
-      });
-      const keys = Object.keys(seen);
-      gapNone.hidden = keys.length > 0;
-      const have = $$('[data-gap]', gapList).map((el) => el.dataset.gap);
-      if (have.join('|') === keys.join('|')) return;
-      gapList.innerHTML = '';
-      keys.forEach((k) => {
-        const wrap = document.createElement('div');
-        wrap.className = 'mb-2';
-        wrap.dataset.gap = k;
-        const lab = document.createElement('label');
-        lab.className = 'form-label';
-        lab.textContent = seen[k];
-        if (dvPanel && DV_KEYS.includes(k)) {
-          // the amounts of the DV come from its gross amount box above
-          const note = document.createElement('div');
-          note.className = 'small text-muted';
-          note.textContent = 'Enter the gross amount above.';
+      const fields = fieldsInPage();
+      const blanks = [...fields.values()].filter((e) => e.missing).length;
+      gapNone.hidden = blanks > 0;
+      gapNone.textContent = fields.size ? 'No blanks left. What was filled in stays below, to change.' : 'No blanks left.';
+      const have = new Map($$('[data-gap]', gapList).map((w) => [w.dataset.gap, w]));
+      let prev = null;
+      fields.forEach((e, k) => {
+        let wrap = have.get(k);
+        if (!wrap) {
+          wrap = document.createElement('div');
+          wrap.className = 'gap-item';
+          wrap.dataset.gap = k;
+          const lab = document.createElement('label');
+          lab.className = 'form-label';
           wrap.appendChild(lab);
-          wrap.appendChild(note);
-          gapList.appendChild(wrap);
-          return;
+          if (dvPanel && DV_KEYS.includes(k)) {
+            // the amounts of the DV come from its gross amount box above
+            const note = document.createElement('div');
+            note.className = 'small text-muted';
+            note.textContent = 'Enter the gross amount above.';
+            wrap.appendChild(note);
+          } else {
+            const inp = document.createElement('input');
+            inp.className = 'form-control form-control-sm';
+            inp.autocomplete = 'off';
+            inp.addEventListener('focus', () => { record(); focusKey = k; mark(k, true); });
+            inp.addEventListener('blur', () => { focusKey = null; mark(k, false); });
+            inp.addEventListener('input', () => { applyGap(k, inp.value, wrap.dataset.label); wrap.classList.toggle('is-blank', inp.value.trim() === ''); listSigs(); });
+            inp.addEventListener('change', () => { record(); listGaps(); });
+            inp.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') { ev.preventDefault(); inp.blur(); } });
+            wrap.appendChild(inp);
+          }
         }
-        const inp = document.createElement('input');
-        inp.className = 'form-control form-control-sm';
-        inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); inp.dispatchEvent(new Event('change')); } });
-        inp.addEventListener('change', () => {
-          if (inp.value.trim() === '') return;
-          $$('.ph-missing', editor).filter((s) => (s.dataset.ph || s.textContent) === k).forEach((s) => s.replaceWith(document.createTextNode(inp.value.trim())));
-          listGaps();
-        });
-        wrap.appendChild(lab);
-        wrap.appendChild(inp);
-        gapList.appendChild(wrap);
+        wrap.dataset.label = e.label;
+        wrap.querySelector('label').textContent = e.label;
+        const inp = wrap.querySelector('input');
+        if (inp && document.activeElement !== inp) inp.value = e.missing ? '' : e.value;
+        wrap.classList.toggle('is-blank', e.missing);
+        // in the order of the page
+        if (prev ? prev.nextElementSibling !== wrap : gapList.firstElementChild !== wrap) {
+          if (prev) prev.after(wrap); else gapList.prepend(wrap);
+        }
+        prev = wrap;
+        have.delete(k);
       });
+      have.forEach((w) => w.remove());
     };
-    // a click on a blank in the page selects it as plain text, so typing replaces it
+
+    // ---- v38: the signatories of the page (the name and the position of each signature), with a box each in the panel
+    const sigList = $('#sigList');
+    const sigBox = (el) => el.closest('.sg-block, .fx-sig') || el.closest('td') || el.parentElement;
+    const sigEntries = () => {
+      const out = [];
+      const used = new Set();
+      $$('.sg-nm, .sg-name', editor).forEach((nm) => {
+        const box = sigBox(nm);
+        const pos = $$('.sg-ps, .sg-cap', box).find((x) => !used.has(x) && (nm.compareDocumentPosition(x) & Node.DOCUMENT_POSITION_FOLLOWING));
+        if (pos) used.add(pos);
+        out.push({ box, nm, pos: pos || null });
+      });
+      // a signature with only its position (a line to sign on): the name is added when one is typed
+      $$('.sg-ps, .sg-cap', editor).forEach((x) => { if (!used.has(x)) { used.add(x); out.push({ box: sigBox(x), nm: null, pos: x }); } });
+      // the signature tables of the older templates: the line with the name, then what the person is
+      $$('table.sig-table td', editor).forEach((td) => {
+        const divs = Array.prototype.filter.call(td.children, (c) => c.tagName === 'DIV');
+        if (divs.length >= 2 && !divs[0].matches('.sg-nm, .sg-name')) out.push({ box: td, nm: divs[0], pos: divs[1] });
+      });
+      out.sort((x, y) => (x.box === y.box ? 0 : (x.box.compareDocumentPosition(y.box) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1)));
+      return out;
+    };
+    /** the text of a name or a position, lines kept */
+    const textOf = (el) => {
+      if (!el) return '';
+      let t = '';
+      const walk = (n) => n.childNodes.forEach((c) => {
+        if (c.nodeType === 3) t += c.data;
+        else if (c.nodeName === 'BR') t += '\n';
+        else if (c.nodeType === 1 && (c.classList.contains('ph-missing') || untouched(c))) { /* a blank has no text yet */ }
+        else if (c.nodeType === 1) { if (/^(DIV|P)$/.test(c.nodeName) && t !== '' && !t.endsWith('\n')) t += '\n'; walk(c); }
+      });
+      walk(el);
+      return t.replace(/ /g, ' ').split('\n').map((l) => l.replace(/\s+/g, ' ').trim()).filter((l, i, a) => l !== '' || (i > 0 && i < a.length - 1)).join('\n').trim();
+    };
+    /** writes a name or a position, keeping its bold or underline when it is one piece of text */
+    const setText = (el, v) => {
+      const texts = [];
+      const walk = (n) => n.childNodes.forEach((c) => { if (c.nodeType === 3 && c.data.trim() !== '') texts.push(c); else if (c.nodeType === 1 && c.nodeName !== 'BR') walk(c); });
+      walk(el);
+      if (!v.includes('\n') && texts.length === 1 && !el.querySelector('br')) { texts[0].data = v; return; }
+      if (!v.includes('\n') && texts.length === 1) {
+        // one line where there were lines with breaks: the first piece keeps its style
+        el.innerHTML = '';
+        el.appendChild(document.createTextNode(v));
+        return;
+      }
+      el.innerHTML = v.split('\n').map(esc).join('<br>');
+    };
+    // the form's own Signatory and Position (beside the page) follow the signature with the same name, and the other way round
+    const sideName = $('#f_signatory_name');
+    const sidePos = $('#f_signatory_position');
+    const sideNote = $('#sigLinkNote');
+    const norm = (t) => String(t || '').toLowerCase().replace(/\s+/g, ' ').trim();
+    let linked = -1;
+    const findLinked = () => {
+      if (!sideName || sideName.value.trim() === '') return -1;
+      const want = norm(sideName.value);
+      return sigEntries().findIndex((e) => e.nm && norm(textOf(e.nm)) === want);
+    };
+    const showLink = () => {
+      if (!sideNote) return;
+      sideNote.textContent = linked >= 0 ? 'Kept the same as signatory ' + (linked + 1) + ' of the page: a change here changes the page, and a change there changes these.'
+        : (sideName && sideName.value.trim() !== '' && sigEntries().length ? 'No signature in the page carries this name, so these change only the form\'s record.' : '');
+      $$('.fsig-item', sigList || document).forEach((it) => it.classList.toggle('is-linked', Number(it.dataset.i) === linked));
+    };
+    const sideFromPage = () => {
+      if (linked < 0 || !sideName) return;
+      const e = sigEntries()[linked];
+      if (!e) { linked = -1; showLink(); return; }
+      if (document.activeElement !== sideName && e.nm) sideName.value = textOf(e.nm);
+      if (sidePos && document.activeElement !== sidePos && e.pos) sidePos.value = textOf(e.pos).replace(/\n/g, ', ');
+    };
+    /** a name or a position that is a field of the page (a blank, or one filled in) is changed as that field, everywhere */
+    const fieldIn = (el) => {
+      const ph = el ? el.querySelector('.ph-missing, .ph-set') : null;
+      return ph && el.textContent.trim() === ph.textContent.trim() ? ph : null;
+    };
+    const putSig = (i, part, v) => {
+      const e = sigEntries()[i];
+      if (!e) return;
+      const ph = fieldIn(part === 'nm' ? e.nm : e.pos);
+      if (ph) {
+        const label = ph.classList.contains('ph-missing') ? ph.textContent.replace(/^\[|\]$/g, '') : (ph.title || keyOf(ph));
+        applyGap(keyOf(ph), part === 'nm' ? v.trim() : v.replace(/\r/g, '').trim(), label);
+        return;
+      }
+      if (part === 'nm') {
+        if (!e.nm) {
+          if (v.trim() === '' || !e.pos) return;
+          const d = document.createElement('div');
+          d.className = e.pos.classList.contains('sg-cap') ? 'sg-name' : 'sg-nm';
+          d.style.fontWeight = '700';
+          e.pos.parentNode.insertBefore(d, e.pos);
+          e.nm = d;
+        }
+        setText(e.nm, v.trim());
+      } else if (e.pos) {
+        setText(e.pos, v.replace(/\r/g, '').trim());
+      }
+      dirty = true;
+    };
+    const listSigs = () => {
+      if (!sigList) return;
+      const list = sigEntries();
+      if (sigList.childElementCount - 1 !== list.length) {
+        sigList.innerHTML = list.length ? '<div class="fsig-head">Signatories</div>' : '';
+        list.forEach((e, i) => {
+          const it = document.createElement('div');
+          it.className = 'fsig-item';
+          it.dataset.i = i;
+          it.innerHTML = '<div class="fsig-no">Signatory ' + (i + 1) + '<span class="fsig-own"> (the form\'s signatory)</span></div>'
+            + '<label class="form-label" for="sigN' + i + '">Name</label><input class="form-control form-control-sm" id="sigN' + i + '" autocomplete="off">'
+            + (e.pos ? '<label class="form-label" for="sigP' + i + '">Position</label><textarea class="form-control form-control-sm" id="sigP' + i + '" rows="1"></textarea>' : '');
+          const n = $('input', it);
+          const ps = $('textarea', it);
+          const hi = (on) => { const en = sigEntries()[i]; if (en) { if (on) { en.box.classList.add('sig-focus'); en.box.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); } else unmark(en.box, 'sig-focus'); } };
+          [n, ps].forEach((el) => {
+            if (!el) return;
+            el.addEventListener('focus', () => { record(); hi(true); });
+            el.addEventListener('blur', () => hi(false));
+            el.addEventListener('change', () => { record(); listGaps(); });
+          });
+          n.addEventListener('input', () => { putSig(i, 'nm', n.value); listGaps(); if (i === linked) sideFromPage(); });
+          n.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') { ev.preventDefault(); n.blur(); } });
+          if (ps) {
+            const grow = () => { ps.style.height = 'auto'; ps.style.height = (ps.scrollHeight + 2) + 'px'; };
+            ps.addEventListener('input', () => { putSig(i, 'pos', ps.value); grow(); listGaps(); if (i === linked) sideFromPage(); });
+            ps.addEventListener('focus', grow);
+          }
+          sigList.appendChild(it);
+        });
+      }
+      list.forEach((e, i) => {
+        const it = $('.fsig-item[data-i="' + i + '"]', sigList);
+        if (!it) return;
+        const n = $('input', it);
+        const ps = $('textarea', it);
+        if (n && document.activeElement !== n) n.value = textOf(e.nm);
+        const blankNm = fieldIn(e.nm);
+        if (n) n.placeholder = blankNm && blankNm.classList.contains('ph-missing') ? blankNm.textContent : '';
+        if (ps && document.activeElement !== ps) {
+          ps.value = textOf(e.pos);
+          ps.rows = Math.min(4, Math.max(1, ps.value.split('\n').length));
+          ps.style.height = 'auto';
+          if (ps.scrollHeight > 0) ps.style.height = (ps.scrollHeight + 2) + 'px';
+        }
+      });
+      showLink();
+    };
+    if (sideName) {
+      [sideName, sidePos].forEach((el) => { if (el) { el.addEventListener('focus', record); el.addEventListener('change', record); } });
+      sideName.addEventListener('input', () => {
+        if (linked < 0) { linked = findLinked(); showLink(); return; }
+        putSig(linked, 'nm', sideName.value);
+        listSigs();
+      });
+      if (sidePos) sidePos.addEventListener('input', () => { if (linked >= 0) { putSig(linked, 'pos', sidePos.value); listSigs(); } });
+    }
+
+    // a click on a blank in the page selects it, so typing replaces it; it stays the same field
     editor.addEventListener('click', (e) => {
       const s = e.target.closest('.ph-missing');
       if (!s || !editor.contains(s)) return;
       if (dvPanel && DV_KEYS.includes(s.dataset.ph)) { dvGross.focus(); return; }
-      const t = document.createTextNode(s.textContent);
-      s.replaceWith(t);
+      record();
+      s.className = 'ph-set';
+      s.title = s.textContent.replace(/^\[|\]$/g, '');
       const r = document.createRange();
-      r.selectNodeContents(t);
+      r.selectNodeContents(s);
       const sel = window.getSelection();
       sel.removeAllRanges();
       sel.addRange(r);
       listGaps();
     });
-    editor.addEventListener('input', listGaps);
-    listGaps();
+    // typing in a filled field of the page changes it everywhere it is in the page; typing in a signature changes its boxes
+    editor.addEventListener('input', () => {
+      dirty = true;
+      recordSoon();
+      const sel = window.getSelection();
+      const at = sel && sel.anchorNode ? (sel.anchorNode.nodeType === 1 ? sel.anchorNode : sel.anchorNode.parentElement) : null;
+      const s = at && at.closest ? at.closest('.ph-set') : null;
+      if (s && editor.contains(s)) {
+        const k = keyOf(s);
+        spansOf(k).forEach((o) => { if (o !== s && o.textContent !== s.textContent) o.textContent = s.textContent; });
+      }
+      listGaps();
+      listSigs();
+      sideFromPage();
+    });
+    H.after.push(() => { listGaps(); listSigs(); linked = findLinked(); sideFromPage(); showLink(); dirty = true; });
 
     // paste as clean text paragraphs (no foreign styles); the server cleans the HTML again on save
     editor.addEventListener('paste', (e) => {
       const text = (e.clipboardData || window.clipboardData).getData('text/plain');
       if (!text) return;
       e.preventDefault();
-      const esc = (t) => t.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
       const paras = text.split(/\r?\n\r?\n/).map((p) => esc(p).replace(/\r?\n/g, '<br>'));
+      record();
       document.execCommand('insertHTML', false, paras.length > 1 ? '<p>' + paras.join('</p><p>') + '</p>' : paras[0]);
+      record();
     });
 
-    let dirty = false;
-    editor.addEventListener('input', () => { dirty = true; });
-    form.addEventListener('input', () => { dirty = true; });
-    form.addEventListener('submit', () => { store.value = editor.innerHTML; dirty = false; });
+    // the first state of the page, before anything is done to it
+    listGaps();
+    listSigs();
+    linked = findLinked();
+    // the page decides the form's position: the signature with the form's signatory name carries it
+    if (linked >= 0) {
+      const e = sigEntries()[linked];
+      if (sidePos && e && e.pos) sidePos.value = textOf(e.pos).replace(/\n/g, ', ');
+    }
+    showLink();
+    record();
+
+    // v38: blanks a form made earlier still has, filled from what was filled in on the transaction's other forms since
+    // (the purchase order no. and date of the purchase order, on the IAR): one step, taken back with Undo
+    let stored = {};
+    try { stored = JSON.parse((gapPanel && gapPanel.dataset.stored) || '{}') || {}; } catch (err) { stored = {}; }
+    const got = [];
+    fieldsInPage().forEach((e, k) => { if (e.missing && stored[k] && String(stored[k].v || '').trim() !== '') { applyGap(k, String(stored[k].v), e.label); got.push(e.label + (stored[k].from ? ' (' + stored[k].from + ')' : '')); } });
+    const gapStored = $('#gapStored');
+    if (got.length) {
+      listGaps();
+      listSigs();
+      record();
+      if (gapStored) {
+        gapStored.innerHTML = '<i class="bi bi-arrow-down-left-square"></i> <span>Filled from the transaction\'s earlier forms: ' + esc(got.join(', ')) + '. Save to keep, or Undo to take them back.</span>';
+        gapStored.hidden = false;
+      }
+    } else {
+      dirty = false;
+    }
+
+    form.addEventListener('input', (e) => { if (!editor.contains(e.target)) dirty = true; });
+    editor.addEventListener('focusout', () => { const before = editor.innerHTML; unclick(); if (editor.innerHTML !== before) { listGaps(); H.stack[H.pos] = take(); } });
+    form.addEventListener('submit', () => {
+      // an emptied filled field becomes a blank again, so the form is not sent for review with it
+      unclick();
+      $$('.ph-focus, .sig-focus', editor).forEach((el) => { unmark(el, 'ph-focus'); unmark(el, 'sig-focus'); });
+      store.value = editor.innerHTML;
+      dirty = false;
+    });
     window.addEventListener('beforeunload', (e) => { if (dirty) { e.preventDefault(); e.returnValue = ''; } });
 
     // paper and orientation change the page shape at once

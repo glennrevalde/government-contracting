@@ -102,6 +102,7 @@ return [
         'cust.forecast'          => ['cust', 'Set Up Forecast', 'setup', 'Transactions', 'coa/budgets.php', ['kind' => 'forecast'], 1],
         'cust.payments'          => ['cust', 'Receive Payments', 'transaction', 'Transactions', 'customers/payments.php', [], 1],
         'cust.credit_memos'      => ['cust', 'Create Credit Memos/Refunds', 'transaction', 'Transactions', 'txn/page.php', ['type' => 'credit_memo'], 1],
+        'cust.cities'            => ['cust', 'City/Municipality List', 'list', 'Lists', 'customers/cities.php', [], 1],   // v38
         'rpt.ar_aging_summary'   => ['cust', 'A/R Aging Summary', 'report', 'Customer and Receivables Reports', 'reports/run.php', ['report' => 'ar_aging_summary'], 1],
         'rpt.ar_aging_detail'    => ['cust', 'A/R Aging Detail', 'report', 'Customer and Receivables Reports', 'reports/run.php', ['report' => 'ar_aging_detail'], 1],
         'rpt.customer_balance_summary' => ['cust', 'Customer Balance Summary', 'report', 'Customer and Receivables Reports', 'reports/run.php', ['report' => 'customer_balance_summary'], 1],

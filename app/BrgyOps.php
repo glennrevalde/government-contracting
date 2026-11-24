@@ -1707,7 +1707,7 @@ final class BrgyOps
                 'related_type' => $related[0] ?? null, 'related_id' => $related[1] ?? null, 'body' => $body, 'paper' => $L['paper'], 'orientation' => $L['orientation'],
                 'needs_approval' => (int)$t['needs_approval'], 'values_json' => json_encode(BrgyLayout::values($ctx, $p ? Brgy::lines((int)$p['id']) : [], $L), JSON_UNESCAPED_UNICODE),
                 'status' => 'draft', 'is_prescribed' => $t['is_prescribed'], 'official_version' => $t['official_version'],
-                'signatory_name' => Brgy::setting('brgy_signatory_name') ?: null, 'signatory_position' => Brgy::setting('brgy_signatory_position') ?: null, 'prepared_by' => Auth::id(),
+                'signatory_name' => Brgy::setting('brgy_signatory_name') ?: null, 'signatory_position' => self::formSignatoryPosition($body, Brgy::setting('brgy_signatory_name'), Brgy::setting('brgy_signatory_position')) ?: null, 'prepared_by' => Auth::id(),
             ]);
             Brgy::log('create', 'form', $id, $no . ' ' . $t['name'], ['page_key' => 'brgy.forms', 'reason' => 'From template ' . $t['code'] . ' v' . $t['version_no']]);
             return $id;
@@ -1733,10 +1733,30 @@ final class BrgyOps
         // v37: the form follows its template in being a prescribed form or not (the sworn statements are no longer shells), and
         // takes the paper of a template changed since the form was made
         $paper = (int)$f['template_version'] < (int)$t['version_no'] && $L['paper'] !== 'Custom' ? ['paper' => $L['paper'], 'orientation' => $L['orientation']] : [];
+        // v38: the form's position follows the signature that carries the form's signatory in the page
+        $paper['signatory_position'] = self::formSignatoryPosition($body, (string)$f['signatory_name'], (string)$f['signatory_position']) ?: null;
         DB::update('brgy_forms', $paper + ['body' => $body, 'template_version' => $t['version_no'], 'needs_approval' => (int)$t['needs_approval'], 'is_prescribed' => (int)$t['is_prescribed'],
             'values_json' => json_encode(BrgyLayout::values($ctx, $p ? Brgy::lines((int)$p['id']) : [], $L), JSON_UNESCAPED_UNICODE), 'updated_at' => date('Y-m-d H:i:s')], 'id = :id', ['id' => $formId]);
         Brgy::bumpVersion('brgy_forms', $formId);
         Brgy::log('refresh', 'form', $formId, $f['form_no'], ['page_key' => 'brgy.forms']);
+    }
+
+    /**
+     * v38: the position of the form's signatory: the position under the signature of that name in the form's text (the
+     * affiant of a sworn statement is "Affiant"), else $default. The form's Signatory and Position and that signature are
+     * kept the same on the form's page.
+     */
+    public static function formSignatoryPosition(string $body, ?string $name, ?string $default): string
+    {
+        $want = mb_strtolower(trim((string)preg_replace('/\s+/u', ' ', (string)$name)));
+        if ($want !== '') {
+            foreach (BrgyDocs::sigEntries($body) as $e) {
+                if (mb_strtolower(trim((string)preg_replace('/\s+/u', ' ', $e['name']))) === $want && $e['pos'] !== '') {
+                    return mb_substr(str_replace("\n", ', ', $e['pos']), 0, 120);
+                }
+            }
+        }
+        return (string)$default;
     }
 
     public static function saveForm(int $formId, array $d, $lockVersion = null): void
@@ -1776,6 +1796,32 @@ final class BrgyOps
                     }
                     $set['values_json'] = json_encode($vals, JSON_UNESCAPED_UNICODE);
                 }
+            }
+            // v38: what was filled into the blanks is kept for the transaction's next forms (the purchase order no. typed on the
+            // purchase order fills the IAR); a field made blank again on the form it came from is forgotten
+            $filled = 0;
+            if ($f['project_id'] && Brgy::v38Ready()) {
+                $fv = BrgyDocs::formValues($set['body']);
+                $vals = json_decode((string)($set['values_json'] ?? $f['values_json']), true) ?: ['f' => [], 't' => []];
+                foreach ($fv['set'] as $k => $v) {
+                    if (!BrgyDocs::storable($k)) {
+                        continue;
+                    }
+                    if (!isset($vals['f'][$k]) || (string)$vals['f'][$k] === '') {
+                        $vals['f'][$k] = $v;
+                    }
+                    if ((string)DB::value('SELECT value FROM brgy_form_values WHERE project_id = :p AND ph_key = :k', ['p' => $f['project_id'], 'k' => $k]) === $v) {
+                        continue;
+                    }
+                    DB::run('INSERT INTO brgy_form_values (project_id, ph_key, value, form_id, updated_by, updated_at) VALUES (:p, :k, :v, :f, :u, :t)
+                             ON DUPLICATE KEY UPDATE value = VALUES(value), form_id = VALUES(form_id), updated_by = VALUES(updated_by), updated_at = VALUES(updated_at)',
+                        ['p' => $f['project_id'], 'k' => $k, 'v' => $v, 'f' => $formId, 'u' => Auth::id(), 't' => date('Y-m-d H:i:s')]);
+                    $filled++;
+                }
+                foreach ($fv['blank'] as $k) {
+                    DB::run('DELETE FROM brgy_form_values WHERE project_id = :p AND ph_key = :k AND form_id = :f', ['p' => $f['project_id'], 'k' => $k, 'f' => $formId]);
+                }
+                $set['values_json'] = json_encode($vals, JSON_UNESCAPED_UNICODE);
             }
             DB::update('brgy_forms', $set, 'id = :id', ['id' => $formId]);
             Brgy::bumpVersion('brgy_forms', $formId);

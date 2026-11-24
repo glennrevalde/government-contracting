@@ -89,6 +89,7 @@
 <li><strong>Price levels</strong>: the demo company has Wholesale (-5%), VIP (-10%), Retail Plus (+5%), Price Level 4 to Price Level 10 (0%, ready to be renamed). Fixed prices per item and level are set on the item or in Set Item Prices and Levels (see <a href="manual.php?c=inventory">Inventory</a>).</li>
 <li><strong>Sales representatives</strong>: with their commission %, used by the Sales by Rep reports.</li>
 <li><strong>Customer types</strong> and <strong>Billing groups</strong> (billing groups are used by <a href="#pg-cust-batch_invoices">Create Batch Invoices</a>).</li>
+<li><strong>Cities and municipalities</strong>: the <a href="#pg-cust-cities">City/Municipality List</a> (Customers &gt; Lists), chosen in the City/Municipality box of the customer form.</li>
 </ul>
 <p>The accounts every customer transaction uses (Accounts Receivable, Undeposited Funds, Default Sales Income, Sales Returns and Allowances, Sales Discounts, Finance Charge Income, Reimbursable Expense Income, Creditable Withholding Tax, Creditable VAT Withheld and Output Tax) are set in <a href="manual.php?c=chart-of-accounts#pg-coa-default_accounts">Module Default Accounts</a>. If one is missing, saving stops with a message such as "The default account "Accounts Receivable" is not set. Set it under Financial &gt; Module Default Accounts."</p>
 <p>The finance charge rate, minimum charge and grace period are set in <a href="manual.php?c=administration#pg-admin-settings">Company, Security &amp; Closing Date</a>. The discount and price limits of each role, and whether a role may exceed credit limits, are set in <a href="manual.php?c=administration#pg-admin-roles">User Role Configuration</a>.</p>
@@ -99,15 +100,15 @@
 <h4 id="s-the-customer-list">The customer list<a class="man-hash" href="#s-the-customer-list" aria-label="Link to this section"><i class="bi bi-link-45deg"></i></a></h4>
 <p>The left side lists your customers in alphabetical order, each job indented under its customer with an arrow. The figure beside each name is that record's own Accounts Receivable balance.</p>
 <ul>
-<li><strong>Type to find a customer or job</strong>: the list narrows as you type, letter by letter, to the customers and jobs whose name, company name, contact person, treasurer name, phone or mobile contains what you typed. The count under the box says how many are shown ("3 of 24 customer(s) and job(s)"). When nothing matches, the list says <strong>No customer matches. Press Enter to search the whole list on the server.</strong> Press Enter to open the first match, or, when the list on screen is filtered to active customers, to search the whole list, inactive ones included.</li>
+<li><strong>Type to find a customer or job</strong>: the list narrows as you type, letter by letter, to the customers and jobs whose name, company name, contact person, treasurer name, phone or mobile contains what you typed. Pressing Enter to search the server also finds the customers of a city or municipality by its name. The count under the box says how many are shown ("3 of 24 customer(s) and job(s)"). When nothing matches, the list says <strong>No customer matches. Press Enter to search the whole list on the server.</strong> Press Enter to open the first match, or, when the list on screen is filtered to active customers, to search the whole list, inactive ones included.</li>
 <li>The drop-down beside it shows <strong>Active</strong> customers (the default), <strong>All</strong> customers including inactive ones (marked "inactive"), or only those <strong>With balance</strong>.</li>
 <li>Click a name to show its details on the right.</li>
 </ul>
 <figure class="man-fig"><a class="man-zoom" href="assets/manual/img/cust_center__search.jpg" title="Click to enlarge"><img src="assets/manual/img/cust_center__search.jpg" alt="The customer list narrowed to the names containing &quot;abc&quot; as it is typed" width="1094" height="902" loading="lazy" decoding="async"></a><figcaption>The customer list narrowed to the names containing &quot;abc&quot; as it is typed</figcaption></figure>
-<p>At the top of the page, <strong>New customer / job</strong> opens a blank customer form and <strong>Export list</strong> downloads the list shown as a spreadsheet file (CSV) with the name, parent customer, company, contact, phone, email, billing address, terms, credit limit, balance and active flag. Exporting needs the print permission.</p>
+<p>At the top of the page, <strong>New customer / job</strong> opens a blank customer form and <strong>Export list</strong> downloads the list shown as a spreadsheet file (CSV) with the name, parent customer, company, contact, treasurer, phone, email, billing address, zip code, city or municipality, province, terms, credit limit, balance and active flag. Exporting needs the print permission.</p>
 <h4 id="s-a-customers-details">A customer's details<a class="man-hash" href="#s-a-customers-details" aria-label="Link to this section"><i class="bi bi-link-45deg"></i></a></h4>
 <figure class="man-fig"><a class="man-zoom" href="assets/manual/img/cust_center__detail.jpg" title="Click to enlarge"><img src="assets/manual/img/cust_center__detail.jpg" alt="The details of ABC Trading Corp., with its buttons, transactions and notes" width="1094" height="901" loading="lazy" decoding="async"></a><figcaption>The details of ABC Trading Corp., with its buttons, transactions and notes</figcaption></figure>
-<p>The top card shows the name (as Customer:Job for a job), the company name and TIN, the contact person, phone, mobile and email, the treasurer, and the billing address with the zip code. On the right are:</p>
+<p>The top card shows the name (as Customer:Job for a job), the company name and TIN, the contact person, phone, mobile and email, the treasurer, the billing address with the zip code, and the city or municipality with its province. On the right are:</p>
 <ul>
 <li><strong>Open balance</strong>: what the customer owes today. For a customer, it includes the balances of its jobs.</li>
 <li><strong>Credit limit</strong>: the limit, or "none".</li>
@@ -263,6 +264,10 @@
 <td>Untick to hide the customer from the drop-downs of forms.</td>
 </tr>
 <tr>
+<td><strong>City/Municipality</strong></td>
+<td>The city or municipality of the customer, chosen from the <a href="#pg-cust-cities">City/Municipality List</a> (type a few letters to find it). Choosing one with a zip code fills an empty <strong>Zip code</strong>. <strong>Edit the list</strong> beside the label opens the list in a new tab to add, change or delete one; when you come back to the form, the box shows the list as it is now and keeps what you chose. Shown on the customer's card, in the exported list and in the City/Municipality column of custom reports.</td>
+</tr>
+<tr>
 <td><strong>Reason for change (required for credit limit changes)</strong></td>
 <td>Shown when editing. Explain any credit limit change.</td>
 </tr>
@@ -277,7 +282,7 @@
 <ol>
 <li>Click <strong>New customer / job</strong>.</li>
 <li>Type the <strong>Customer / job name</strong> and leave <strong>Job of</strong> blank.</li>
-<li>Fill in the company, contact person, treasurer name, addresses, zip code, TIN and the terms, credit limit, price level and other settings.</li>
+<li>Fill in the company, contact person, treasurer name, addresses, zip code, TIN, the city or municipality, and the terms, credit limit, price level and other settings.</li>
 <li>Click <strong>Save customer</strong>, or <strong>Save customer &amp; New</strong> to go on with the next one.</li>
 </ol>
 <p>To add a job:</p>
@@ -311,6 +316,47 @@
 <li>A credit limit change without a reason stops with "Enter a reason for changing the credit limit." Users with the Approve permission on the Customer Center, and administrators, may leave the reason blank. Every change is kept in the audit trail with the values before and after.</li>
 <li>Adding notes needs the edit permission on the Customer Center.</li>
 <li>The price level and sales representative of the record chosen on a form are used, so a job can have its own price level.</li>
+</ul>
+<h2 id="pg-cust-cities">City/Municipality List<a class="man-hash" href="#pg-cust-cities" aria-label="Link to this section"><i class="bi bi-link-45deg"></i></a></h2>
+<p>The cities and municipalities offered in the <strong>City/Municipality</strong> box of the customer form. Each has a name, a province and a zip code; the list shows how many customers use each one.</p>
+<p><strong>Where to find it:</strong> Customers &gt; Lists &gt; City/Municipality List, or <strong>Edit the list</strong> beside the City/Municipality box of the customer form.</p>
+<figure class="man-fig"><a class="man-zoom" href="assets/manual/img/cust_cities__list.jpg" title="Click to enlarge"><img src="assets/manual/img/cust_cities__list.jpg" alt="The City/Municipality List: the cities and municipalities with the number of customers of each, and the card to add one" width="1094" height="640" loading="lazy" decoding="async"></a><figcaption>The City/Municipality List; the bin is greyed out for the ones customers use</figcaption></figure>
+<ul>
+<li><strong>Type to find</strong> narrows the list as you type; the count under it says how many are shown.</li>
+<li>The <strong>Customers</strong> column counts the customers and jobs that have the city or municipality; <strong>Not used</strong> means none.</li>
+<li>The ones made inactive are listed last, marked "(inactive)".</li>
+</ul>
+<div class="table-responsive man-table"><table class="table table-sm">
+<thead><tr><th>Field</th><th>What to enter / what it means</th></tr></thead>
+<tbody>
+<tr><td><strong>City / municipality</strong></td><td>The name, for example Lapu-Lapu City. Required. The same name can be on the list twice only with different provinces.</td></tr>
+<tr><td><strong>Province</strong></td><td>The province, for example Cebu. The customer form shows the city as "Lapu-Lapu City, Cebu".</td></tr>
+<tr><td><strong>Zip code</strong></td><td>Numbers (and letters, spaces or a dash), up to 10 characters. Choosing the city on a customer whose Zip code is empty fills it.</td></tr>
+<tr><td><strong>Active (offered on the customer form)</strong></td><td>Untick to stop offering it. A customer that already has it keeps it.</td></tr>
+</tbody></table></div>
+<h4 id="s-cities-steps">Step by step<a class="man-hash" href="#s-cities-steps" aria-label="Link to this section"><i class="bi bi-link-45deg"></i></a></h4>
+<p>To add a city or municipality:</p>
+<ol>
+<li>In the <strong>Add a city or municipality</strong> card, type the name, the province and the zip code.</li>
+<li>Click <strong>Add</strong>. It is offered on the customer form at once; a customer form already open in another tab shows it when you go back to that tab.</li>
+</ol>
+<p>To change one:</p>
+<ol>
+<li>Click <strong>Edit</strong> on its line.</li>
+<li>Change the name, province, zip code or Active, and click <strong>Save</strong> (or <strong>Cancel</strong>). A new name shows on every customer that has it.</li>
+</ol>
+<p>To delete one:</p>
+<ol>
+<li>Click the bin on its line and confirm.</li>
+</ol>
+<p>Only a city or municipality that no customer uses can be deleted: for one in use, the bin is greyed out and says how many customers use it. Choose another city or municipality on those customers first, or untick <strong>Active</strong> so it is no longer offered.</p>
+<h4 id="s-cities-good-to-know">Good to know<a class="man-hash" href="#s-cities-good-to-know" aria-label="Link to this section"><i class="bi bi-link-45deg"></i></a></h4>
+<ul>
+<li>A city or municipality already on the list with the same province stops with "Lapu-Lapu City, Cebu is already on the list."</li>
+<li>Deleting one in use stops with "... cannot be deleted: 2 customers use it. Choose another city or municipality on those customers first, or make it inactive so it is no longer offered."</li>
+<li>Adding, changing and deleting need the create, edit and delete permissions of the City/Municipality List (<a href="manual.php?c=administration#pg-admin-roles">User Role Configuration</a>). Every change is kept in the audit trail.</li>
+<li>When version 38 was installed, the list started with the cities and municipalities of the <a href="manual.php?c=barangay-contracts#pg-brgy-entities">procuring entities</a>, and the customers of those entities took their city.</li>
+<li><a href="manual.php?c=administration#pg-admin-import">Import from CSV</a> (Customers) has a City/Municipality column: the name as on the list, or "Name, Province".</li>
 </ul>
 <h2 id="s-working-with-sales-forms">Working with sales forms<a class="man-hash" href="#s-working-with-sales-forms" aria-label="Link to this section"><i class="bi bi-link-45deg"></i></a></h2>
 <p>Six pages share the same form, list and document view: <a href="#pg-cust-estimates">Create Estimates</a>, <a href="#pg-cust-sales_orders">Create Sales Orders</a>, <a href="#pg-cust-invoices">Create Invoices</a>, <a href="#pg-cust-sales_receipts">Enter Sales Receipts</a>, <a href="#pg-cust-statement_charges">Enter Statement Charges</a> and <a href="#pg-cust-credit_memos">Create Credit Memos/Refunds</a>. This section explains what they have in common; each page's own section explains only what is different.</p>

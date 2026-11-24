@@ -2756,3 +2756,31 @@ body.sig-public { background: #eef1f5; min-height: 100vh; display: flex; flex-di
 .dv-calc .dv-net th, .dv-calc .dv-net td { border-top: 1px solid var(--line); padding-top: .35rem; color: #212529; font-weight: 700; }
 .formdoc .ph-dv { background: transparent; }
 #linesGrid thead th:first-child { min-width: 108px; }
+
+/* =====================================================================
+   Version 38: undo and redo on the forms, fields that stay changeable,
+   the signatories in the Fill in the blanks panel, the City/Municipality List
+   ===================================================================== */
+.eb:disabled { opacity: .42; cursor: default; background: linear-gradient(180deg, #fff, #f5f6f8); color: #3f4954; }
+.eb-sm .eb { width: 28px; height: 26px; font-size: .84rem; }
+.gap-card .card-header { padding-top: .45rem; padding-bottom: .45rem; }
+/* a field filled in from the panel or the page: marked while editing only (it prints as plain text) */
+.formdoc.is-editing .ph-set { background: #e7f1ff; box-shadow: inset 0 -1px 0 #86b7fe; border-radius: 2px; padding: 0 1px; }
+.formdoc.is-editing .ph-focus { outline: 2px solid #0d6efd; outline-offset: 1px; border-radius: 2px; }
+.formdoc.is-editing .sig-focus { outline: 2px dashed rgba(13, 110, 253, .55); outline-offset: 3px; border-radius: 4px; }
+.gap-item { margin-bottom: .55rem; padding-left: .55rem; border-left: 3px solid #cfe2ff; }
+.gap-item.is-blank { border-left-color: #f0b400; }
+.gap-item .form-label { margin-bottom: .15rem; }
+.gap-stored { display: flex; gap: .45rem; align-items: flex-start; background: #eef5ff; border: 1px solid #cfe2ff; border-radius: 8px; padding: .45rem .6rem; margin-bottom: .6rem; color: #0a3d8f; line-height: 1.4; }
+.fsig-list .fsig-head { font-weight: 600; font-size: .84rem; color: #212529; margin: .85rem 0 .45rem; padding-top: .75rem; border-top: 1px solid #e3e7ec; }
+.fsig-item { border: 1px solid #e3e7ec; border-radius: 8px; padding: .5rem .6rem .6rem; margin-bottom: .5rem; background: #f8f9fb; box-shadow: 0 1px 1px rgba(15, 23, 42, .04); }
+.fsig-item.is-linked { border-color: #9ec5fe; background: #f3f8ff; }
+.fsig-item .form-label { margin: .3rem 0 .12rem; }
+.fsig-item textarea { resize: vertical; min-height: 31px; line-height: 1.35; }
+.fsig-no { font-size: .76rem; font-weight: 600; color: #5c6670; }
+.fsig-own { font-weight: 500; color: #0d6efd; }
+.fsig-item:not(.is-linked) .fsig-own { display: none; }
+#sigLinkNote:empty { display: none; }
+/* City/Municipality List */
+.city-find { min-width: 220px; flex: 0 1 300px; }
+@media (max-width: 575.98px) { .city-find { flex: 1 1 100%; min-width: 0; } }

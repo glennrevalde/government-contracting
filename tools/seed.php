@@ -271,7 +271,7 @@ function seed_master_data(): void
             'pages' => [
                 'home:*' => 'P', 'rc:*' => 'P', 'coa:*' => 'CEDP', 'fa:*' => 'CEDP', 'bank:*' => 'CEDP',
                 'cust:report' => 'P', 'vend:report' => 'P', 'inv:report' => 'P', 'pos:report' => 'P',
-                'cust.center' => 'P', 'cust.payments' => 'P', 'cust.invoices' => 'P', 'vend.center' => 'P',
+                'cust.center' => 'P', 'cust.cities' => 'P', 'cust.payments' => 'P', 'cust.invoices' => 'P', 'vend.center' => 'P',
                 'vend.bill_tracker' => 'P', 'vend.bills' => 'P', 'vend.pay_bills' => 'P', 'vend.advances' => 'P', 'bir:*' => 'CEDP',
                 'inv.center' => 'P', 'inv.items' => 'P', 'inv.categories' => 'P', 'inv.adjust' => 'P', 'inv.process' => 'P', 'inv.formulas' => 'P', 'inv.uom' => 'P',
                 'admin.utilities' => 'P',
@@ -307,7 +307,7 @@ function seed_master_data(): void
         'Sales Representative' => [
             'desc' => 'Estimates, sales orders, and invoices, and the Sales reports.',
             'pages' => [
-                'home:*' => 'P', 'rc:*' => 'P', 'cust.center' => 'P', 'cust.estimates' => 'CEP', 'cust.sales_orders' => 'CEP', 'cust.invoices' => 'CEP',
+                'home:*' => 'P', 'rc:*' => 'P', 'cust.center' => 'P', 'cust.cities' => 'P', 'cust.estimates' => 'CEP', 'cust.sales_orders' => 'CEP', 'cust.invoices' => 'CEP',
                 'group:Sales Reports' => 'P', 'rpt.item_price_list' => 'P', 'rpt.inv_movement_txns' => 'P',
             ],
             'special' => ['view_costs' => '0', 'max_discount_pct' => '5', 'max_price_override_pct' => '0'],
@@ -334,7 +334,7 @@ function seed_master_data(): void
             'desc' => 'Barangay Contracts: approves bids, billing packs, change orders and forms within the approval limit, waives requirements, closes out and reopens contracts, and keeps the set-up lists.',
             'pages' => ['home:*' => 'P', 'rc:*' => 'P', 'brgy:*' => 'P', 'brgy.approvals' => 'CEPA', 'brgy.projects' => 'EPA', 'brgy.billing' => 'PA', 'brgy.forms' => 'PA', 'brgy.vault' => 'EP',
                 'brgy.templates' => 'CEDP', 'brgy.requirements' => 'CEDPA', 'brgy.modes' => 'CEDP', 'brgy.references' => 'CEDP', 'brgy.settings' => 'EP', 'brgy.accountable' => 'EP', 'brgy.entities' => 'EP', 'brgy.tradenames' => 'EP', 'brgy.process' => 'CEDP',
-                'cust.center' => 'P', 'rpt.ar_aging_summary' => 'P', 'rpt.income_statement' => 'P'],
+                'cust.center' => 'P', 'cust.cities' => 'P', 'rpt.ar_aging_summary' => 'P', 'rpt.income_statement' => 'P'],
             'special' => ['view_costs' => '1', 'brgy_approval_limit' => ''],
         ],
         'Contracts - Project Manager' => [
@@ -352,14 +352,14 @@ function seed_master_data(): void
         'Contracts - Billing Officer' => [
             'desc' => 'Barangay Contracts: prepares billing packs for accepted deliveries, issues the invoices once approved, submits the packs and follows up their acknowledgment.',
             'pages' => ['home:*' => 'P', 'rc:*' => 'P', 'brgy.dashboard' => 'P', 'brgy.projects' => 'P', 'brgy.billing' => 'CEDP', 'brgy.forms' => 'CEP', 'brgy.vault' => 'CP', 'brgy.approvals' => 'P',
-                'rpt.brgy_billing_pack' => 'P', 'rpt.brgy_contract_status' => 'P', 'rpt.brgy_ar_aging' => 'P', 'rpt.brgy_monitoring' => 'P', 'cust.center' => 'P', 'cust.invoices' => 'P'],
+                'rpt.brgy_billing_pack' => 'P', 'rpt.brgy_contract_status' => 'P', 'rpt.brgy_ar_aging' => 'P', 'rpt.brgy_monitoring' => 'P', 'cust.center' => 'P', 'cust.cities' => 'P', 'cust.invoices' => 'P'],
             'special' => ['view_costs' => '0', 'brgy_approval_limit' => '0'],
         ],
         'Contracts - Collection Officer' => [
             'desc' => 'Barangay Contracts: records collections with the taxes withheld and deductions, returned checks, retention releases and the BIR Forms 2307 received.',
             'pages' => ['home:*' => 'P', 'rc:*' => 'P', 'brgy.dashboard' => 'P', 'brgy.projects' => 'P', 'brgy.collections' => 'CEDP', 'brgy.billing' => 'P', 'brgy.forms' => 'CEP', 'brgy.vault' => 'CP',
                 'rpt.brgy_ar_aging' => 'P', 'rpt.brgy_collection_perf' => 'P', 'rpt.brgy_wht_credits' => 'P', 'rpt.brgy_retention' => 'P', 'rpt.brgy_cash_forecast' => 'P', 'rpt.brgy_monitoring' => 'P',
-                'cust.center' => 'P', 'cust.payments' => 'P'],
+                'cust.center' => 'P', 'cust.cities' => 'P', 'cust.payments' => 'P'],
             'special' => ['view_costs' => '0'],
         ],
         'Auditor' => [

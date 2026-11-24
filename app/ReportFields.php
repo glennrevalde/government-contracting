@@ -48,6 +48,7 @@ final class ReportFields
             'email'       => ['Email', 'text'],
             'address'     => ['Billing address', 'text'],
             'zip'         => ['Zip code', 'text'],
+            'city'        => ['City/Municipality', 'text'],   // v38
             'tin'         => ['TIN', 'text'],
             'terms'       => ['Terms', 'text'],
             'type'        => ['Customer type', 'text'],
@@ -267,13 +268,16 @@ final class ReportFields
                 }
                 break;
             case 'customer':
-                $rows = DB::all("SELECT c.*, tm.name AS terms_name, ct.name AS type_name, sr.name AS rep_name, pl.name AS level_name
+                $city = Cities::ready();   // v38
+                $rows = DB::all("SELECT c.*, tm.name AS terms_name, ct.name AS type_name, sr.name AS rep_name, pl.name AS level_name, "
+                                . ($city ? "TRIM(CONCAT(ci.name, IF(COALESCE(ci.province, '') <> '', CONCAT(', ', ci.province), ''))) AS city_label" : 'NULL AS city_label') . "
                                    FROM customers c LEFT JOIN terms tm ON tm.id = c.terms_id LEFT JOIN customer_types ct ON ct.id = c.customer_type_id
-                                   LEFT JOIN sales_reps sr ON sr.id = c.sales_rep_id LEFT JOIN price_levels pl ON pl.id = c.price_level_id
+                                   LEFT JOIN sales_reps sr ON sr.id = c.sales_rep_id LEFT JOIN price_levels pl ON pl.id = c.price_level_id"
+                                . ($city ? ' LEFT JOIN cities ci ON ci.id = c.city_id' : '') . "
                                   WHERE c.id IN $in", $p);
                 foreach ($rows as $c) {
                     $out[(int)$c['id']] = ['name' => $c['name'], 'company' => $c['company_name'], 'contact' => $c['contact_person'], 'treasurer' => $c['treasurer_name'] ?? '', 'phone' => $c['phone'],
-                        'mobile' => $c['mobile'], 'email' => $c['email'], 'address' => self::oneLine($c['billing_address']), 'zip' => $c['zip_code'] ?? '', 'tin' => $c['tin'], 'terms' => $c['terms_name'],
+                        'mobile' => $c['mobile'], 'email' => $c['email'], 'address' => self::oneLine($c['billing_address']), 'zip' => $c['zip_code'] ?? '', 'city' => (string)($c['city_label'] ?? ''), 'tin' => $c['tin'], 'terms' => $c['terms_name'],
                         'type' => $c['type_name'], 'rep' => $c['rep_name'], 'price_level' => $c['level_name'], 'limit' => $c['credit_limit'],
                         'balance' => in_array('balance', $fields, true) ? Balances::customerBalance((int)$c['id']) : ''];
                 }

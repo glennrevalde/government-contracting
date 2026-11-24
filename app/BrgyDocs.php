@@ -802,6 +802,19 @@ final class BrgyDocs
                     'collection.table' => ['html' => '<table class="ft" style="width:60%"><tbody>' . $rows . '</tbody></table>']];
             }
         }
+        // v38: a field with no value in the records takes what was filled into that blank on another form of the transaction
+        // (the purchase order no. typed on the purchase order fills the IAR); it stays a marked field, changeable on the form
+        if ($p && Brgy::v38Ready()) {
+            $known = [];
+            foreach (self::FIELDS as $g) {
+                $known += $g;
+            }
+            foreach (self::storedValues((int)$p['id']) as $k => $sv) {
+                if (array_key_exists($k, $c) && !is_array($c[$k]) && trim((string)$c[$k]) === '') {
+                    $c[$k] = ['html' => '<span class="ph-set" data-ph="' . h($k) . '" title="' . h($known[$k] ?? $k) . '">' . h($sv['v']) . '</span>', 'text' => $sv['v']];
+                }
+            }
+        }
         return self::framing($c, $L, $e);
     }
 
@@ -1305,6 +1318,138 @@ final class BrgyDocs
         return (string)preg_replace('/\b(hon\.)(\s|&nbsp;)+hon\.\s+/i', '$1 ', $html);
     }
 
+    /** v38: fields filled on one form whose value is not kept for the transaction's other forms (each form has its own) */
+    private const STORE_SKIP = ['date.', 'doc.', 'delivery.', 'billing.', 'collection.', 'dv.gross', 'dv.taxes', 'dv.net', 'letterhead', 'signatories'];
+
+    /** v38: a field whose value filled on a form is kept for the transaction's other forms */
+    public static function storable(string $k): bool
+    {
+        if (!preg_match('/^[a-z0-9_]+\.[a-z0-9_.]+$/', $k) || in_array($k, self::HTML_FIELDS, true)) {
+            return false;
+        }
+        foreach (self::STORE_SKIP as $skip) {
+            if (str_starts_with($k, $skip)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /** v38: what was filled into the blanks of a transaction's forms: field => [v => value, from => form no.], not those of $exceptForm */
+    public static function storedValues(int $projectId, ?int $exceptForm = null): array
+    {
+        if (!Brgy::v38Ready()) {
+            return [];
+        }
+        $out = [];
+        foreach (DB::all('SELECT v.ph_key, v.value, v.form_id, f.form_no FROM brgy_form_values v LEFT JOIN brgy_forms f ON f.id = v.form_id WHERE v.project_id = :p ORDER BY v.ph_key',
+                     ['p' => $projectId]) as $r) {
+            if ($exceptForm && (int)$r['form_id'] === $exceptForm) {
+                continue;
+            }
+            $out[$r['ph_key']] = ['v' => (string)$r['value'], 'from' => (string)$r['form_no']];
+        }
+        return $out;
+    }
+
+    /** v38: the fields filled in on a form (span.ph-set): field => value, and the fields still blank */
+    public static function formValues(string $html): array
+    {
+        $set = [];
+        $blank = [];
+        $xp = self::xpath($html);
+        if ($xp) {
+            foreach ($xp->query('//span[@data-ph]') as $el) {
+                $k = strtolower((string)$el->getAttribute('data-ph'));
+                $cls = ' ' . $el->getAttribute('class') . ' ';
+                $v = trim((string)preg_replace('/\s+/u', ' ', str_replace("\xc2\xa0", ' ', $el->textContent)));
+                if (str_contains($cls, ' ph-set ') && $v !== '' && !isset($set[$k])) {
+                    $set[$k] = mb_substr($v, 0, 500);
+                } elseif (str_contains($cls, ' ph-missing ')) {
+                    $blank[$k] = true;
+                }
+            }
+        }
+        return ['set' => $set, 'blank' => array_keys($blank)];
+    }
+
+    /**
+     * v38: the signatures of a form's text: [name, pos] each, as the Fill in the blanks panel finds them (the name of a
+     * signature block, .sg-nm or .sg-name, and the position after it, .sg-ps or .sg-cap; or a sig-table cell: line, caption)
+     */
+    public static function sigEntries(string $html): array
+    {
+        $xp = self::xpath($html);
+        if (!$xp) {
+            return [];
+        }
+        $has = fn(string $c) => "contains(concat(' ', normalize-space(@class), ' '), ' $c ')";
+        $text = function (?DOMNode $n): string {
+            if (!$n) {
+                return '';
+            }
+            $t = '';
+            $walk = function (DOMNode $x) use (&$walk, &$t) {
+                foreach ($x->childNodes as $c) {
+                    if ($c->nodeType === XML_TEXT_NODE) {
+                        $t .= $c->nodeValue;
+                    } elseif ($c->nodeName === 'br') {
+                        $t .= "\n";
+                    } elseif ($c->nodeType === XML_ELEMENT_NODE) {
+                        $walk($c);
+                    }
+                }
+            };
+            $walk($n);
+            $lines = array_values(array_filter(array_map(fn($l) => trim((string)preg_replace('/\s+/u', ' ', str_replace("\xc2\xa0", ' ', $l))), explode("\n", $t)), fn($l) => $l !== ''));
+            return implode("\n", $lines);
+        };
+        $out = [];
+        foreach ($xp->query('//*[' . $has('sg-nm') . ' or ' . $has('sg-name') . ']') as $nm) {
+            $box = $xp->query('ancestor::*[' . $has('sg-block') . ' or ' . $has('fx-sig') . '][1]', $nm)->item(0) ?: $xp->query('ancestor::td[1]', $nm)->item(0) ?: $nm->parentNode;
+            $pos = $xp->query('following::*[(' . $has('sg-ps') . ' or ' . $has('sg-cap') . ')][1]', $nm)->item(0);
+            if ($pos && !self::inside($pos, $box)) {
+                $pos = null;
+            }
+            $out[] = ['name' => $text($nm), 'pos' => $text($pos)];
+        }
+        foreach ($xp->query('//table[' . $has('sig-table') . ']//td') as $td) {
+            $divs = [];
+            foreach ($td->childNodes as $c) {
+                if ($c->nodeName === 'div') {
+                    $divs[] = $c;
+                }
+            }
+            if (count($divs) >= 2) {
+                $out[] = ['name' => $text($divs[0]), 'pos' => $text($divs[1])];
+            }
+        }
+        return $out;
+    }
+
+    private static function inside(DOMNode $n, DOMNode $box): bool
+    {
+        for ($x = $n->parentNode; $x; $x = $x->parentNode) {
+            if ($x->isSameNode($box)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static function xpath(string $html): ?DOMXPath
+    {
+        if (trim($html) === '') {
+            return null;
+        }
+        $doc = new DOMDocument('1.0', 'UTF-8');
+        $prev = libxml_use_internal_errors(true);
+        $doc->loadHTML('<?xml encoding="UTF-8"><html><body><div id="r">' . $html . '</div></body></html>', LIBXML_HTML_NODEFDTD);
+        libxml_clear_errors();
+        libxml_use_internal_errors($prev);
+        return new DOMXPath($doc);
+    }
+
     /** Gaps left in a form's text (fields that had no value when it was made) */
     public static function gaps(string $html): array
     {
@@ -1459,7 +1604,7 @@ final class BrgyDocs
             . ' table { border-collapse: collapse; } table.ft { width: 100%; } table.ft td, table.ft th { border: 1px solid #000; padding: 3pt 5pt; vertical-align: top; } table.ft th { background: #eeeeee; }'
             . ' table.fx { border-collapse: collapse; } table.fx td, table.fx th { border: ' . $b . '; padding: ' . $L['cell_pad'] . 'px 4px; vertical-align: top; font-size: ' . $L['table_size'] . 'pt; }'
             . ' table.fx-plain td, table.fx-lines td { border: 0; padding: 1px 3px; vertical-align: top; } table.fx-lines td.val { border-bottom: 1px solid #000; } table.fx-lines td.lbl { text-align: right; font-weight: bold; width: 42%; }'
-            . ' .fx-title { font-size: ' . $L['title_size'] . 'pt; font-weight: bold; } .sg-name { font-weight: bold; text-decoration: underline; } .fx-chk { border: 1px solid #000; padding: 0 6pt; } .fx-chk.is-on:before { content: "X"; }'
+            . ' .fx-title { font-size: ' . $L['title_size'] . 'pt; font-weight: bold; } .fx-sig .sg-name { font-weight: bold; text-decoration: underline; } .fx-chk { border: 1px solid #000; padding: 0 6pt; } .fx-chk.is-on:before { content: "X"; }'
             . ' .sig-table td { border: 0; padding-top: 24pt; } .ph-unknown { color: #a00; }' . '</style></head>'
             . '<body><div class="Section1">' . $body . '</div></body></html>';
     }

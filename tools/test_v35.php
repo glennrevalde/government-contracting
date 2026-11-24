@@ -67,7 +67,7 @@ echo "\n4. The Customer Center\n";
 $page = file_get_contents(APP_ROOT . '/modules/customers/center.php');
 $ok('The form has the boxes Treasurer name and Zip code', str_contains($page, "input_field('treasurer_name', 'Treasurer name'") && str_contains($page, "input_field('zip_code', 'Zip code'"));
 $ok('The list finds a customer by its treasurer', str_contains($page, 'c.treasurer_name LIKE :q'));
-$ok('The exported list has the columns Treasurer and Zip code', str_contains($page, "'Treasurer', 'Phone'") && str_contains($page, "'Zip code', 'Terms'"));
+$ok('The exported list has the columns Treasurer and Zip code', str_contains($page, "'Treasurer', 'Phone'") && str_contains($page, "'Billing address', 'Zip code'"));
 
 DB::run('DELETE FROM customers WHERE id = :id', ['id' => $id]);
 echo "\n" . $pass . ' passed, ' . count($failures) . " failed\n";

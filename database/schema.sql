@@ -297,6 +297,21 @@ CREATE TABLE customer_types (
   name VARCHAR(60)  NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- v38: the City/Municipality List (Customers > Lists); a city or municipality is deleted only when no customer uses it
+DROP TABLE IF EXISTS cities;
+CREATE TABLE cities (
+  id          INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  name        VARCHAR(120) NOT NULL,            -- Lapu-Lapu City, Cordova
+  province    VARCHAR(120) NULL,                -- Cebu
+  zip_code    VARCHAR(10)  NULL,                -- the main zip code, offered on the customer form
+  is_active   TINYINT(1)   NOT NULL DEFAULT 1,
+  created_by  INT UNSIGNED NULL,
+  created_at  TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_by  INT UNSIGNED NULL,
+  updated_at  DATETIME     NULL,
+  KEY ix_cities_name (name)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 DROP TABLE IF EXISTS billing_groups;
 CREATE TABLE billing_groups (
   id   INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
@@ -354,6 +369,7 @@ CREATE TABLE customers (
   billing_address     VARCHAR(255) NULL,
   shipping_address    VARCHAR(255) NULL,
   zip_code            VARCHAR(10)  NULL,          -- v35: the zip code of the address
+  city_id             INT UNSIGNED NULL,          -- v38: the city or municipality (City/Municipality List)
   tin                 VARCHAR(30)  NULL,
   wht_ids             VARCHAR(100) NULL,          -- withholding taxes it usually withholds from its payments
   terms_id            INT UNSIGNED NULL,
@@ -377,7 +393,8 @@ CREATE TABLE customers (
   CONSTRAINT fk_cust_pm     FOREIGN KEY (payment_method_id) REFERENCES payment_methods(id),
   CONSTRAINT fk_cust_type   FOREIGN KEY (customer_type_id) REFERENCES customer_types(id),
   CONSTRAINT fk_cust_rep    FOREIGN KEY (sales_rep_id) REFERENCES sales_reps(id),
-  CONSTRAINT fk_cust_bg     FOREIGN KEY (billing_group_id) REFERENCES billing_groups(id)
+  CONSTRAINT fk_cust_bg     FOREIGN KEY (billing_group_id) REFERENCES billing_groups(id),
+  CONSTRAINT fk_cust_city   FOREIGN KEY (city_id) REFERENCES cities(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 DROP TABLE IF EXISTS vendors;
@@ -2020,6 +2037,20 @@ CREATE TABLE brgy_forms (
   KEY ix_bf_related (related_type, related_id),
   CONSTRAINT fk_bf_project  FOREIGN KEY (project_id) REFERENCES brgy_projects(id),
   CONSTRAINT fk_bf_template FOREIGN KEY (template_id) REFERENCES brgy_templates(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- v38: what was filled into the blanks of a transaction's forms (purchase order no., IAR no. ...), so the next forms
+-- of the same transaction are filled with it; the transaction's own records come first
+DROP TABLE IF EXISTS brgy_form_values;
+CREATE TABLE brgy_form_values (
+  project_id  INT UNSIGNED NOT NULL,
+  ph_key      VARCHAR(60)  NOT NULL,             -- the field, as in {{po.no}}
+  value       VARCHAR(500) NOT NULL,
+  form_id     INT UNSIGNED NULL,                 -- the form it was filled on
+  updated_by  INT UNSIGNED NULL,
+  updated_at  DATETIME     NULL,
+  PRIMARY KEY (project_id, ph_key),
+  CONSTRAINT fk_bfv_project FOREIGN KEY (project_id) REFERENCES brgy_projects(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Maker / checker / approver: every step of a controlled record
