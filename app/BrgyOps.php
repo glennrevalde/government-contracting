@@ -1397,12 +1397,14 @@ final class BrgyOps
             $vat = 0.0;
             $lateDays = (int)DB::value("SELECT COALESCE(MAX(days_late), 0) FROM brgy_deliveries WHERE project_id = :p AND status IN ('accepted', 'partial')", ['p' => $p['id']]);
             $ld = 0.0;
+            $availAll = 0.0;
             foreach (Brgy::lines((int)$p['id']) as $l) {
                 $q = round(self::num($d['lines'][$l['id']] ?? $d['lines'][(string)$l['id']] ?? 0), 4);
+                $avail = round((float)$l['qty_accepted'] - ((float)$l['qty_billed'] - ($mine[(int)$l['id']] ?? 0.0)), 4);
+                $availAll += max(0, $avail);
                 if ($q <= 0) {
                     continue;
                 }
-                $avail = round((float)$l['qty_accepted'] - ((float)$l['qty_billed'] - ($mine[(int)$l['id']] ?? 0.0)), 4);
                 if ($q > $avail + 0.00001) {
                     fail('Line ' . $l['line_no'] . ' (' . $l['description'] . '): only ' . qty(max(0, $avail)) . ' accepted and not yet billed. Billing is allowed for what the entity accepted.');
                 }
@@ -1419,6 +1421,16 @@ final class BrgyOps
                 $ld += $g * (float)$p['ld_rate_pct'] / 100 * $lateDays;
             }
             if (!$lines) {
+                // v36: nothing left to bill says why: the quantities sit in a pack not invoiced yet, or nothing more was accepted
+                $pend = $availAll <= 0 ? Brgy::pendingBillings((int)$p['id'], $id) : [];
+                if ($pend) {
+                    fail('Nothing is left to bill on ' . $p['project_no'] . ': the accepted quantities are in billing pack' . (count($pend) > 1 ? 's ' : ' ')
+                        . implode(', ', array_map(fn($x) => $x['billing_no'] . ' (' . (Brgy::WF[$x['status']] ?? $x['status']) . ')', $pend))
+                        . ', not invoiced yet. Open it in Billing Packs, take it through review and approval and issue its invoice, or void it to bill the quantities again.');
+                }
+                if ($availAll <= 0) {
+                    fail('Nothing accepted is left to bill on ' . $p['project_no'] . '. A quantity can be billed once its delivery is recorded and the entity accepts it.');
+                }
                 fail('Enter the quantity to bill on at least one line (accepted quantities only).');
             }
             $gross = r2($gross);

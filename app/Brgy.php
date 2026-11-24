@@ -1294,6 +1294,25 @@ final class Brgy
         return $m;
     }
 
+    /** v36: the billing packs of a project that are not invoiced yet (they hold their quantities until invoiced or voided) */
+    public static function pendingBillings(int $projectId, ?int $exceptId = null): array
+    {
+        return DB::all("SELECT id, billing_no, status, gross_amount FROM brgy_billings WHERE project_id = :p AND status IN ('draft', 'for_review', 'reviewed', 'approved', 'returned')"
+            . ($exceptId ? ' AND id <> :x' : '') . ' ORDER BY id', ['p' => $projectId] + ($exceptId ? ['x' => $exceptId] : []));
+    }
+
+    /** v36: what a billing pack not invoiced yet waits for */
+    public static function billingNext(string $status): string
+    {
+        return [
+            'draft' => 'send it for review',
+            'returned' => 'correct it and send it for review again',
+            'for_review' => 'it waits for the checker\'s review',
+            'reviewed' => 'it waits for the approver',
+            'approved' => 'issue its invoice',
+        ][$status] ?? '';
+    }
+
     /** Revenue and costs of a project from the ledger: lines on the job, or with the project's class and no customer */
     public static function ledgerResult(array $p): array
     {

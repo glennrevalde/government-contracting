@@ -1,0 +1,83 @@
+G-SMaRT Integrated Accounting and Government Contracting System - version 36 (2026-11-24)
+=========================================================================================
+
+New billing pack "locked": every line with Available 0 and the message "Enter the quantity to
+bill on at least one line (accepted quantities only)".
+
+Why it happened
+---------------
+A billing pack holds its quantities from Prepare billing until its invoice is issued (Draft,
+For review, Reviewed, Approved or Returned), so the same quantities are never billed twice.
+The contract already had such a pack for everything accepted. The page did not say so:
+"billed so far" counted only invoiced packs (0.00), the column read "Billed (others)", and
+the Process tab kept offering "Make the billing pack" until the invoice was issued, which
+led back to the page where nothing could be entered.
+
+What to do with a contract in that state (any version): Barangay Contracts > Billing Packs >
+Status "Being prepared / in approval" > open the contract's pack > Send for review, Review,
+Approve, Issue the invoice. To bill the quantities differently, Edit the pack (draft or
+returned) or Void it.
+
+This package holds ONLY the files that changed since version 35, in the same folders. Copy
+them over your installation (folder government-contracting-system); every other file stays
+as it is.
+
+Upgrading an installation of version 35
+---------------------------------------
+1. Back up the program folder.
+2. Copy the files of this package over your installation. config/config.php is not in the
+   package; yours stays.
+3. No migration: the database does not change.
+4. Press Ctrl+F5 once in the browser.
+
+What is new
+-----------
+Barangay Contracts > Billing Packs > New billing pack
+ - At the top, "Billing pack BBL-..... is not invoiced yet": each pack of the contract not
+   invoiced yet, with a link, its status, its amount and what it waits for (send it for
+   review; the checker's review; the approver; issue its invoice; correct it and send it
+   again).
+ - The figures read: contract, invoiced so far, in billing packs not invoiced yet, accepted
+   not billed.
+ - The column "Billed (others)" is now "In other packs".
+ - When nothing is left to bill, the bottom bar has "Open BBL-....." (one pack) and Cancel,
+   with no Prepare billing and no Everything accepted. With nothing accepted and no pack
+   waiting, the page says a quantity is billed once its delivery is accepted.
+ - Saving with nothing left to bill names the pack: "Nothing is left to bill on BCP-.....:
+   the accepted quantities are in billing pack BBL-..... (Draft), not invoiced yet. ..."
+Projects & Contracts > a transaction > Process tab (step Prepare billing documents)
+ - The Sales invoice row shows the amount in packs not invoiced yet and "Open BBL-....." for
+   each; "Make the billing pack" shows only for accepted quantities that are in no pack.
+Projects & Contracts > a contract
+ - The figure Billed and the "Contract in force" line show the amount in packs not invoiced
+   yet.
+The User's Manual (Barangay Contracts > Billing Packs) explains it.
+Nothing changes in what can be billed, in the approval of a pack or in the books.
+
+Tested
+------
+ - php tools/test_v36.php --yes (13 checks: the pack listed, a second pack for the same
+   quantities refused with the pack's name, the pages, the void freeing the quantities,
+   nothing accepted left). It runs in one transaction rolled back at the end; still, run it
+   on a copy.
+ - php tools/test_v35.php --yes (11), test_v34.php (62), test_v33.php (35), test_brgy.php
+   (172) and test_accounting.php (75).
+ - In the browser, on BCP-00010 of the demo with its cheque recorded: a pack of everything
+   accepted, then New billing pack (the notice, Open, no Prepare billing), a save with
+   nothing, the pack cut to one line and a second pack for the other seven, the Process
+   tab with both packs. Every page of the menu (283) opened with no PHP error, and every
+   page and saved record (329) on a 390 px phone with nothing running past the screen.
+
+Files
+-----
+New:
+  tools/test_v36.php                         the checks above
+  UPGRADE_v36.txt                            this file
+Changed:
+  modules/brgy/billing.php                   New billing pack: the packs not invoiced yet
+  modules/brgy/_process_tab.php              the Sales invoice row
+  modules/brgy/_project_view.php             the contract's figures
+  app/Brgy.php                               pendingBillings(), billingNext()
+  app/BrgyOps.php                            the message when nothing is left to bill
+  views/manual/chapters/11-barangay-contracts.html, views/manual/search.json
+  README.md

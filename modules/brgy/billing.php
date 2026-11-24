@@ -96,10 +96,29 @@ if (in_array($a, ['new', 'edit'], true)) {
     $lines = Brgy::lines((int)$p['id']);
     $m = Brgy::money($p);
     $vatIncl = Brgy::on('brgy_prices_vat_inclusive');
-    ?>
+    // v36: what each line has left to bill, and the other packs not invoiced yet that hold the rest
+    $availAll = 0.0;
+    foreach ($lines as $k => $l) {
+        $own = (float)($mine[$l['id']] ?? 0);
+        $lines[$k]['_own'] = $own;
+        $lines[$k]['_others'] = (float)$l['qty_billed'] - $own;
+        $lines[$k]['_avail'] = max(0, round((float)$l['qty_accepted'] - $lines[$k]['_others'], 4));
+        $availAll += $lines[$k]['_avail'];
+    }
+    $pending = Brgy::pendingBillings((int)$p['id'], $b ? (int)$b['id'] : null);
+    $canBill = $availAll > 0;
+    if ($pending): ?>
+      <div class="alert alert-warning mb-3"><div class="d-flex gap-2"><i class="bi bi-exclamation-circle"></i><div>
+        <b><?= count($pending) === 1 ? 'Billing pack ' . h($pending[0]['billing_no']) . ' is not invoiced yet' : count($pending) . ' billing packs are not invoiced yet' ?></b>
+        <div class="small">The quantities in <?= count($pending) === 1 ? 'it' : 'them' ?> show under "In other packs" and are not billed twice. Open the pack, take it through review and approval, then issue its invoice. To change what it bills, edit it while it is a draft or returned, or void it.</div>
+        <ul class="small mb-0 mt-1 ps-3"><?php foreach ($pending as $x): ?><li><a href="<?= h(url($pageKey, ['a' => 'view', 'id' => $x['id']])) ?>"><b><?= h($x['billing_no']) ?></b></a>, <?= h(Brgy::WF[$x['status']] ?? $x['status']) ?>, <?= money($x['gross_amount']) ?>: <?= h(Brgy::billingNext($x['status'])) ?></li><?php endforeach; ?></ul>
+      </div></div></div>
+    <?php elseif (!$canBill): ?>
+      <div class="alert alert-info mb-3 small"><i class="bi bi-info-circle"></i> Nothing accepted is left to bill on <?= h($p['project_no']) ?>. A quantity can be billed once its delivery is recorded and the entity accepts it (Deliveries &amp; Acceptance).</div>
+    <?php endif; ?>
     <form method="post" class="brgy-form" data-no-class-check><?= csrf_field() ?><input type="hidden" name="project_id" value="<?= (int)$p['id'] ?>"><?= $b ? Brgy::versionField($b['lock_version']) : '' ?>
     <div class="card mb-3"><div class="card-header"><i class="bi bi-receipt"></i> <?= h($p['project_no']) ?> <?= h(mb_strimwidth($p['title'], 0, 80, '...')) ?></div><div class="card-body row g-2">
-      <div class="col-12 small text-muted"><?= h($p['entity_name']) ?>. Contract <?= money($m['contract']) ?>, billed so far <?= money($m['billed']) ?>, accepted not billed <?= money($m['unbilled_accepted']) ?>.
+      <div class="col-12 small text-muted"><?= h($p['entity_name']) ?>. Contract <?= money($m['contract']) ?>, invoiced so far <?= money($m['billed']) ?><?= $m['billing_draft'] > 0 ? ', in billing packs not invoiced yet ' . money($m['billing_draft']) : '' ?>, accepted not billed <?= money($m['unbilled_accepted']) ?>.
         Retention <?= pct($p['retention_pct']) ?><?= (float)$p['ld_rate_pct'] > 0 ? ', liquidated damages ' . h(rtrim(rtrim(number_format((float)$p['ld_rate_pct'], 4), '0'), '.')) . '% a day' : '' ?>.</div>
       <?= input_field('billing_date', 'Billing date', fv('billing_date', $b, today()), ['type' => 'date', 'class' => 'col-md-3', 'required' => true]) ?>
       <?= select_field('billing_type', 'Kind', Brgy::BILLING_TYPES, fv('billing_type', $b, $p['category'] === 'works' ? 'progress' : 'partial'), ['class' => 'col-md-3', 'extra' => 'data-no-combo']) ?>
@@ -110,14 +129,14 @@ if (in_array($a, ['new', 'edit'], true)) {
       <?= input_field('notes', 'Notes', fv('notes', $b), ['class' => 'col-md-4']) ?>
     </div></div>
     <div class="card mb-3"><div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2"><span><i class="bi bi-list-check"></i> Accepted quantities to bill</span>
-      <button type="button" class="btn btn-sm btn-outline-secondary" data-fill-all="#billLines"><i class="bi bi-arrow-down-square"></i> Everything accepted</button></div>
+      <?= $canBill ? '<button type="button" class="btn btn-sm btn-outline-secondary" data-fill-all="#billLines"><i class="bi bi-arrow-down-square"></i> Everything accepted</button>' : '' ?></div>
       <div class="table-responsive"><table class="table table-sm mb-0" id="billLines" data-sum="#billTotal">
-        <thead><tr><th>Line</th><th class="num">Contract</th><th class="num">Accepted</th><th class="num">Billed (others)</th><th class="num">Available</th><th class="num">Unit price</th><th class="num" style="width:120px">Bill now</th><th class="num">Amount</th></tr></thead>
+        <thead><tr><th>Line</th><th class="num">Contract</th><th class="num">Accepted</th><th class="num">In other packs</th><th class="num">Available</th><th class="num">Unit price</th><th class="num" style="width:120px">Bill now</th><th class="num">Amount</th></tr></thead>
         <tbody>
         <?php foreach ($lines as $l):
-            $own = (float)($mine[$l['id']] ?? 0);
-            $others = (float)$l['qty_billed'] - $own;
-            $avail = max(0, round((float)$l['qty_accepted'] - $others, 4));
+            $own = $l['_own'];
+            $others = $l['_others'];
+            $avail = $l['_avail'];
             $val = is_post() ? (string)($_POST['lines'][$l['id']] ?? '') : ($own ? rtrim(rtrim(number_format($own, 4, '.', ''), '0'), '.') : ''); ?>
           <tr class="<?= $avail <= 0 ? 'text-muted' : '' ?>"><td class="wrap-link small"><?= (int)$l['line_no'] ?>. <?= h($l['description']) ?> <span class="text-muted"><?= h($l['unit']) ?></span></td>
             <td class="num"><?= qty($l['qty']) ?></td><td class="num"><?= qty($l['qty_accepted']) ?></td><td class="num"><?= qty($others) ?></td><td class="num"><?= qty($avail) ?></td><td class="num"><?= money($l['unit_price']) ?></td>
@@ -128,7 +147,9 @@ if (in_array($a, ['new', 'edit'], true)) {
         <tfoot><tr><td colspan="7" class="text-end">Total billed (<?= $vatIncl ? 'VAT inclusive' : 'before VAT' ?>)</td><td class="num fw-bold" id="billTotal">0.00</td></tr></tfoot>
       </table></div>
       <div class="card-body py-2 small text-muted">Only what the entity accepted can be billed, and the billings together never exceed the contract with its applied change orders. The expected taxes withheld, retention and liquidated damages are worked out when the billing is saved.</div></div>
-    <div class="sticky-actions"><?= save_buttons($b ? 'Save billing' : 'Prepare billing', $b ? url($pageKey, ['a' => 'view', 'id' => $b['id']]) : url($pageKey), false) ?></div>
+    <div class="sticky-actions"><?= $canBill ? save_buttons($b ? 'Save billing' : 'Prepare billing', $b ? url($pageKey, ['a' => 'view', 'id' => $b['id']]) : url($pageKey), false)
+        : '<div class="d-flex gap-1 flex-wrap align-items-center">' . (count($pending) === 1 ? btn_link(url($pageKey, ['a' => 'view', 'id' => $pending[0]['id']]), 'Open ' . $pending[0]['billing_no'], 'btn-primary', 'receipt') . ' ' : '')
+          . btn_link($b ? url($pageKey, ['a' => 'view', 'id' => $b['id']]) : url($pageKey), 'Cancel') . '</div>' ?></div>
     </form>
     <?php
     layout_end();

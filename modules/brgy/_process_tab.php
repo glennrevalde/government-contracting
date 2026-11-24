@@ -209,8 +209,13 @@ $lt = Brgy::lineTotals($id);
                 <div class="link-list mt-2">
                   <div class="ll-row"><span><b>Delivery and acceptance (IAR)</b><span class="small text-muted d-block"><?= money($m2['accepted']) ?> of <?= money($m2['contract']) ?> accepted</span></span>
                     <span><?php if ($m2['accepted'] < $m2['contract'] - 0.004 && Access::can('brgy.deliveries', 'create')): ?><button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#mDeliverAll"><i class="bi bi-truck"></i> Delivered and accepted</button><?php else: ?><span class="small text-success"><i class="bi bi-check-lg"></i> Accepted</span><?php endif; ?></span></div>
-                  <div class="ll-row"><span><b>Sales invoice</b><span class="small text-muted d-block"><?= money($m2['billed']) ?> invoiced</span></span>
-                    <span><?= $m2['billed'] < $m2['contract'] - 0.004 && $m2['accepted'] > $m2['billed'] + 0.004 ? page_link('brgy.billing', ['a' => 'new', 'project_id' => $id], 'Make the billing pack', 'btn-outline-primary', 'receipt', 'create') : '<span class="small text-success"><i class="bi bi-check-lg"></i> Invoiced</span>' ?></span></div>
+                  <?php // v36: a pack not invoiced yet is opened from here; another pack is offered only for accepted quantities in no pack
+                  $pend2 = Brgy::pendingBillings($id);
+                  $newPack = $m2['accepted'] > $m2['billed'] + $m2['billing_draft'] + 0.004 && $m2['billed'] + $m2['billing_draft'] < $m2['contract'] - 0.004; ?>
+                  <div class="ll-row"><span><b>Sales invoice</b><span class="small text-muted d-block"><?= money($m2['billed']) ?> invoiced<?= $pend2 ? ', ' . money($m2['billing_draft']) . ' in billing pack' . (count($pend2) > 1 ? 's ' : ' ') . h(implode(', ', array_map(fn($x) => $x['billing_no'] . ' (' . (Brgy::WF[$x['status']] ?? $x['status']) . ')', $pend2))) . ', not invoiced yet' : '' ?></span></span>
+                    <span class="d-flex flex-wrap gap-1 justify-content-end"><?php foreach ($pend2 as $x): ?><?= page_link('brgy.billing', ['a' => 'view', 'id' => $x['id']], 'Open ' . $x['billing_no'], 'btn-outline-primary', 'receipt') ?><?php endforeach; ?>
+                      <?= $newPack ? page_link('brgy.billing', ['a' => 'new', 'project_id' => $id], 'Make the billing pack', 'btn-outline-primary', 'receipt', 'create') : '' ?>
+                      <?= !$pend2 && !$newPack ? '<span class="small text-success"><i class="bi bi-check-lg"></i> Invoiced</span>' : '' ?></span></div>
                   <div class="ll-row"><span><b>Official receipt / payment received</b><span class="small text-muted d-block"><?= money($m2['cash']) ?> collected, <?= money($m2['taxes']) ?> taxes withheld</span></span>
                     <span><?= $m2['ar_open'] > 0.004 ? page_link('brgy.collections', ['a' => 'new', 'project_id' => $id, 'check_no' => $p['cheque_no']], 'Record the payment', 'btn-outline-primary', 'cash-coin', 'create') : ($m2['cash'] > 0 ? '<span class="small text-success"><i class="bi bi-check-lg"></i> Recorded</span>' : '') ?></span></div>
                 </div>

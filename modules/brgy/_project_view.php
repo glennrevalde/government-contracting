@@ -91,7 +91,8 @@ if ($sop && in_array($p['status'], ['open', 'awarded'], true) && $tab !== 'proce
         . (Access::can('brgy.billing', 'create') ? '<a class="btn btn-sm btn-outline-primary" href="' . h(url('brgy.billing', ['a' => 'new', 'project_id' => $id])) . '"><i class="bi bi-receipt"></i> New billing pack</a>' : '')
         . (Access::can('brgy.collections', 'create') ? '<a class="btn btn-sm btn-outline-primary" href="' . h(url('brgy.collections', ['a' => 'new', 'project_id' => $id])) . '"><i class="bi bi-cash-coin"></i> Record collection</a>' : '')
         . (Access::can('brgy.approvals', 'approve') ? '<button class="btn btn-sm ' . ($chk['blocking'] ? 'btn-outline-secondary' : 'btn-success') . '" data-bs-toggle="modal" data-bs-target="#mClose"><i class="bi bi-flag"></i> Close out</button>' : '');
-    $next = '<div class="next-step"><div><b>Contract in force</b><div class="small text-muted">' . money($m['to_deliver']) . ' still to be accepted, ' . money($m['unbilled_accepted']) . ' accepted and not billed, ' . money($m['ar_open']) . ' receivable'
+    $next = '<div class="next-step"><div><b>Contract in force</b><div class="small text-muted">' . money($m['to_deliver']) . ' still to be accepted, ' . money($m['unbilled_accepted']) . ' accepted and not billed, '
+        . ($m['billing_draft'] > 0 ? money($m['billing_draft']) . ' in billing packs not invoiced yet, ' : '') . money($m['ar_open']) . ' receivable'
         . ($p['due_date'] ? '. Due ' . h(fdate($p['due_date'])) . ' (' . h(brgy_rel($p['due_date'])) . ')' : '') . '.</div></div><div class="d-flex gap-1 flex-wrap">' . $btns . '</div></div>';
     $extra = ($chk['blocking'] ? '<div class="alert alert-danger small"><b>Not yet:</b><ul class="mb-0">' . implode('', array_map(fn($x) => '<li>' . h($x) . '</li>', $chk['blocking'])) . '</ul></div>' : '')
         . ($chk['warnings'] ? '<div class="alert alert-warning small"><b>Open points:</b><ul class="mb-1">' . implode('', array_map(fn($x) => '<li>' . h($x) . '</li>', $chk['warnings'])) . '</ul>'
@@ -130,7 +131,8 @@ elseif ($tab === 'overview'):
     if ($awarded) {
         $fig = ['Contract amount' => [money($m['contract']), 'info', (float)$p['co_amount'] != 0.0 ? 'change orders ' . money($p['co_amount']) : 'original'],
             'Accepted' => [money($m['accepted']), '', $m['contract'] > 0 ? round($m['accepted'] / $m['contract'] * 100) . '% of the contract' : ''],
-            'Billed' => [money($m['billed']), '', $m['unbilled_accepted'] > 0 ? money($m['unbilled_accepted']) . ' accepted, not billed' : ''],
+            'Billed' => [money($m['billed']), '', implode(', ', array_filter([$m['unbilled_accepted'] > 0 ? money($m['unbilled_accepted']) . ' accepted, not billed' : '',
+                $m['billing_draft'] > 0 ? money($m['billing_draft']) . ' in packs not invoiced yet' : '']))],
             'Cash collected' => [money($m['cash']), 'ok', 'taxes withheld ' . money($m['taxes'])],
             'Receivable (ledger)' => [money($m['ar_open']), $m['ar_open'] > 0 ? 'warn' : ''],
             'Retention held' => [money($m['retention_held']), $m['retention_held'] > 0 ? 'info' : '']];

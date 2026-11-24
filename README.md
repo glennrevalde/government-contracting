@@ -230,6 +230,12 @@ Migration: `2026_11_21_people_users_estimates_dv_rfq_iar.sql`. See `UPGRADE_v34.
 
 Migration: `2026_11_23_customer_zip_treasurer.sql`. See `UPGRADE_v35.txt` for the upgrade steps.
 
+### Version 36: a billing pack not invoiced yet is named, not hidden
+
+- **Billing Packs:** a pack holds its quantities from Prepare billing until its invoice is issued. **New billing pack** now names the packs not invoiced yet (with their status, amount and next step) and shows their quantities under **In other packs**; when nothing is left to bill it offers **Open** the pack instead of a form where nothing can be entered. The Process tab's Sales invoice row and the project figures do the same, and saving with nothing left names the pack.
+
+No migration. See `UPGRADE_v36.txt` for the upgrade steps.
+
 ## 11. Folder structure
 
 ```
