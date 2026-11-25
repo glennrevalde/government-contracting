@@ -104,7 +104,12 @@ if ($a === 'new' || $a === 'edit') {
             $id = DB::insert('customers', $data);
             Audit::log('create', 'cust', 'customer', $id, $data['name'], ['snapshot' => $data, 'page_key' => $pageKey]);
         }
-        flash('success', 'Customer saved.');
+        // v39: the barangay's officers (Barangay Contracts takes them for its forms); not for a job
+        $offChanged = [];
+        if (p('off_present') === '1' && empty($data['parent_id']) && Brgy::ready()) {
+            $offChanged = BrgyOps::saveCustomerOfficers($id, (array)($_POST['off'] ?? []));
+        }
+        flash('success', 'Customer saved.' . ($offChanged ? ' Barangay officers: ' . implode('; ', $offChanged) . '.' : ''));
         redirect_after_save(url($pageKey, ['a' => 'new']), url($pageKey, ['id' => $id]));
     });
     layout_start($c ? 'Edit customer: ' . $c['name'] : 'New customer or job', ['actions' => btn_link(url($pageKey, $c ? ['id' => $c['id']] : []), 'Cancel')]);
@@ -154,6 +159,65 @@ if ($a === 'new' || $a === 'edit') {
             <option value=""><?= $cityRows ? '' : 'None on the list yet' ?></option>
             <?php foreach ($cityRows as $cr): ?><option value="<?= (int)$cr['id'] ?>" data-zip="<?= h((string)$cr['zip_code']) ?>" <?= (int)$cr['id'] === $cityCur ? 'selected' : '' ?>><?= h(Cities::label($cr)) ?></option><?php endforeach; ?>
           </select></div>
+        <?php endif; ?>
+        <?php if (Brgy::ready()):
+            // v39: the barangay's officers, named on the forms of Barangay Contracts (the officials of the procuring entity the customer is)
+            $offEnt = $c ? Brgy::entityOfCustomer((int)$c['id']) : null;
+            $offNow = ['punong_barangay' => '', 'bac_chair' => '', 'bac_member' => []];
+            if (is_post()) {
+                $po = (array)($_POST['off'] ?? []);
+                $offNow = ['punong_barangay' => (string)($po['punong_barangay'] ?? ''), 'bac_chair' => (string)($po['bac_chair'] ?? ''), 'bac_member' => array_map('strval', (array)($po['bac_member'] ?? []))];
+            } elseif ($offEnt) {
+                $offNow = ['punong_barangay' => (string)(Brgy::official((int)$offEnt['id'], 'punong_barangay')['name'] ?? ''), 'bac_chair' => (string)(Brgy::official((int)$offEnt['id'], 'bac_chair')['name'] ?? ''),
+                    'bac_member' => array_column(Brgy::bacMembers((int)$offEnt['id']), 'name')];
+            }
+            $offMem = array_values(array_filter($offNow['bac_member'], fn($x) => trim($x) !== ''));
+            while (count($offMem) < 2) {
+                $offMem[] = '';
+            } ?>
+        <div class="col-12" id="custOfficers" <?= fv('parent_id', $c, g('parent')) ? 'hidden' : '' ?>>
+          <fieldset class="off-box"><legend class="off-legend"><i class="bi bi-people"></i> Barangay officers</legend>
+            <input type="hidden" name="off_present" value="1">
+            <div class="row g-2">
+              <div class="col-md-6"><label class="form-label" for="offHead">Barangay Chairman (Punong Barangay)</label><input class="form-control form-control-sm" id="offHead" name="off[punong_barangay]" maxlength="120" autocomplete="off" value="<?= h($offNow['punong_barangay']) ?>"></div>
+              <div class="col-md-6"><label class="form-label" for="offBac">BAC Chairman</label><input class="form-control form-control-sm" id="offBac" name="off[bac_chair]" maxlength="120" autocomplete="off" value="<?= h($offNow['bac_chair']) ?>"></div>
+              <div class="col-12"><span class="form-label d-block" id="offMemLab">BAC members</span>
+                <div class="off-members" id="offMembers" role="group" aria-labelledby="offMemLab">
+                  <?php foreach ($offMem as $i => $m): ?><div class="off-mem"><span class="off-no"><?= $i + 1 ?></span><input class="form-control form-control-sm" name="off[bac_member][]" maxlength="120" autocomplete="off" aria-label="BAC member <?= $i + 1 ?>" value="<?= h($m) ?>"><button type="button" class="ig-btn is-del" data-off-del title="Remove" aria-label="Remove BAC member <?= $i + 1 ?>"><i class="bi bi-x-lg"></i></button></div><?php endforeach; ?>
+                </div>
+                <button type="button" class="btn btn-sm btn-outline-primary mt-2" data-off-add><i class="bi bi-plus-lg"></i> Add a member</button></div>
+              <div class="col-12 form-text">These names fill the forms of Barangay Contracts for this barangay (BAC resolution, purchase request, disbursement voucher and the others), so they are not typed on each form.
+                A change starts today: the forms of completed contracts keep the officers they had, and the current and new forms take the new names.
+                <?= $offEnt ? (Access::page('brgy.entities') ? 'Their history is on ' . safe_link('brgy.entities', ['a' => 'view', 'id' => $offEnt['id']], $offEnt['official_name']) . ' (Barangays & Procuring Entities).' : '')
+                    : 'Saving names here also lists this customer under Barangay Contracts > Barangays & Procuring Entities.' ?></div>
+            </div>
+          </fieldset>
+        </div>
+        <script>
+        (function () {
+          const box = document.getElementById('offMembers');
+          if (!box) return;
+          const renum = () => box.querySelectorAll('.off-mem').forEach((r, i) => { r.querySelector('.off-no').textContent = i + 1; r.querySelector('input').setAttribute('aria-label', 'BAC member ' + (i + 1)); r.querySelector('[data-off-del]').setAttribute('aria-label', 'Remove BAC member ' + (i + 1)); });
+          document.querySelector('[data-off-add]').addEventListener('click', () => {
+            const r = box.querySelector('.off-mem').cloneNode(true);
+            r.querySelector('input').value = '';
+            box.appendChild(r);
+            renum();
+            r.querySelector('input').focus();
+          });
+          box.addEventListener('click', (e) => {
+            const b = e.target.closest('[data-off-del]');
+            if (!b) return;
+            const rows = box.querySelectorAll('.off-mem');
+            if (rows.length > 1) b.closest('.off-mem').remove(); else rows[0].querySelector('input').value = '';
+            renum();
+          });
+          // a job has no officers of its own
+          const par = document.querySelector('select[name="parent_id"]');
+          const sec = document.getElementById('custOfficers');
+          if (par && sec) par.addEventListener('change', () => { sec.hidden = par.value !== ''; });
+        })();
+        </script>
         <?php endif; ?>
         <?php if ($c): ?><?= input_field('change_reason', 'Reason for change (required for credit limit changes)', fv('change_reason'), ['class' => 'col-md-8']) ?><?php endif; ?>
         <div class="col-12"><label class="form-label">Notes</label><textarea class="form-control form-control-sm" name="notes" rows="2"><?= h(fv('notes', $c)) ?></textarea></div>
@@ -265,6 +329,17 @@ layout_start('Customer Center', ['actions' => $actions]);
           <div class="small text-muted"><?= h($sel['billing_address']) ?><?= !empty($sel['zip_code']) ? ' ' . h($sel['zip_code']) : '' ?></div>
           <?php $selCity = Cities::ready() && !empty($sel['city_id']) ? Cities::get((int)$sel['city_id']) : null;
           if ($selCity): ?><div class="small"><span class="text-muted">City/Municipality:</span> <?= h(Cities::label($selCity)) ?></div><?php endif; ?>
+          <?php // v39: the barangay's officers
+          $selEnt = Brgy::ready() && empty($sel['parent_id']) ? Brgy::entityOfCustomer((int)$sel['id']) : null;
+          if ($selEnt):
+              $selHead = Brgy::official((int)$selEnt['id'], 'punong_barangay');
+              $selBac = Brgy::official((int)$selEnt['id'], 'bac_chair');
+              $selMem = array_column(Brgy::bacMembers((int)$selEnt['id']), 'name');
+              if ($selHead || $selBac || $selMem): ?>
+            <div class="small cust-off"><?php if ($selHead): ?><div><span class="text-muted">Barangay Chairman:</span> <?= h($selHead['name']) ?></div><?php endif; ?>
+              <?php if ($selBac): ?><div><span class="text-muted">BAC Chairman:</span> <?= h($selBac['name']) ?></div><?php endif; ?>
+              <?php if ($selMem): ?><div><span class="text-muted">BAC members:</span> <?= h(implode(', ', $selMem)) ?></div><?php endif; ?></div>
+          <?php endif; endif; ?>
         </div>
         <div class="text-end">
           <div class="small text-muted">Open balance</div>

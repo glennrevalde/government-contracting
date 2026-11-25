@@ -208,7 +208,7 @@ layout_start('Backup & Restore', ['actions' => btn_link(url('admin.utilities'), 
               <input type="hidden" name="do" value="restore_upload">
               <div class="col-12">
                 <label class="form-label">Backup file (.sql or .sql.gz)</label>
-                <input class="form-control" type="file" name="file" accept=".sql,.gz,application/sql,application/gzip" required>
+                <input class="form-control" type="file" name="file" accept=".sql,.gz,application/sql,application/gzip" required data-no-shrink>
                 <div class="form-text">This server accepts uploads up to about <?= (int)$uploadMax ?> MB. A larger file should be copied
                   into the <code><?= h(Backup::dirLabel()) ?></code> folder instead, and restored from the other tab.</div>
               </div>

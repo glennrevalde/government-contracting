@@ -179,6 +179,10 @@ function brgy_demo_sop(): void
     BrgySop::complete($p9, 'svp3', ['Three suppliers completed and signed the canvass forms']);
     $on($dt(33, '16:00'));
     $stepAt($p9, 'svp3', $dt(33, '16:00'));
+    // 4. (v39) the price schedule agrees with the company's quotation: the purchase order is recorded as the award
+    BrgySop::complete($p9, 'svp4', [], 'Price schedule checked against the canvass');
+    $on($dt(33, '17:00'));
+    $stepAt($p9, 'svp4', $dt(33, '17:00'));
     // the barangay signs its papers; the goods are delivered and accepted on the signed IAR
     foreach (['txn_form' => 'Prepared / received by the sales representative', 'pr' => 'Signed by the requisitioner and the Punong Barangay', 'po' => 'Signed by the Punong Barangay, conforme of the supplier',
                  'iar' => 'Inspected and accepted, complete', 'ris' => 'Requested, approved, received and issued', 'abstract' => 'Signed by the BAC, approved by the Punong Barangay'] as $code => $what) {
@@ -211,13 +215,6 @@ function brgy_demo_sop(): void
     BrgyOps::saveCollection(['kind' => 'billing', 'billing_id' => $b9, 'collection_date' => $d(12), 'method' => 'check', 'check_no' => '0000981889', 'check_date' => $d(13), 'bank_name' => 'Landbank',
         'cash_received' => r2((float)$b['gross_amount'] - $exp['ewt'] - $exp['vat']), 'ewt_amount' => $exp['ewt'], 'vatwh_amount' => $exp['vat'], 'receipt_no' => 'OR-0951']);
     $on($dt(12, '10:00'));
-    $as('bidofficer');
-    $signed($p9, 'si', 'Sales invoice 0004512, received by the Barangay Treasurer');
-    $signed($p9, 'or', 'Official receipt OR-0951 for cheque 0000981889');
-    $signed($p9, 'form_2307', 'BIR Form 2307, three copies signed by the proprietor');
-    BrgySop::complete($p9, 'svp4', ['All copies of BIR Form 2307 signed by the proprietor']);
-    $on($dt(12, '14:00'));
-    $stepAt($p9, 'svp4', $dt(12, '14:00'));
     $as('manager');
     BrgySop::complete($p9, 'svp5', ['Accuracy', 'Completeness', 'Proper signatures', 'Correct computations'], 'Computations checked against the DV and the 2307');
     $on($dt(11, '09:30'));
@@ -272,6 +269,9 @@ function brgy_demo_sop(): void
     BrgySop::complete($p10, 'svp3', ['Three suppliers completed and signed the canvass forms'], 'The lower quotation failed: two items missing');
     $stepAt($p10, 'svp3', $dt(20, '16:00'));
     $on($dt(20, '16:00'));
+    BrgySop::complete($p10, 'svp4', []);   // v39: the price schedule, then the award
+    $stepAt($p10, 'svp4', $dt(20, '17:00'));
+    $on($dt(20, '17:00'));
     foreach (['txn_form' => 'Received by the sales representative', 'pr' => 'Signed', 'po' => 'Signed, conforme', 'iar' => 'Inspected and accepted', 'ris' => 'Signed', 'abstract' => 'Signed by the BAC'] as $code => $what) {
         $signed($p10, $code, $what);
     }

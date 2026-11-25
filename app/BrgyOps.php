@@ -170,6 +170,103 @@ final class BrgyOps
         });
     }
 
+    /** v39: the officers of a barangay kept on its customer (Customer Center): role => [label, position printed under the name] */
+    public const CUSTOMER_OFFICERS = ['punong_barangay' => ['Barangay Chairman (Punong Barangay)', 'Punong Barangay'], 'bac_chair' => ['BAC Chairman', 'BAC Chairman'], 'bac_member' => ['BAC members', 'BAC Member']];
+
+    /**
+     * v39: the barangay's officers entered on its customer (Customer Center): the Barangay Chairman, the BAC Chairman and the
+     * BAC members. They are the officials of the procuring entity the customer is (one is made for a customer that is not
+     * one yet), so the forms of Barangay Contracts take them. A change starts today: the one before keeps the days they were
+     * in office, so the forms of a completed contract keep its officers and only the current and future ones change.
+     * A name corrected on the day it was entered is corrected in place. Returns what changed (for the audit trail).
+     */
+    public static function saveCustomerOfficers(int $customerId, array $off): array
+    {
+        if (!Brgy::ready()) {
+            return [];
+        }
+        $norm = fn($v) => mb_strtolower(trim((string)preg_replace('/\s+/u', ' ', (string)$v)));
+        $clean = fn($v) => mb_substr(trim((string)preg_replace('/\s+/u', ' ', (string)$v)), 0, 120);
+        $want = ['punong_barangay' => $clean($off['punong_barangay'] ?? ''), 'bac_chair' => $clean($off['bac_chair'] ?? '')];
+        $members = [];
+        foreach ((array)($off['bac_member'] ?? []) as $m) {
+            $m = $clean($m);
+            if ($m !== '' && !isset($members[$norm($m)])) {
+                $members[$norm($m)] = $m;
+            }
+        }
+        $e = Brgy::entityOfCustomer($customerId);
+        if (!$e && $want['punong_barangay'] === '' && $want['bac_chair'] === '' && !$members) {
+            return [];
+        }
+        $today = today();
+        $yesterday = date('Y-m-d', strtotime($today . ' -1 day'));
+        return DB::tx(function () use ($customerId, $e, $want, $members, $norm, $today, $yesterday) {
+            if (!$e) {
+                // the customer becomes a procuring entity (a barangay), so its forms can name its officers
+                $c = DB::row('SELECT * FROM customers WHERE id = :id', ['id' => $customerId]);
+                $city = !empty($c['city_id']) ? DB::row('SELECT name, province FROM cities WHERE id = :id', ['id' => $c['city_id']]) : null;
+                $name = trim((string)($c['company_name'] ?: $c['name']));
+                $id = DB::insert('brgy_entities', ['official_name' => mb_substr($name, 0, 160), 'entity_type' => 'barangay',
+                    'barangay' => mb_substr((string)preg_replace('/^(barangay|brgy\.?)\s+/i', '', $name), 0, 80) ?: null,
+                    'city_municipality' => $city['name'] ?? null, 'province' => $city['province'] ?? null, 'zip_code' => $c['zip_code'] ?? null, 'tin' => $c['tin'] ?: null,
+                    'phone' => $c['phone'] ?: null, 'email' => $c['email'] ?: null, 'address' => $c['billing_address'] ?: null, 'customer_id' => $customerId, 'created_by' => Auth::id()]);
+                Brgy::log('create', 'entity', $id, $name, ['reason' => 'Made for the customer when its barangay officers were entered (Customer Center)', 'page_key' => 'cust.center']);
+                $e = Brgy::entity($id);
+            }
+            $eid = (int)$e['id'];
+            $changes = [];
+            $end = function (array $row) use ($today, $yesterday) {
+                if ((string)$row['valid_from'] === $today) {
+                    DB::run('DELETE FROM brgy_contacts WHERE id = :id', ['id' => $row['id']]);   // entered today: taken back
+                } else {
+                    DB::update('brgy_contacts', ['valid_to' => $yesterday], 'id = :id', ['id' => $row['id']]);
+                }
+            };
+            $add = fn(string $role, string $name) => DB::insert('brgy_contacts', ['entity_id' => $eid, 'role_code' => $role, 'name' => $name,
+                'position' => self::CUSTOMER_OFFICERS[$role][1], 'valid_from' => $today, 'is_signatory' => 1, 'notes' => 'Entered on the customer (Customer Center)', 'created_by' => Auth::id()]);
+            foreach (['punong_barangay', 'bac_chair'] as $role) {
+                $cur = Brgy::official($eid, $role, $today);
+                $new = $want[$role];
+                if ($norm($cur['name'] ?? '') === $norm($new)) {
+                    continue;
+                }
+                if ($cur && (string)$cur['valid_from'] === $today && $new !== '') {
+                    DB::update('brgy_contacts', ['name' => $new], 'id = :id', ['id' => $cur['id']]);   // a correction on the same day
+                } else {
+                    if ($cur) {
+                        $end($cur);
+                    }
+                    if ($new !== '') {
+                        $add($role, $new);
+                    }
+                }
+                $changes[] = self::CUSTOMER_OFFICERS[$role][0] . ': ' . ($new !== '' ? $new : 'none') . ($cur ? ' (was ' . $cur['name'] . ')' : '');
+            }
+            $now = Brgy::bacMembers($eid, $today);
+            $have = [];
+            foreach ($now as $m) {
+                $have[$norm($m['name'])] = $m;
+            }
+            foreach ($have as $k => $m) {
+                if (!isset($members[$k])) {
+                    $end($m);
+                    $changes[] = 'BAC member ' . $m['name'] . ' no longer';
+                }
+            }
+            foreach ($members as $k => $m) {
+                if (!isset($have[$k])) {
+                    $add('bac_member', $m);
+                    $changes[] = 'BAC member ' . $m . ' from ' . fdate($today);
+                }
+            }
+            if ($changes) {
+                Brgy::log('edit', 'entity', $eid, $e['official_name'], ['reason' => 'Officers changed on the customer: ' . implode('; ', $changes), 'page_key' => 'cust.center']);
+            }
+            return $changes;
+        });
+    }
+
     // ================================================================== projects
 
     /** Fields that may still change after the bid was approved (they do not change the offer) */
@@ -284,18 +381,13 @@ final class BrgyOps
         if ($mode && $mode['max_abc'] !== null && $row['abc_amount'] > (float)$mode['max_abc'] + 0.004) {
             fail('The ABC (' . money($row['abc_amount']) . ') is above the ceiling set for ' . $mode['name'] . ' (' . money($mode['max_abc']) . ', see Procurement Modes). Check the mode.');
         }
-        if (Brgy::on('brgy_sod_strict')) {
-            foreach ([['preparer_id', 'checker_id', 'checker'], ['preparer_id', 'approver_id', 'approver'], ['checker_id', 'approver_id', 'approver']] as [$a, $b, $what]) {
-                if ($row[$a] && $row[$b] && $row[$a] === $row[$b]) {
-                    fail('The same person cannot be the ' . str_replace('_id', '', $a) . ' and the ' . $what . ' (segregation of duties).');
-                }
-            }
-        }
         if ($row['posting_date'] && $row['bid_deadline'] && substr($row['bid_deadline'], 0, 10) < $row['posting_date']) {
             fail('The bid deadline is before the posting date.');
         }
         // v33: the people chosen have to be in the roles People Accountable Set-up allows (a person already on the record may stay)
         $before = $id ? Brgy::project($id) : null;
+        // v39: a person may hold up to two roles on the transaction (the preparer and the checker, say), not three or more
+        Brgy::assertRoles($row + ($before ?? []));
         foreach (Brgy::FUNCTIONS as $fn => [, $col]) {
             if (array_key_exists($col, $row)) {
                 Brgy::assertUserAllowed($fn, $row[$col], $before ? ((int)$before[$col] ?: null) : null);
@@ -444,6 +536,31 @@ final class BrgyOps
             }
             Brgy::log('edit_lines', 'project', $projectId, $p['project_no'] . ' price schedule', ['amount' => $t['bid'], 'reason' => count($keep) . ' line(s), estimated cost ' . money($t['cost']), 'page_key' => 'brgy.projects']);
         });
+    }
+
+    /**
+     * v39: an empty price schedule takes the items typed on the transaction's purchase request: description, unit, quantity,
+     * and its estimated unit cost as the PR's estimated cost and, to start with, the unit price. Returns [items, PR no.].
+     */
+    public static function linesFromPr(int $projectId, $lockVersion = null): array
+    {
+        self::need('brgy.projects', 'edit', 'change the price schedule');
+        if (Brgy::lineTotals($projectId)['lines']) {
+            fail('The price schedule already has items: change them on the Price schedule tab.');
+        }
+        $pr = BrgyDocs::prItems($projectId);
+        if (!$pr) {
+            fail('The purchase request of this transaction has no items typed on it.');
+        }
+        $rows = [];
+        foreach ($pr['items'] as $it) {
+            $est = round(max(0, (float)$it['est']), 2);
+            $rows[] = ['description' => mb_substr((string)$it['description'], 0, 255), 'unit' => mb_substr((string)$it['unit'], 0, 20), 'qty' => max(0, (float)$it['qty']),
+                'unit_cost' => '', 'markup_pct' => '', 'unit_price' => $est > 0 ? (string)$est : '', 'est_unit_price' => $est > 0 ? (string)$est : ''];
+        }
+        self::saveLines($projectId, $rows, $lockVersion);
+        Brgy::event($projectId, 'sop', 'Price schedule from the purchase request ' . $pr['form_no'], ['details' => count($rows) . ' item(s) taken from the purchase request.']);
+        return [count($rows), $pr['form_no']];
     }
 
     /** Go / no-go: go opens the eligibility work, no-go ends the opportunity (an approver can reopen it) */
@@ -1700,7 +1817,7 @@ final class BrgyOps
             $no = Seq::next('brgy_form');
             $L = BrgyLayout::layout($t);
             $ctx = BrgyDocs::context($p, $related, $no, $L);
-            $body = BrgyDocs::render($t['body'], $ctx);
+            $body = BrgyDocs::render($t['body'], $ctx, $nil, BrgyDocs::optionalKeys($t));   // v39: the fields that may stay blank
             $id = DB::insert('brgy_forms', [
                 'form_no' => $no, 'project_id' => $p['id'] ?? null, 'template_id' => $t['id'], 'template_version' => $t['version_no'],
                 'title' => mb_substr(trim($title) !== '' ? $title : $t['name'] . ($p ? ' - ' . $p['project_no'] : ''), 0, 200), 'doc_type' => $t['doc_type'],
@@ -1729,7 +1846,7 @@ final class BrgyOps
         $p = $f['project_id'] ? Brgy::mustProject((int)$f['project_id']) : null;
         $L = BrgyLayout::layout($t);
         $ctx = BrgyDocs::context($p, $f['related_type'] ? [$f['related_type'], (int)$f['related_id']] : null, $f['form_no'], $L);
-        $body = BrgyDocs::render($t['body'], $ctx);
+        $body = BrgyDocs::render($t['body'], $ctx, $nil, BrgyDocs::optionalKeys($t));   // v39: the fields that may stay blank
         // v37: the form follows its template in being a prescribed form or not (the sworn statements are no longer shells), and
         // takes the paper of a template changed since the form was made
         $paper = (int)$f['template_version'] < (int)$t['version_no'] && $L['paper'] !== 'Custom' ? ['paper' => $L['paper'], 'orientation' => $L['orientation']] : [];
@@ -1836,7 +1953,7 @@ final class BrgyOps
             if (!$f) {
                 fail('Form not found.');
             }
-            if ($action === 'submit' && ($gaps = BrgyDocs::gaps($f['body']))) {
+            if ($action === 'submit' && ($gaps = BrgyDocs::gaps($f['body'], BrgyDocs::formOptional($f)))) {
                 fail('Fill in the gaps before sending the form for review: ' . rtrim(implode(', ', $gaps), '.') . '.');
             }
             Brgy::step('form', $f, $action, $remarks, $f['project_id'] ? Brgy::mustProject((int)$f['project_id']) : null);
@@ -1860,7 +1977,7 @@ final class BrgyOps
             if (!$f || ($f['status'] !== 'approved' && !$direct)) {
                 fail('Only an approved form is made final.');
             }
-            if ($gaps = BrgyDocs::gaps($f['body'])) {
+            if ($gaps = BrgyDocs::gaps($f['body'], BrgyDocs::formOptional($f))) {
                 fail('Blank fields: ' . rtrim(implode(', ', $gaps), '.') . '.');
             }
             if (!$f['signatory_name']) {

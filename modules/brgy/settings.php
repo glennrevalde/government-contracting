@@ -12,7 +12,7 @@ $pageKey = 'brgy.settings';
 
 $toggles = [
     'brgy_prices_vat_inclusive' => ['Prices in the price schedule include VAT', 'Billing splits each line into its amount and VAT, which add up to the price exactly.'],
-    'brgy_sod_strict' => ['Segregation of duties', 'The preparer, the checker and the approver of a bid, billing, change order or form are three different people; nobody reviews a document they filed.'],
+    'brgy_sod_strict' => ['Segregation of duties', 'A person holds up to two roles on a transaction (the preparer and the checker, say); a third is refused. On a bid, billing, change order or form, nobody approves what they both prepared and reviewed.'],
     'brgy_block_over_abc' => ['A bid above the ABC cannot go for approval', 'The approved budget for the contract is the ceiling of the bid.'],
     'brgy_gate_documents' => ['Mandatory papers in order before the bid goes for review', 'Missing, expired or unreviewed mandatory eligibility and bid papers stop it.'],
     'brgy_gate_deadline' => ['No bid submission after the deadline', 'The submission is refused once the bid deadline has passed.'],
@@ -22,9 +22,9 @@ $toggles = [
     'brgy_create_class' => ['A class per contract', 'At the award, a class is opened for the contract (besides its Customer:Job) for the profit and loss by contract.'],
 ];
 $sopToggles = [
-    'brgy_sop_hold_billing' => ['Hold the SI, OR and 2307 until the payment is released', 'Special case F of the SOP: no sales invoice, official receipt or BIR Form 2307 is prepared while the cheque is not ready.'],
+    'brgy_sop_hold_billing' => ['Hold the SI, OR and 2307 until the payment is released', 'Special case F of the SOP (the bidding process): no sales invoice, official receipt or BIR Form 2307 is prepared while the cheque is not ready.'],
     'brgy_sop_need_scans' => ['A paper counts as signed when its signed copy is attached', 'The billing, review, completion and release steps need the scans (PDF or JPG) of the signed papers.'],
-    'brgy_sop_review_other' => ['The review is done by another person', 'Step "Review documents" is marked done by someone other than whoever prepared the billing documents.'],
+    'brgy_sop_review_other' => ['The review is done by another person', 'Step "Review documents" is marked done by someone other than whoever prepared the SI, OR and 2307 (the bidding process).'],
 ];
 
 // the stored previews of Office files are made again (after LibreOffice is installed or changed)

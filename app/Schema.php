@@ -8,7 +8,7 @@ declare(strict_types=1);
  */
 final class Schema
 {
-    private const FLAG = 'schema_ok_2026_11_25';
+    private const FLAG = 'schema_ok_2026_11_26';
 
     /**
      * file => one cheap probe.
@@ -134,6 +134,9 @@ final class Schema
         // v38: the City/Municipality List and the customer's city; the values filled on a transaction's forms
         'database/migrations/2026_11_25_cities_form_values_signatories.sql' =>
             'SELECT COUNT(c.city_id) + COUNT(v.value) FROM customers c, brgy_form_values v WHERE 1 = 0',
+        // v39: the fields of a template that may stay blank (the query fails without the column) and the Barangay Project Monitoring Board
+        'database/migrations/2026_11_26_roles_price_schedule_officers_board.sql' =>
+            ['SELECT 1 + (SELECT COUNT(optional_fields) FROM brgy_templates WHERE 1 = 0) + (SELECT COUNT(*) FROM pages WHERE page_key = \'brgy.board\')', 2],
     ];
 
     private static ?array $pending = null;

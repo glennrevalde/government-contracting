@@ -109,7 +109,6 @@ function brgy_sop_steps(): array
 {
     $A = 'Pre-processing';
     $B = 'Preparation of procurement documents';
-    $C = 'Billing and tax documents';
     $D = 'Review and monitoring';
     $E = 'Accounting and release';
     $special = ' Special case (F): if payment has not yet been released, do NOT prepare the sales invoice, the official receipt and the BIR Form 2307; monitor the transaction until payment is available. Once payment is released, proceed with the preparation of the billing documents and continue the normal closing process.';
@@ -124,9 +123,10 @@ function brgy_sop_steps(): array
         ['svp', 'svp3', 3, 'B', $B, 'Supplier canvassing',
             'Three (3) supplier representatives shall complete and sign the canvass forms. For a complete canvass: three suppliers signed.',
             '', 'Three suppliers completed and signed the canvass forms', 'canvass', 'Documentation staff'],
-        ['svp', 'svp4', 4, 'C', $C, 'Prepare billing documents',
-            'Prepare the Sales Invoice (SI), the Official Receipt (OR) and the BIR Form 2307 (3 copies). All copies of BIR Form 2307 must be signed by the proprietor. Signed copies are uploaded to the system.' . $special,
-            'si,or,form_2307', 'All copies of BIR Form 2307 signed by the proprietor', 'billing_docs', 'Billing staff'],
+        // v39: step 4 is the price schedule (it was the SI, OR and 2307, which are not needed in practice)
+        ['svp', 'svp4', 4, 'C', 'Price schedule', 'Prepare price schedule',
+            'Prepare the price schedule after the canvass: the items with their quantities, unit costs and unit prices (Price schedule tab). The items typed on the purchase request can be taken over. It has to agree with the company\'s quotation in the canvass. When the step is done, the purchase order is recorded as the award and the item tables of the forms still in draft are filled from the price schedule.',
+            '', '', 'price_schedule', 'Documentation staff'],
         ['svp', 'svp5', 5, 'D', $D, 'Review documents',
             'Conduct a thorough review to ensure accuracy, completeness, proper signatures and correct computations.',
             '', 'Accuracy|Completeness|Proper signatures|Correct computations', 'review', 'Reviewer'],
@@ -277,7 +277,7 @@ function brgy_sop_templates(): array
         . '</tbody></table>'];
 
     // ------------------------------------------------------------------ purchase request
-    $out[] = ['purchase_request', 'Purchase request (PR)', 'proforma', 'bid', 'pr', 'A4', 0, 'entity.name,pr.no',
+    $out[] = ['purchase_request', 'Purchase request (PR)', 'proforma', 'bid', 'pr', 'A4', 0, 'entity.name',
         'Purchase request of the barangay, with the estimated unit costs, prepared by the company for the requisitioner and the Punong Barangay.',
         '<table class="fx" style="width:100%"><tbody>'
         . '<tr><td colspan="2" class="fx-title" style="text-align:center;padding:12px">PURCHASE REQUEST</td></tr>'
@@ -309,7 +309,7 @@ function brgy_sop_templates(): array
         . '</tbody></table>'];
 
     // ------------------------------------------------------------------ inspection and acceptance report
-    $out[] = ['inspection_acceptance_report', 'Inspection and acceptance report (IAR)', 'proforma', 'delivery', 'iar', 'A4', 0, 'entity.name,iar.no',
+    $out[] = ['inspection_acceptance_report', 'Inspection and acceptance report (IAR)', 'proforma', 'delivery', 'iar', 'A4', 0, 'entity.name',
         'Inspection and acceptance report of the barangay for the items delivered: inspection by the inspector, acceptance by the custodian.',
         '<div class="fx-title" style="text-align:center;margin-bottom:8px">INSPECTION AND ACCEPTANCE REPORT</div>'
         . '<table class="fx" style="width:100%"><tbody>'
@@ -329,7 +329,7 @@ function brgy_sop_templates(): array
     // ------------------------------------------------------------------ requisition and issue slip
     $sigCell = fn(string $cap, string $name, string $desig) => '<td style="vertical-align:top;height:110px">' . $cap . '<div style="margin-top:34px;border-bottom:1px solid #000;width:80%;margin-left:auto;margin-right:auto"></div>'
         . '<div class="sg-name" style="text-align:center;font-weight:bold;text-decoration:underline">' . $name . '</div><div class="sg-cap" style="text-align:center">' . $desig . '</div></td>';
-    $out[] = ['requisition_issue_slip', 'Requisition and issue slip (RIS)', 'proforma', 'delivery', 'ris', 'A4', 0, 'entity.name,ris.no',
+    $out[] = ['requisition_issue_slip', 'Requisition and issue slip (RIS)', 'proforma', 'delivery', 'ris', 'A4', 0, 'entity.name',
         'Requisition and issue slip of the barangay: requisition, issuance, and the four signatures.',
         '<table class="fx" style="width:100%"><tbody>'
         . '<tr><td colspan="6" class="fx-title" style="text-align:center;padding:12px">REQUISITION AND ISSUE SLIP</td></tr>'
@@ -723,6 +723,13 @@ function brgy_sop_template_positions(string $code): ?array
         ], 'tables' => []];
 }
 
+/** v39: the fields of a template that may stay blank (printed empty, not counted as blanks) */
+function brgy_sop_optional_fields(): array
+{
+    return ['purchase_request' => 'pr.no,pr.date', 'disbursement_voucher' => 'dv.no,dv.date,dv.fund',
+        'inspection_acceptance_report' => 'iar.no,iar.date,ris.no,ris.date,iar.invoice_no,iar.invoice_date', 'requisition_issue_slip' => 'ris.no,ris.date'];
+}
+
 function brgy_seed_sop_templates(): void
 {
     $n = (int)DB::value('SELECT COALESCE(MAX(sort_order), 0) FROM brgy_templates');
@@ -736,7 +743,7 @@ function brgy_seed_sop_templates(): void
         $pos = brgy_sop_template_positions($code);
         $id = DB::insert('brgy_templates', ['code' => $code, 'name' => $name, 'category' => $cat, 'stage' => $stage, 'doc_type' => $doc, 'description' => $desc, 'body' => $body,
             'paper' => $paper, 'orientation' => ($layout['orientation'] ?? '') === 'landscape' ? 'landscape' : 'portrait', 'needs_approval' => $approval, 'layout_json' => $layout ? json_encode($layout) : null, 'positions_json' => $pos ? json_encode($pos) : null,
-            'required_fields' => $req, 'sort_order' => $n]);
+            'required_fields' => $req, 'optional_fields' => brgy_sop_optional_fields()[$code] ?? null, 'sort_order' => $n]);
         DB::insert('brgy_template_versions', ['template_id' => $id, 'version_no' => 1, 'name' => $name, 'body' => $body, 'layout_json' => $layout ? json_encode($layout) : null,
             'positions_json' => $pos ? json_encode($pos) : null, 'change_note' => 'Supplied with the program']);
     }

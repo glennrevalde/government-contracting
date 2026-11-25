@@ -124,6 +124,23 @@ final class BrgyLayout
             'delivery' => ["DELIVERED\nWEEKS/MONTH", 16, 'center']], 'bid', '', ''],
     ];
 
+    /** v39: the item tables whose rows can be added, changed and taken away on a form (Fill in the blanks > Items) */
+    public const GRID_TABLES = ['pr.items', 'po.items', 'ris.items', 'iar.items', 'rfq.items'];
+
+    /**
+     * v39: the attributes that let a form's page work an item table out again as rows are added or changed: the columns
+     * shown and their alignment, the blank rows and "nothing follows" of the layout, the total column and how it is written
+     */
+    public static function gridAttrs(string $table, array $cols, array $L): string
+    {
+        if (!in_array($table, self::GRID_TABLES, true)) {
+            return '';
+        }
+        $tot = self::TABLES[$table][3];
+        return ' data-cols="' . h(implode(',', array_keys($cols))) . '" data-aligns="' . h(implode(',', array_column($cols, 'align'))) . '" data-blank="' . max(0, (int)$L['blank_rows'])
+            . '" data-nf="' . ($L['nothing_follows'] ? 1 : 0) . '" data-total="' . h($tot !== '' && isset($cols[$tot]) ? $tot : '') . '" data-prefix="' . h($table === 'pr.items' ? 'PHP ' : ($table === 'po.items' ? 'Php' : '')) . '"';
+    }
+
     /** Column groups printed over the headings (the RIS: Requisition | Issuance) */
     private const GROUPS = ['ris.items' => [['Requisition', ['unit', 'description', 'qty']], ['Issuance', ['issued_qty', 'remarks']]]];
 
@@ -648,7 +665,7 @@ final class BrgyLayout
         if ($table === 'specs.items' || $table === 'sched.items') {
             return self::specsTable($table, $cols, $rows, $L, $extra);
         }
-        $html = '<table class="fx fx-items" data-table="' . h($table) . '"><colgroup>';
+        $html = '<table class="fx fx-items" data-table="' . h($table) . '"' . self::gridAttrs($table, $cols, $L) . '><colgroup>';
         foreach ($cols as $c) {
             $html .= '<col' . ($c['width'] > 0 ? ' style="width:' . $c['width'] . '%"' : '') . '>';
         }
@@ -681,13 +698,13 @@ final class BrgyLayout
         }
         $empty = '<tr>' . str_repeat('<td>&nbsp;</td>', count($cols)) . '</tr>';
         if ($L['nothing_follows'] && $rows) {
-            $html .= '<tr>';
+            $html .= '<tr class="fx-nf">';
             foreach ($cols as $ck => $c) {
                 $html .= $ck === 'description' ? '<td style="text-align:center;font-weight:bold">***nothing follows***</td>' : '<td></td>';
             }
             $html .= '</tr>';
         }
-        $html .= str_repeat($empty, max(0, (int)$L['blank_rows']));
+        $html .= str_repeat(str_replace('<tr>', '<tr class="fx-blank">', $empty), max(0, (int)$L['blank_rows']));
         $html .= '</tbody>';
         $totCol = self::TABLES[$table][3];
         if ($totCol !== '' && isset($cols[$totCol])) {
@@ -700,7 +717,7 @@ final class BrgyLayout
             $sum = self::total($table, $rows);
             $value = $totCol === 'blank_total' ? '' : ($table === 'pr.items' ? 'PHP ' : ($table === 'po.items' ? 'Php' : '')) . number_format($sum, 2);
             $html .= '<tfoot><tr>' . ($at > 0 ? '<td colspan="' . $at . '" style="text-align:right;font-weight:bold">' . h($label) . '</td>' : '')
-                . '<td style="text-align:right;font-weight:bold">' . h($value) . '</td>' . str_repeat('<td></td>', count($keys) - $at - 1) . '</tr></tfoot>';
+                . '<td class="fx-tot" style="text-align:right;font-weight:bold">' . h($value) . '</td>' . str_repeat('<td></td>', count($keys) - $at - 1) . '</tr></tfoot>';
         }
         return $html . '</table>';
     }

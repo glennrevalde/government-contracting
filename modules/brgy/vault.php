@@ -208,7 +208,7 @@ if ($a === 'view' && $id) {
             <div class="op-stage"><div class="op-msg"><i class="bi bi-file-earmark"></i>This kind of file has no preview.<div class="mt-2"><a class="btn btn-sm btn-outline-primary" href="<?= h(url($pageKey, ['a' => 'download', 'id' => $id])) ?>"><i class="bi bi-download"></i> Download</a></div></div></div>
           <?php endif; ?>
         </div></div>
-        <?php if ($canReview && ((int)$d['uploaded_by'] !== (int)Auth::id() || !Brgy::on('brgy_sod_strict') || Access::isAdmin())): ?>
+        <?php if ($canReview): // v39: the person who filed it may review it (two roles) ?>
         <form class="card mb-3" method="post" action="<?= h(url($pageKey, ['a' => 'view', 'id' => $id])) ?>"><?= csrf_field() ?>
           <div class="card-header"><i class="bi bi-clipboard-check"></i> Review</div><div class="card-body">
             <label class="form-label">Remarks (required to return it)</label><textarea class="form-control form-control-sm mb-2" name="remarks" rows="2"></textarea>

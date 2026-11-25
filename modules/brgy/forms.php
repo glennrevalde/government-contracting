@@ -167,7 +167,8 @@ if ($a === 'edit' && $id) {
         redirect(url($pageKey, ['a' => p('next') === 'view' ? 'view' : 'edit', 'id' => $id]));
     });
     $body = is_post() ? BrgyDocs::sanitize((string)p('body')) : $f['body'];
-    $gaps = BrgyDocs::gaps($body);
+    $optional = BrgyDocs::formOptional($f);   // v39: the fields that may stay blank
+    $gaps = BrgyDocs::gaps($body, $optional);
     $why = $f['status'] === 'returned' ? (string)DB::value("SELECT remarks FROM brgy_workflow WHERE object_type = 'form' AND object_id = :id AND action = 'return' ORDER BY id DESC LIMIT 1", ['id' => $id]) : '';
     layout_start('Edit ' . $f['form_no'], brgy_layout(['actions' => btn_link(url($pageKey, ['a' => 'view', 'id' => $id]), 'Preview', 'btn-outline-secondary', 'eye')
         . ' ' . page_link($pageKey, ['a' => 'print', 'id' => $id], 'Print draft', 'btn-outline-secondary', 'printer', 'print')]));
@@ -184,7 +185,8 @@ if ($a === 'edit' && $id) {
       <textarea name="body" id="formBody" hidden><?= h($body) ?></textarea>
       <div class="row g-3">
         <div class="col-xl-9">
-          <?php $L = $formLayout($f); ?><style><?= BrgyLayout::css($L, '#formEdit', false) ?> #formEdit .formdoc [data-section] { display: revert !important; }</style>
+          <?php $L = $formLayout($f);
+          $body = BrgyDocs::markItemTables($body, $L);   // v39: an older form's item tables can be worked on too ?><style><?= BrgyLayout::css($L, '#formEdit', false) ?> #formEdit .formdoc [data-section] { display: revert !important; }</style>
           <div class="editor-shell">
             <div class="editor-bar no-print" role="toolbar" aria-label="Formatting">
               <select class="form-select form-select-sm w-auto" data-cmd-block aria-label="Paragraph style"><option value="p">Paragraph</option><option value="h2">Heading</option><option value="h3">Subheading</option></select>
@@ -199,10 +201,12 @@ if ($a === 'edit' && $id) {
         </div>
         <div class="col-xl-3">
           <?php // v38: what was filled into the blanks of the transaction's other forms, for the blanks this form still has
-          $storedVals = $f['project_id'] ? BrgyDocs::storedValues((int)$f['project_id'], $id) : []; ?>
+          $storedVals = $f['project_id'] ? BrgyDocs::storedValues((int)$f['project_id'], $id) : [];
+          // v39: officers of the barangay changed on its customer since this draft was made (an ongoing contract only)
+          $offCh = $f['project_id'] && !is_post() ? BrgyDocs::officerChanges(Brgy::mustProject((int)$f['project_id']), $body) : ['pairs' => [], 'members_changed' => false]; ?>
           <div class="card mb-3 gap-card"><div class="card-header d-flex align-items-center gap-2"><span class="me-auto"><i class="bi bi-ui-checks"></i> Fill in the blanks</span>
             <span class="eb-group eb-sm" role="group" aria-label="Undo or redo"><button type="button" class="eb" data-hist="undo" title="Undo (Ctrl+Z)" aria-label="Undo" disabled><i class="bi bi-arrow-counterclockwise"></i></button><button type="button" class="eb" data-hist="redo" title="Redo (Ctrl+Y)" aria-label="Redo" disabled><i class="bi bi-arrow-clockwise"></i></button></span></div>
-            <div class="card-body" id="gapPanel" data-stored="<?= h(json_encode((object)$storedVals, JSON_UNESCAPED_UNICODE)) ?>">
+            <div class="card-body" id="gapPanel" data-stored="<?= h(json_encode((object)$storedVals, JSON_UNESCAPED_UNICODE)) ?>" data-optional="<?= h(json_encode($optional)) ?>" data-officers="<?= h(json_encode(['pairs' => (object)$offCh['pairs'], 'members' => $offCh['members_changed']], JSON_UNESCAPED_UNICODE)) ?>">
             <?php // v34: a disbursement voucher: its gross amount, VAT and EWT; the check amount and the amount in words follow
             $dvProject = $f['project_id'] && Brgy::v34Ready() && preg_match('/data-ph="dv\.(gross|taxes|net)/', $body) ? Brgy::project((int)$f['project_id']) : null;
             if ($dvProject):
@@ -241,10 +245,12 @@ if ($a === 'edit' && $id) {
               <div class="alert alert-light border small mb-2">This DV was made before the gross amount, VAT and EWT boxes. Use <b>Fill again from the records</b> (below) to have them here.</div>
             <?php endif; ?>
             <div class="gap-stored small" id="gapStored" role="status" hidden></div>
+            <div class="gap-stored small" id="gapOfficers" role="status" hidden></div>
+            <div id="itemPanel"></div>
             <p class="small text-muted mb-2" id="gapNone" <?= $gaps ? 'hidden' : '' ?>>No blanks left.</p>
             <div id="gapList"></div>
             <div id="sigList" class="fsig-list"></div>
-            <div class="form-text">Blanks are fields with no value in the records when the form was made. Fill them here, or click one in the page and type; what is filled in stays here to change. Undo and Redo take back any change to the page. A form with blanks cannot be sent for review.</div>
+            <div class="form-text">Blanks are fields with no value in the records when the form was made. Fill them here, or click one in the page and type; what is filled in stays here to change. Undo and Redo take back any change to the page. A form with blanks cannot be sent for review<?= $optional ? ', except the ones marked "may stay blank": they print empty' : '' ?>.</div>
           </div></div>
           <div class="card mb-3"><div class="card-body row g-2">
             <?= input_field('title', 'Title', fv('title', $f), ['class' => 'col-12', 'required' => true, 'extra' => 'maxlength="200"']) ?>
@@ -289,7 +295,7 @@ if ($a === 'edit' && $id) {
 if ($a === 'view' && $id) {
     $f = $loadForm($id);
     $p = $f['project_id'] ? Brgy::project((int)$f['project_id']) : null;
-    $gaps = BrgyDocs::gaps($f['body']);
+    $gaps = BrgyDocs::gaps($f['body'], BrgyDocs::formOptional($f));
     $canEdit = Access::can($pageKey, 'edit');
     $L = $formLayout($f);
     $signed = DB::all("SELECT d.* FROM brgy_documents d WHERE d.status <> 'void' AND ((d.related_type = 'signed_form' AND d.related_id = :f)

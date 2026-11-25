@@ -1,0 +1,246 @@
+G-SMaRT Integrated Accounting and Government Contracting System - version 39 (2026-11-26)
+=========================================================================================
+
+The requests of ADDITIONAL_MODULE_FOR_GOVERNMENT_CONTRUCTING_SYSTEM_v7.xlsx:
+ 1. A user may hold up to two roles on a transaction; three roles and above are not
+    allowed.
+ 2. The price schedule moves to step 4: "Preparing Billing Documents" becomes
+    "Preparing Price Schedule".
+ 3. The purchase request is saved with no P.R. No. and Date.
+ 4. Multiple rows on the purchase request (it may run to 2 to 5 pages).
+ 5. Every upload is made smaller before it is kept: 2 to 5 MB under 1 MB, 6 MB and above
+    under 2 MB.
+ 6. Step 4: the SI, OR and 2307 are removed (not needed in actual practice).
+ 7. The DV is saved with no DV No., Date and Fund.
+ 8. The IAR no. and date, the RIS no. and date and the invoice no. and date may be blank.
+ 9. The customer form gets the BAC Chairman, the BAC members (2 or more) and the Barangay
+    Chairman; they fill the forms; completed contracts keep the officers they had, current
+    and new forms take the new ones.
+10. A new menu: Barangay Project Monitoring Board, filtered by Small Value Procurement /
+    Bidding / Twelve phases, Barangay, Amount, Supplier, Cheque Amount, CR, DR, Sales
+    Invoice / Service Invoice and Status, with the columns of the monitoring sheet.
+11. A transaction is saved with the PhilGEPS reference, source link, source of funds and
+    ABC empty.
+
+This package holds ONLY the files that are new or changed since version 38, in the same
+folders. Copy them over your installation (folder government-contracting-system); every
+other file stays as it is.
+
+Upgrading an installation of version 38
+---------------------------------------
+1. Back up the database and the program folder (storage/ and config/config.php too).
+2. Copy the files of this package over your installation. config/config.php is not in the
+   package; yours stays.
+3. Run the new migration on your database (phpMyAdmin: select the database > Import;
+   Navicat: Execute SQL File):
+
+       database/migrations/2026_11_26_roles_price_schedule_officers_board.sql
+
+   It needs 2026_11_25_cities_form_values_signatories.sql (version 38) to have been run
+   first. With several companies, run it on every company database (Super Admin:
+   Companies > Database updates > Update all companies). Until it is run, the program
+   shows a page naming it. It is written for MySQL 5.5 and is safe to run a second time.
+4. Press Ctrl+F5 once in the browser (the scripts and styles changed, and a new script
+   makes the uploads smaller).
+5. Customer Center: open each barangay > Edit and check its Barangay officers (Barangay
+   Chairman, BAC Chairman, BAC members). A barangay already on Barangays & Procuring
+   Entities shows the officers it has there.
+6. A small value procurement that version 38 already awarded at the canvass and that is
+   at step 4 now shows step 4 as "Prepare price schedule" with its award: check that the
+   price schedule agrees with the company's quotation and mark the step done.
+7. Segregation of duties (Contracting Settings) now allows two roles per person. A saved
+   transaction where one person holds three roles keeps them until it is next saved; it
+   is then refused until one role is given to someone else.
+
+What the migration does
+-----------------------
+ - One column on brgy_templates: optional_fields (after required_fields), the fields of a
+   template that may stay blank. Set for: Purchase request (pr.no, pr.date); Disbursement
+   voucher (dv.no, dv.date, dv.fund); Inspection and acceptance report (iar.no, iar.date,
+   ris.no, ris.date, iar.invoice_no, iar.invoice_date); Requisition and issue slip
+   (ris.no, ris.date). The P.R., IAR and RIS numbers are no longer required fields of
+   those templates.
+ - Step 4 of the small value procurement becomes "Prepare price schedule" (section
+   "Price schedule"), with no papers and no checks of its own. On the transactions that
+   have not done step 4 yet, the SI, OR and BIR Form 2307 with nothing attached are taken
+   off the step; a paper with a signed copy or a form stays. A step 4 you had already
+   changed on SOP Steps & Papers (another action) is left as it is.
+ - The page Barangay Contracts > Barangay Project Monitoring Board (menu Transactions,
+   after Projects & Contracts), given to every role that opens Projects & Contracts, with
+   view and its print right (Export, Print).
+ - One line in the audit trail saying the migration was run.
+Nothing else is deleted, no amount changes and nothing is posted to the books. The
+bidding process is not touched (its SI, OR and 2307 and special case F stay).
+
+What is new
+-----------
+1. Two roles at most per person (Barangay Contracts > Projects & Contracts)
+ - Of the sales representative, preparer, checker, approver, authorized submitter,
+   project manager and collector, one person may be named for up to two. Choosing a
+   third shows a warning on the form at once; saving is refused: "Maria Santos would
+   hold three roles on this transaction (sales representative, preparer and checker). A
+   person may hold up to two roles: choose another person for one of them." The SOP step
+   of the authorized representative is checked the same way.
+ - On a bid, billing pack, change order or form, the preparer may also review it; then
+   another person approves ("You prepared and reviewed this record. A person may hold up
+   to two of its roles (preparer, checker, approver), so another person approves it.").
+   The person who filed a paper in the Document Vault, or proposed a requirement, may
+   review or approve it.
+ - Switched off with Segregation of duties on Contracting Settings, as before.
+
+2. and 6. Small value procurement, step 4: Prepare price schedule
+ - Step 3 (canvass): a company quotation that is not the lowest that passed records the
+   transaction as lost, as before; otherwise the price schedule is next (no award yet).
+   The company's quotation is typed while the price schedule is still empty.
+ - Step 4 shows the items, the company's quotation (agrees / does not agree) and the
+   award. "Take the N items of the purchase request BFM-..." copies the rows typed on the
+   purchase request into an empty price schedule (quantity, unit, description, the
+   estimated cost as the price). "Make the company's quotation X" sets the quotation in
+   the canvass to the schedule's total.
+ - Step 4 is done only when the schedule has items with quantities and prices, agrees
+   with the company's quotation, and that quotation is still the lowest that passed.
+   Done: the purchase order is recorded as the award (its number and date from the PO
+   form when typed there), the abstract, PO and transaction form are refreshed, and the
+   draft forms whose item table is empty (PR, PO, IAR, RIS, request for quotation) get
+   the items.
+ - The SI, OR and 2307 are no longer asked for. The payment (Cheque ready, follow-ups,
+   then the delivery and acceptance, billing pack and payment received) has its own box,
+   Payment, below the steps. Step 5 (Review) no longer asks for a reviewer other than
+   the one who prepared billing papers.
+
+3., 7. and 8. Blanks that may stay blank (Forms & Proformas)
+ - The P.R. no. and date (purchase request); the DV no., date and fund (disbursement
+   voucher); the IAR no. and date, the RIS no. and date and the invoice no. and date
+   (IAR); the RIS no. and date (RIS) are listed in Fill in the blanks marked "may stay
+   blank". They are not counted as blanks: the form is prepared, sent for review and made
+   final without them, and prints an empty space in their place (also in Word).
+ - Proforma & Form Templates > Edit: "Fields that may stay blank" (keys separated by
+   commas, e.g. pr.no, pr.date) sets them for any template; the template page lists them.
+
+4. The rows of the purchase request
+ - The purchase request, purchase order, IAR, RIS and request for quotation list their
+   item rows in the Fill in the blanks panel ("Purchase request items"): one row of boxes
+   each (description, qty, unit, est. cost ...), Add a row, add below, move up / down,
+   remove; the amounts and the total are worked out as you type, and the table in the
+   page follows ("***nothing follows***" after the last row). A click on a row in the page
+   jumps to its boxes; Undo / Redo cover the rows.
+ - Any number of rows: a long purchase request prints on 2 pages or more with the column
+   headings repeated on each page and no row split across two pages.
+
+5. Uploads made smaller
+ - In the browser, before sending: a PDF or a picture (JPG, PNG, WEBP, BMP) of 2 MB up to
+   6 MB is brought under 1 MB, one of 6 MB and above under 2 MB. A picture is drawn again
+   smaller (a PNG with see-through parts stays a PNG); each page of a PDF is drawn as a
+   picture and the pages put back together as a PDF (pdf.js 4.10.38, Apache 2.0, in
+   assets/vendor/pdfjs, so it works offline). The name stays; the note under the box
+   says "Made smaller before sending: FS AND ITR.pdf: 8.6 MB to 1.6 MB". Save waits for it.
+ - Everywhere files are chosen: the Document Vault, signed copies, the canvass forms,
+   attachments of transactions (kept in the database), logos and seals. Not the backup
+   restore and the CSV import.
+ - On the server: a picture that still arrives at 2 MB or more (a browser that could not
+   make it smaller) is made smaller the same way (PHP's GD) before the Document Vault or
+   the attachments keep it.
+ - Other files (Word, Excel ...) are kept as they are; one larger than the server takes is
+   refused at once with a message.
+
+9. Barangay officers on the customer (Customer Center > a barangay > Edit)
+ - Barangay Chairman (Punong Barangay), BAC Chairman and BAC members (two boxes to start,
+   Add a member for more, the cross to remove). The customer's card lists them.
+ - They are kept on Barangays & Procuring Entities with their terms (a customer not
+   listed there yet is added). A change starts that day: the officer replaced keeps the
+   days served; a correction on the same day is simply corrected.
+ - The forms take them: a completed contract (closed, lost, no bid, cancelled) keeps the
+   officers of the day it was completed, on new forms too; a contract open or in force
+   takes the new names on new forms, and on its drafts when they are opened ("The
+   barangay's officers changed since this form was made: Punong Barangay Hon. ... (was
+   Hon. ...). Save to keep, or Undo to take them back."), capitals kept where the page
+   had them.
+
+10. Barangay Contracts > Barangay Project Monitoring Board
+ - Tabs: All processes, Small value procurement, Bidding, Twelve phases.
+ - Filters: search (particulars, trans. code, check no.), barangay, supplier (tradename),
+   status (ongoing, waiting for the cheque, cheque released, process completed, closed,
+   lost / no bid / cancelled), gross amount and cheque amount (from, to), C.R. no.,
+   D.R. no., invoice no.
+ - Columns: Check date, Trans. code, Barangay, Particulars, Gross amount, Cheque amount,
+   Supplier, Tax %, Sales / service invoice, C.R., D.R., Check no., Process completed,
+   Status (with the payment under it); totals under the columns and in four figures over
+   the board. Export (CSV with the process and payment columns) and Print. Each
+   transaction code opens its project. On a phone each project is a card.
+
+11. Blank PhilGEPS reference, source link, source of funds and ABC
+ - These four already saved empty. Now step 1 of the small value procurement needs
+   neither the ABC nor the items (they come at step 4), and an ABC not entered shows blank
+   (not 0.00) on the transaction.
+
+The User's Manual explains all of it (Barangay Contracts: Maker, checker, approver; the
+SOP table; the Price schedule tab; Forms & Proformas > Item rows, blanks that may stay
+blank, and new officers; Document Vault; Templates; Settings; the new Barangay Project
+Monitoring Board; Customers > Barangay officers; Getting Started > attachments), with
+three new pictures and the Process tab picture taken again.
+
+Tested
+------
+ - php tools/test_v39.php --yes (69 checks: the two-role rule on save and on the
+   approval steps, the vault and requirement reviews; the ABC optional at step 1 and
+   blank PhilGEPS / source / funds / ABC on all three processes; step 4 renamed with no
+   SI, OR or 2307; the price schedule step refused while empty, not agreeing or not the
+   lowest, then the award; the items taken from the PR; the empty item tables filled;
+   optional blanks on the PR, DV, IAR and RIS; the officers saved from the customer with
+   their terms and the forms of a closed and an open contract; the board's rows, gross,
+   filters and export; the server-side shrink of a JPEG and a PNG). It runs in one
+   transaction rolled back at the end; still, run it on a copy.
+ - php tools/test_v38.php (38), test_v37.php (30), test_v36.php (13), test_v35.php (11),
+   test_v34.php (62), test_v33.php (35), test_brgy.php (168, its small value procurement
+   and segregation checks updated for version 39), test_accounting.php (75): all pass on
+   a copy of the demo upgraded with the migration.
+ - In the browser, 59 checks: the three-role warning and refusal; a transaction recorded
+   with no ABC, PhilGEPS, link or funds; a purchase request of 45 rows typed, moved,
+   removed, undone, saved and printed on two pages with the headings repeated and the
+   P.R. no. and date empty; an 8.6 MB scanned PDF and a 4.5 MB photo made smaller before
+   sending, a small file sent as it is; the canvass, step 4 with the PR items taken, the
+   quotation agreeing, the award and the payment box; the IAR filled; the DV without its
+   no., date and fund; the officers changed on the customer and a draft taking them with
+   Undo; a template's blanks that may stay blank; the board's tabs, filters and export;
+   an attachment of a bill and a PDF dropped on the vault made smaller; no script error.
+ - The migration run twice on the demo: same result. A fresh install gives the same
+   optional fields, step 4 and board rights as the migration; the demo and clean
+   databases import with no migration pending.
+ - Every page of the menu opened with no PHP error (285), and every page and saved record
+   on a 390 px phone with nothing running past the screen (331).
+
+Files
+-----
+New:
+  database/migrations/2026_11_26_roles_price_schedule_officers_board.sql   the migration
+  modules/brgy/board.php                 Barangay Project Monitoring Board
+  app/Upload.php                         the server's pass on a big picture
+  assets/js/upload.js                    files made smaller in the browser
+  assets/vendor/pdfjs/pdf.min.js, pdf.worker.min.js, LICENSE.txt   pdf.js 4.10.38
+  tools/test_v39.php                     the checks above
+  assets/manual/img/brgy_board__main.jpg, brgy_forms__items.jpg,
+  cust_center__officers.jpg
+  UPGRADE_v39.txt                        this file
+Changed:
+  app/Brgy.php                           two roles; officers as of a date; approval rule
+  app/BrgyOps.php                        saving: roles, officers from the customer, PR items
+  app/BrgySop.php                        step 1 and step 4 (price schedule, award), review
+  app/BrgyDocs.php                       blanks that may stay blank, item tables, officers
+  app/BrgyLayout.php                     item tables the panel can edit
+  app/Attachments.php                    pictures made smaller on the server
+  app/Schema.php, app/registry.php       the migration and the new page
+  app/reports/brgy.php                   the Transaction Monitoring note
+  modules/brgy/_process_tab.php, _project_view.php, projects.php, forms.php,
+  templates.php, vault.php, requirements.php, settings.php, process.php
+  modules/customers/center.php           Barangay officers
+  modules/admin/backup.php, modules/admin/import.php   their files left as they are
+  views/layout.php                       the upload script and the server's file limit
+  assets/js/brgy.js, assets/css/app.css
+  tools/brgy_sop_seed.php, tools/seed.php, tools/demo_brgy_sop.php   new installations
+  tools/test_brgy.php
+  database/schema.sql, database/government_contracting_system.sql,
+  database/government_contracting_system_clean.sql
+  views/manual/chapters/01-getting-started.html, 05-customers.html,
+  11-barangay-contracts.html, views/manual/manual.json, views/manual/search.json
+  assets/manual/img/brgy_projects__process.jpg
+  README.md

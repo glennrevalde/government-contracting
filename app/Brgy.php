@@ -252,6 +252,53 @@ final class Brgy
         return $c[$id] ??= (string)DB::value('SELECT full_name FROM users WHERE id = :id', ['id' => $id]);
     }
 
+    // ================================================================== v39: up to two roles per person
+
+    /** v39: the most roles of a transaction one person may hold (Contracting Settings > Segregation of duties) */
+    public const MAX_ROLES = 2;
+
+    /** v39: the roles of FUNCTIONS as they read in a sentence */
+    public const ROLE_WORDS = ['sales_rep' => 'sales representative', 'preparer' => 'preparer', 'checker' => 'checker', 'approver' => 'approver',
+        'submitter' => 'authorized submitter', 'pm' => 'project manager', 'collector' => 'collector'];
+
+    /** v39: user => the roles they hold on a transaction, from its *_id columns (sales representative, preparer, checker ...) */
+    public static function rolesHeld(array $row): array
+    {
+        $out = [];
+        foreach (self::FUNCTIONS as $fn => [, $col]) {
+            $u = (int)($row[$col] ?? 0);
+            if ($u > 0) {
+                $out[$u][] = self::ROLE_WORDS[$fn];
+            }
+        }
+        return $out;
+    }
+
+    /** v39: "a, b and c" */
+    public static function andList(array $words): string
+    {
+        $words = array_values($words);
+        return count($words) > 1 ? implode(', ', array_slice($words, 0, -1)) . ' and ' . end($words) : (string)($words[0] ?? '');
+    }
+
+    /**
+     * v39: a person may hold up to two roles on a transaction (for example the preparer and the checker); three or more
+     * are refused. Switched off with Segregation of duties on Contracting Settings.
+     */
+    public static function assertRoles(array $row): void
+    {
+        if (!self::on('brgy_sod_strict')) {
+            return;
+        }
+        $num = [3 => 'three', 4 => 'four', 5 => 'five', 6 => 'six', 7 => 'seven'];
+        foreach (self::rolesHeld($row) as $u => $roles) {
+            if (count($roles) > self::MAX_ROLES) {
+                fail((self::userName($u) ?: 'One person') . ' would hold ' . ($num[count($roles)] ?? count($roles)) . ' roles on this transaction (' . self::andList($roles)
+                    . '). A person may hold up to two roles: choose another person for ' . (count($roles) - self::MAX_ROLES === 1 ? 'one of them' : 'the others') . '.');
+            }
+        }
+    }
+
     public static function users(): array
     {
         return DB::pairs("SELECT id, full_name FROM users WHERE status = 'active' AND is_platform = 0 AND approval_status = 'approved' ORDER BY full_name");
@@ -619,6 +666,39 @@ final class Brgy
         );
     }
 
+    /** v39: the BAC members in office on a date (the order they were named in) */
+    public static function bacMembers(int $entityId, ?string $on = null): array
+    {
+        $on ??= today();
+        return DB::all("SELECT * FROM brgy_contacts WHERE entity_id = :e AND role_code = 'bac_member'
+                          AND (valid_from IS NULL OR valid_from <= :d1) AND (valid_to IS NULL OR valid_to >= :d2) ORDER BY id", ['e' => $entityId, 'd1' => $on, 'd2' => $on]);
+    }
+
+    /**
+     * v39: the date whose officials a transaction's forms name: a completed contract keeps the officials in office when it
+     * was completed (closed out, completed, or ended); an ongoing one takes today's, so a change of officers reaches the
+     * current and future forms only
+     */
+    public static function officialsAsOf(array $p): string
+    {
+        if (in_array($p['status'] ?? '', ['closed', 'lost', 'no_bid', 'cancelled'], true)) {
+            foreach (['closeout_date', 'completion_date'] as $k) {
+                if (!empty($p[$k]) && valid_date((string)$p[$k])) {
+                    return (string)$p[$k];
+                }
+            }
+            $at = (string)($p['updated_at'] ?? '');
+            return valid_date(substr($at, 0, 10)) ? substr($at, 0, 10) : today();
+        }
+        return today();
+    }
+
+    /** v39: the procuring entity a customer is (the first active one linked to it) */
+    public static function entityOfCustomer(int $customerId): ?array
+    {
+        return DB::row('SELECT * FROM brgy_entities WHERE customer_id = :c ORDER BY is_active DESC, id LIMIT 1', ['c' => $customerId]);
+    }
+
     /** Contract amount with the approved change orders */
     public static function contractTotal(array $p): float
     {
@@ -838,12 +918,12 @@ final class Brgy
                 return [false, 'Your role cannot ' . ($scope === 'approve' ? 'approve' : 'review') . ' (Approval Queue: ' . ($right === 'edit' ? 'Edit' : 'Approve') . ' right).', null];
             }
         }
-        // segregation of duties: nobody checks or approves what they prepared, and the approver is not the checker
-        if ($strict && $who['maker'] && in_array($who['maker'], [$uid, $onBehalf], true)) {
-            return [false, 'You prepared this record; another person has to ' . ($scope === 'approve' ? 'approve' : 'review') . ' it.', null];
-        }
-        if ($strict && $action === 'approve' && $who['checker'] && in_array($who['checker'], [$uid, $onBehalf], true)) {
-            return [false, 'You reviewed this record; the approval has to come from another person.', null];
+        // segregation of duties (v39): a person may hold up to two of the roles on a record (preparer, checker, approver), so
+        // the preparer may also review it, or approve what another person reviewed, but nobody approves what they both
+        // prepared and reviewed
+        $me = array_values(array_filter([$uid, $onBehalf]));
+        if ($strict && $action === 'approve' && $who['maker'] && $who['checker'] && in_array($who['maker'], $me, true) && in_array($who['checker'], $me, true)) {
+            return [false, 'You prepared and reviewed this record. A person may hold up to two of its roles (preparer, checker, approver), so another person approves it.', null];
         }
         if ($action === 'approve' && $amount > 0) {
             $limit = self::approvalLimit($onBehalf ?: $uid);

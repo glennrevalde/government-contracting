@@ -153,7 +153,7 @@ layout_start('SOP Steps & Papers', brgy_layout(['actions' => ($canC && $tab !== 
 <?php else:
     $steps = BrgySop::steps($tab, false);
     $used = DB::pairs("SELECT step_code, COUNT(*) FROM brgy_project_steps WHERE status <> 'pending' GROUP BY step_code"); ?>
-  <p class="small text-muted"><?= $tab === 'svp' ? 'The SOP of a transaction below the small value limit: from the transaction form to the release of the papers. Payment pending (special case F) holds the SI, OR and 2307.' : 'The bidding process, then the payment process flow: check cheque availability, SI, OR and 2307, monitoring, accounting, transmittal, signature, file.' ?></p>
+  <p class="small text-muted"><?= $tab === 'svp' ? 'The SOP of a transaction below the small value limit: from the transaction form to the release of the papers. The price schedule is prepared after the canvass (step 4), and finishing it records the award.' : 'The bidding process, then the payment process flow: check cheque availability, SI, OR and 2307, monitoring, accounting, transmittal, signature, file.' ?></p>
   <div class="sop-flow">
     <?php $sec = null; foreach ($steps as $s): if ($s['section'] !== $sec): $sec = $s['section']; ?>
       <div class="sf-sec"><?= h($s['section'] . '. ' . $s['section_title']) ?></div>

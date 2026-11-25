@@ -295,6 +295,9 @@ final class Attachments
         if ($why = self::refused($name)) {
             fail($why);
         }
+        // v39: a picture that still arrives big is made smaller before it goes into the database
+        Upload::shrinkImage($path, $name);
+        clearstatcache(true, $path);
         $size = (int)@filesize($path);
         if ($size <= 0) {
             fail('"' . $name . '" is empty.');

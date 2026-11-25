@@ -1967,6 +1967,7 @@ CREATE TABLE brgy_templates (
   official_source  VARCHAR(255) NULL,
   official_version VARCHAR(80)  NULL,
   required_fields  VARCHAR(255) NULL,                               -- placeholders that may not be blank on a final copy
+  optional_fields  VARCHAR(255) NULL,                               -- v39: placeholders that may stay blank (printed empty, not counted as blanks)
   needs_approval         TINYINT(1)   NOT NULL DEFAULT 1,           -- 0 = forms print clean without review and approval
   print_mode             VARCHAR(12)  NOT NULL DEFAULT 'layout',    -- layout (the text with the layout settings) or positions (fields placed on pre-printed paper)
   layout_json            MEDIUMTEXT   NULL,                         -- layout settings (paper, margins, fonts, header, tables, sections, copies, offsets)

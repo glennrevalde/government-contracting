@@ -158,7 +158,7 @@ function layout_start(string $title, array $opt = []): void
 <script src="<?= h(asset('js/fmt.js')) ?>"></script>
 <script src="<?= h(asset('js/wht.js')) ?>"></script>
 </head>
-<body class="<?= h(trim((!empty($opt['bare']) ? 'bare ' : '') . (string)($opt['body_class'] ?? ''))) ?>">
+<body class="<?= h(trim((!empty($opt['bare']) ? 'bare ' : '') . (string)($opt['body_class'] ?? ''))) ?>" data-upload-max="<?= class_exists('Attachments') ? (int)Attachments::maxFile() : 0 ?>">
 <?php if (empty($opt['bare'])): ?>
 <nav class="navbar navbar-dark bg-dark app-bar sticky-top px-3 no-print">
   <div class="d-flex align-items-center gap-2">
@@ -316,6 +316,7 @@ function layout_end(): void
 <?php endif; ?>
 <script src="<?= h(vendor_asset('bootstrap.js')) ?>"></script>
 <script src="<?= h(asset('js/app.js')) ?>"></script>
+<script src="<?= h(asset('js/upload.js')) ?>"></script>
 <?php foreach ((array)($GLOBALS['LAYOUT_JS'] ?? []) as $js): ?>
 <script src="<?= h(asset($js)) ?>"></script>
 <?php endforeach; ?>

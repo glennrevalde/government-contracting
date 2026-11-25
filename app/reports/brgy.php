@@ -736,6 +736,6 @@ Report::define('brgy_monitoring', [
             ['key' => 'f2307', 'label' => 'BIR 2307'], ['key' => 'scans', 'label' => 'Signed copies / papers'], ['key' => 'forwarded', 'label' => 'To accounting', 'type' => 'date'],
             ['key' => 'released', 'label' => 'Released'], ['key' => 'returned', 'label' => 'Transmittal returned']],
             'rows' => $rows, 'totals' => ['series' => 'TOTAL (' . count($rows) . ')', 'gross' => r2($tot['gross']), 'wht' => r2($tot['wht']), 'cheque_amt' => r2($tot['cheque'])],
-            'notes' => 'The monitoring of the SOP (steps 6 and "Encode in monitoring"): each transaction from its transaction form to the signed transmittal. Payment "Waiting" means the SI, OR and 2307 are held.'];
+            'notes' => 'The monitoring of the SOP (steps 6 and "Encode in monitoring"): each transaction from its transaction form to the signed transmittal. Payment "Waiting" means the cheque is not ready yet (in the bidding process the SI, OR and 2307 are held until it is).'];
     },
 ]);

@@ -234,6 +234,7 @@ return [
         // ---------------- Barangay Contracts (supplies, services and works for barangays and other procuring entities)
         'brgy.dashboard'    => ['brgy', 'Contracting Dashboard', 'center', 'Transactions', 'brgy/dashboard.php', [], 1],
         'brgy.projects'     => ['brgy', 'Projects & Contracts', 'center', 'Transactions', 'brgy/projects.php', [], 1],
+        'brgy.board'        => ['brgy', 'Barangay Project Monitoring Board', 'center', 'Transactions', 'brgy/board.php', [], 1],   // v39
         'brgy.approvals'    => ['brgy', 'Approval Queue', 'center', 'Transactions', 'brgy/approvals.php', [], 1],
         'brgy.deliveries'   => ['brgy', 'Deliveries & Acceptance', 'transaction', 'Transactions', 'brgy/deliveries.php', [], 1],
         'brgy.billing'      => ['brgy', 'Billing Packs', 'transaction', 'Transactions', 'brgy/billing.php', [], 1],

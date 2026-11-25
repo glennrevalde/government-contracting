@@ -63,7 +63,7 @@ if ($sop && in_array($p['status'], ['open', 'awarded'], true) && $tab !== 'proce
         . '</div><div>' . ($p['bid_status'] === 'returned' ? '<div class="small text-danger mb-1">Returned: ' . h((string)DB::value("SELECT remarks FROM brgy_workflow WHERE object_type = 'bid' AND object_id = :id AND action = 'return' ORDER BY id DESC LIMIT 1", ['id' => $id])) . '</div>' : '')
         . brgy_step_buttons('bid', $p, $p, $self(), 'bid', ['tab' => $tab]) . '</div></div>';
 } elseif ($p['status'] === 'open' && in_array($p['bid_status'], ['for_review', 'reviewed'], true)) {
-    $next = '<div class="next-step"><div><b>Bid in approval</b><div class="small text-muted">' . money($p['bid_amount']) . ', costing version ' . (int)$p['bid_version'] . '. Review, then approve, by two different people.</div></div><div>'
+    $next = '<div class="next-step"><div><b>Bid in approval</b><div class="small text-muted">' . money($p['bid_amount']) . ', costing version ' . (int)$p['bid_version'] . '. Review, then approve: one person may do two of preparing, reviewing and approving, not all three.</div></div><div>'
         . brgy_step_buttons('bid', $p, $p, $self(), 'bid', ['tab' => $tab]) . '</div></div>';
 } elseif ($p['status'] === 'open' && $p['bid_status'] === 'approved') {
     $isSubmitter = (int)$p['submitter_id'] === (int)Auth::id() || Access::isAdmin();
@@ -207,7 +207,14 @@ elseif ($tab === 'lines'):
                 'p' => round(Lookup::priceFor($id, $custId) * $factor, 4)];
         }
         $taxOpts = Lookup::taxCodes();
+        // v39: an empty price schedule can start from the items typed on the purchase request
+        $prIt = !$lt['lines'] && !is_post() ? BrgyDocs::prItems($id) : [];
         ?>
+        <?php if ($prIt): ?>
+          <form method="post" action="<?= h($self()) ?>" class="alert alert-info small d-flex flex-wrap align-items-center gap-2 py-2"><?= csrf_field() ?><input type="hidden" name="do" value="lines_from_pr"><?= $hiddenTab ?><?= Brgy::versionField($p['lock_version']) ?>
+            <span class="me-auto"><i class="bi bi-info-circle"></i> The purchase request <?= h($prIt['form_no']) ?> has <?= count($prIt['items']) ?> item<?= count($prIt['items']) === 1 ? '' : 's' ?> typed on it. Take them to start the price schedule: description, unit, quantity and the estimated unit cost.</span>
+            <button class="btn btn-sm btn-primary"><i class="bi bi-box-arrow-in-down"></i> Take the items</button></form>
+        <?php endif; ?>
         <form method="post" action="<?= h($self()) ?>" id="linesForm" data-no-class-check><?= csrf_field() ?><input type="hidden" name="do" value="lines_save"><?= $hiddenTab ?><?= Brgy::versionField($p['lock_version']) ?>
         <p class="small text-muted mb-2"><?= $sop ? 'These are the items (complete specifications / particulars) of the transaction: the purchase request, purchase order, RIS, IAR and canvass forms print them. ' : '' ?>Prices are <?= $vatIncl ? 'VAT inclusive' : 'VAT exclusive' ?> (Contracting Settings). <?= $costs ? 'Leave the price blank to take the cost plus the markup.' : '' ?> The schedule is fixed once the bid is approved; after the award only change orders alter it.</p>
         <div class="lg-lookup form-check form-switch mb-2">

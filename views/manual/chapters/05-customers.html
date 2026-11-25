@@ -275,6 +275,10 @@
 <td><strong>Notes</strong></td>
 <td>Free text shown at the top of the notes card.</td>
 </tr>
+<tr>
+<td><strong>Barangay officers</strong></td>
+<td>Since version 39, for a customer that is a barangay (with Barangay Contracts set up; not on a job): the <strong>Barangay Chairman (Punong Barangay)</strong>, the <strong>BAC Chairman</strong> and the <strong>BAC members</strong> (two or more: <strong>Add a member</strong> adds a box, the cross removes one). Leave them empty for a customer that is not a barangay. See <a href="#s-cust-officers">Barangay officers</a> below.</td>
+</tr>
 </tbody>
 </table></div>
 <h4 id="s-step-by-step">Step by step<a class="man-hash" href="#s-step-by-step" aria-label="Link to this section"><i class="bi bi-link-45deg"></i></a></h4>
@@ -309,6 +313,21 @@
 <li>Optionally pick a date, and tick <strong>To-do</strong> if it is something to follow up.</li>
 <li>Click <strong>Add</strong>. When the task is done, click <strong>Done</strong> beside it.</li>
 </ol>
+<h4 id="s-cust-officers">Barangay officers<a class="man-hash" href="#s-cust-officers" aria-label="Link to this section"><i class="bi bi-link-45deg"></i></a></h4>
+<p>The names typed under <strong>Barangay officers</strong> fill the forms of <a href="manual.php?c=barangay-contracts#pg-brgy-forms">Barangay Contracts</a> for that barangay (the BAC resolution, purchase request, disbursement voucher, notices and the others), so they are not typed on each form.</p>
+<figure class="man-fig"><a class="man-zoom" href="assets/manual/img/cust_center__officers.jpg" title="Click to enlarge"><img src="assets/manual/img/cust_center__officers.jpg" alt="The Barangay officers of a barangay customer: the Barangay Chairman, the BAC Chairman and the BAC members" width="1022" height="300" loading="lazy" decoding="async"></a><figcaption>The Barangay officers of a barangay customer</figcaption></figure>
+<ol>
+<li>Select the barangay and click <strong>Edit</strong>.</li>
+<li>Under <strong>Barangay officers</strong>, type the <strong>Barangay Chairman (Punong Barangay)</strong> and the <strong>BAC Chairman</strong>.</li>
+<li>Type the <strong>BAC members</strong>, one a box. <strong>Add a member</strong> adds a box; the cross beside a box removes it.</li>
+<li>Click <strong>Save customer</strong>. The message lists what changed ("Barangay officers: Punong Barangay Hon. ... (was Hon. ...)").</li>
+</ol>
+<ul>
+<li><strong>A change starts today.</strong> The officer replaced keeps the days they served, and the new one serves from today. A name corrected on the day it was typed is simply corrected.</li>
+<li><strong>Completed contracts keep their officers.</strong> The forms of a contract closed, lost, cancelled or not bid keep the officers of the day it was completed. A contract still open or in force takes the new names on its new forms, and on its draft forms when they are opened (Save to keep them, or Undo).</li>
+<li>The officers and their history are also on <a href="manual.php?c=barangay-contracts#pg-brgy-entities">Barangays &amp; Procuring Entities</a>, where the other officials (treasurer, secretary ...) are kept. A customer that is not listed there yet is added when officers are first saved for it.</li>
+<li>The customer's details show its officers under the address.</li>
+</ul>
 <h4 id="s-good-to-know">Good to know<a class="man-hash" href="#s-good-to-know" aria-label="Link to this section"><i class="bi bi-link-45deg"></i></a></h4>
 <ul>
 <li>Customers are never deleted. Untick <strong>Active</strong> instead; the history stays and the customer disappears from the drop-downs of new forms.</li>

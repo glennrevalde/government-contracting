@@ -83,6 +83,12 @@ if ($a === 'view' && $id && is_post()) {
             case 'lines_save':
                 BrgyOps::saveLines($id, brgy_posted_lines(), p('lock_version'), p('lookup_inventory') === '1');
                 return 'Price schedule saved.';
+            case 'lines_from_pr':
+                // v39: the items typed on the purchase request start the price schedule
+                [$n, $no] = BrgyOps::linesFromPr($id, p('lock_version'));
+                return $n . ' item' . ($n === 1 ? '' : 's') . ' taken from the purchase request ' . $no . ', priced at its estimated unit costs: enter the unit costs and change the prices where needed, then save.';
+            case 'quote_from_schedule':
+                return 'The company\'s quotation in the canvass is now ' . money(BrgySop::quoteFromSchedule($id)) . ', the total of the price schedule.';
             case 'req_attach':
                 BrgyOps::attachRequirement((int)pint('req_id'), brgy_file('file'), pint('doc_id'), ['title' => p('title') ?: null, 'doc_no' => p('doc_no'), 'issued_by' => p('issued_by'),
                     'issue_date' => p('issue_date'), 'valid_until' => p('valid_until'), 'as_company' => p('as_company') === '1']);
@@ -216,7 +222,8 @@ if ($a === 'view' && $id && is_post()) {
                 return 'Quotation removed.';
             case 'pay_release':
                 BrgySop::releasePayment($id, $_POST);
-                return 'Payment released: the SI, OR and BIR Form 2307 can now be prepared.';
+                $pp = Brgy::mustProject($id);
+                return BrgySop::hasAction((string)$pp['process'], 'billing_docs') ? 'Payment released: the SI, OR and BIR Form 2307 can now be prepared.' : 'Payment released: the cheque is recorded on the transaction.';
             case 'pay_followup':
                 BrgySop::followUp($id, $r, (string)p('next_date'));
                 return 'Follow-up logged on the timeline.';
@@ -260,7 +267,7 @@ if (in_array($a, ['new', 'edit'], true)) {
       <div class="proc-pick" role="radiogroup" aria-label="Process">
         <?php foreach (BrgySop::PROCESSES as $k => $lbl): ?>
           <label class="proc-opt<?= $procLocked && $proc !== $k ? ' is-off' : '' ?>"><input type="radio" name="process" value="<?= h($k) ?>" <?= $proc === $k ? 'checked' : '' ?> <?= $procLocked && $proc !== $k ? 'disabled' : '' ?> data-process-pick>
-            <span class="po-body"><span class="po-title"><?= h($lbl) ?></span><span class="po-text"><?= h(['svp' => 'Transaction form, PR, PO, IAR, RIS, canvass of three suppliers, abstract, DV, then SI, OR and 2307 once paid. Below ' . money(Brgy::setting('brgy_svp_limit')) . '.',
+            <span class="po-body"><span class="po-title"><?= h($lbl) ?></span><span class="po-text"><?= h(['svp' => 'Transaction form, PR, PO, IAR, RIS, canvass of three suppliers, abstract, DV, then the price schedule and the award. Below ' . money(Brgy::setting('brgy_svp_limit')) . '.',
                 'bidding' => 'Bidding form, PhilGEPS posting, pre-bid papers, SPA, notarized and eligibility papers, signatures, submission, post-bidding papers, completion, payment.',
                 'general' => 'The twelve phases with the compliance checklist, without the SOP steps.'][$k]) ?></span></span></label>
         <?php endforeach; ?>
@@ -360,7 +367,8 @@ if (in_array($a, ['new', 'edit'], true)) {
       <?= input_field('philgeps_ref', 'PhilGEPS reference', fv('philgeps_ref', $p), ['class' => 'col-md-3', 'extra' => 'maxlength="40"']) ?>
       <?= input_field('source_url', 'Source link (notice posting)', fv('source_url', $p), ['class' => 'col-md-6', 'type' => 'url', 'extra' => 'placeholder="https://"']) ?>
       <?= input_field('posting_date', 'Posting date', fv('posting_date', $p), ['type' => 'date', 'class' => 'col-md-3']) ?>
-      <?= input_field('abc_amount', 'Approved budget (ABC)', fv('abc_amount', $p), ['class' => 'col-md-3', 'extra' => 'inputmode="decimal" ' . $dis('abc_amount')]) ?>
+      <?php $abcShown = (float)fv('abc_amount', $p) > 0 || is_post() ? fv('abc_amount', $p) : '';   // v39: no ABC is shown empty, not 0.00 ?>
+      <?= input_field('abc_amount', 'Approved budget (ABC)', $abcShown, ['class' => 'col-md-3', 'extra' => 'inputmode="decimal" ' . $dis('abc_amount')]) ?>
       <?= input_field('funding_source', 'Source of funds', fv('funding_source', $p), ['class' => 'col-md-3', 'extra' => 'maxlength="160"']) ?>
       <?= input_field('end_user', 'End-user / requesting office', fv('end_user', $p), ['class' => 'col-md-3', 'extra' => 'maxlength="120"']) ?>
       <?= input_field('delivery_site', 'Delivery site', fv('delivery_site', $p), ['class' => 'col-md-6', 'extra' => 'maxlength="255"']) ?>
@@ -390,7 +398,8 @@ if (in_array($a, ['new', 'edit'], true)) {
       <?= brgy_user_select('submitter_id', 'Authorized submitter', fv('submitter_id', $p), 'col-md-4', 'Not named yet', 'submitter') ?>
       <?= brgy_user_select('pm_id', 'Project manager', fv('pm_id', $p), 'col-md-4', '', 'pm') ?>
       <?= brgy_user_select('collector_id', 'Collector', fv('collector_id', $p), 'col-md-4', '', 'collector') ?>
-      <div class="col-12 form-text">The preparer, checker and approver have to be three different people<?= Brgy::on('brgy_sod_strict') ? '' : ' (switched off on Contracting Settings)' ?>. Only the authorized submitter records the bid submission.<?= Access::page('brgy.accountable') ? ' Who may be chosen for each is set on ' . safe_link('brgy.accountable', [], 'People Accountable Set-up') . '.' : '' ?></div>
+      <div class="col-12" id="roleWarn" role="alert" aria-live="polite" hidden></div>
+      <div class="col-12 form-text"><?= Brgy::on('brgy_sod_strict') ? 'A person may hold up to two roles on the transaction, the sales representative included (the preparer and the checker, say); three or more are refused.' : 'One person may hold any number of roles (segregation of duties is switched off on Contracting Settings).' ?> Only the authorized submitter records the bid submission.<?= Access::page('brgy.accountable') ? ' Who may be chosen for each is set on ' . safe_link('brgy.accountable', [], 'People Accountable Set-up') . '.' : '' ?></div>
     </div></div>
 
     <div class="card mb-3"><div class="card-body row g-2">
@@ -421,6 +430,27 @@ if (in_array($a, ['new', 'edit'], true)) {
       document.querySelectorAll('[data-sync="reference_no"]').forEach((x) => x.addEventListener('input', () => document.querySelectorAll('[data-sync="reference_no"]').forEach((y) => { if (y !== x) y.value = x.value; })));
       apply();
     })();
+    <?php if (Brgy::on('brgy_sod_strict')): ?>
+    (function () {
+      // v39: a person may hold up to two roles on the transaction: a third shows a warning at once (the server refuses it too)
+      const roles = <?= json_encode(array_combine(array_map(fn($x) => $x[1], Brgy::FUNCTIONS), array_values(Brgy::ROLE_WORDS))) ?>;
+      const warn = document.getElementById('roleWarn');
+      const sels = Object.keys(roles).map((n) => document.querySelector('select[name="' + n + '"]')).filter(Boolean);
+      if (!warn || !sels.length) return;
+      const list = (a) => a.length > 1 ? a.slice(0, -1).join(', ') + ' and ' + a[a.length - 1] : a[0];
+      const num = { 3: 'three', 4: 'four', 5: 'five', 6: 'six', 7: 'seven' };
+      const check = () => {
+        const by = new Map();
+        sels.forEach((s) => { if (s.value && !s.disabled) { const nm = s.options[s.selectedIndex] ? s.options[s.selectedIndex].text : s.value; if (!by.has(s.value)) by.set(s.value, { nm, r: [] }); by.get(s.value).r.push(roles[s.name]); } });
+        const over = [...by.values()].filter((x) => x.r.length > 2);
+        sels.forEach((s) => s.classList.toggle('is-invalid', over.some((x) => x.r.includes(roles[s.name]) && by.get(s.value) === x)));
+        warn.hidden = !over.length;
+        warn.innerHTML = over.map((x) => '<div class="alert alert-warning small py-2 mb-0"><i class="bi bi-exclamation-triangle"></i> <b>' + x.nm.replace(/[&<>]/g, '') + '</b> would hold ' + (num[x.r.length] || x.r.length) + ' roles: ' + list(x.r) + '. A person may hold up to two: choose another person for ' + (x.r.length === 3 ? 'one of them' : 'the others') + '.</div>').join('');
+      };
+      sels.forEach((s) => s.addEventListener('change', check));
+      check();
+    })();
+    <?php endif; ?>
     </script>
     <?php
     layout_end();

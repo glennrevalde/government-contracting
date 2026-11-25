@@ -120,7 +120,8 @@ $deadline = date('Y-m-d H:i:s', strtotime('+10 days'));
 $pid = $does('Opportunity recorded, checklist made from the library', fn() => BrgyOps::saveProject(['title' => 'Test supply ' . $stamp, 'entity_id' => $entity, 'category' => 'goods', 'mode_id' => $mode,
     'abc_amount' => '100000', 'bid_deadline' => $deadline, 'posting_date' => today(), 'delivery_days' => 15, 'retention_pct' => 0, 'ld_rate_pct' => '0.1',
     'approver_id' => $U['approver2'], 'submitter_id' => $U['maker'], 'pm_id' => $U['pm']]));
-$refused('Same person as checker and approver (segregation of duties)', fn() => BrgyOps::saveProject(['title' => 'x', 'entity_id' => $entity, 'checker_id' => $U['checker'], 'approver_id' => $U['checker']]), 'same person');
+// v39: a person may hold up to two roles on a transaction; a third is refused
+$refused('Same person as preparer, checker and approver (three roles)', fn() => BrgyOps::saveProject(['title' => 'x', 'entity_id' => $entity, 'preparer_id' => $U['checker'], 'checker_id' => $U['checker'], 'approver_id' => $U['checker']]), 'three roles');
 $does('Go decision', fn() => BrgyOps::goDecision($pid, 'go', 'Within our product line'));
 $p = Brgy::mustProject($pid);
 $refused('Conflicting update (someone else saved the project first)', fn() => BrgyOps::saveProject(['title' => $p['title'] . ' changed', 'entity_id' => $entity, 'abc_amount' => '100000', 'mode_id' => $mode,
@@ -141,11 +142,12 @@ foreach (Brgy::checklist($pid) as $r) {
     }
     $as('maker');
     if ($doc['status'] === 'for_review') {
-        try {
-            BrgyDocs::review($doc, 'approved', '');
-            $ok('Reviewing a paper one filed oneself: refused', false, 'it went through');
-        } catch (UserError $e) {
-            // expected: another person reviews
+        if (empty($selfReviewed)) {
+            // v39: filing a paper and reviewing it are two roles, which one person may hold
+            $selfReviewed = true;
+            BrgyDocs::review($doc, 'approved', 'Checked by the one who filed it');
+            $ok('Reviewing a paper one filed oneself: allowed (two roles)', DB::value('SELECT status FROM brgy_documents WHERE id = :d', ['d' => $doc['id']]) === 'approved');
+            continue;
         }
         $as('checker');
         BrgyDocs::review(BrgyDocs::load((int)$doc['id']), 'approved', 'Checked');
@@ -164,16 +166,15 @@ if ($expired) {
 } else {
     $ok('Expired permit check (no tax clearance requirement in the library for this mode)', true);
 }
-// the bid is sent for review by a manager (who could also review), to see that nobody reviews what they sent
+// the bid is sent for review by a manager, who may also review it (two roles), but not approve it as well (three)
 $as('checker');
 $does('Bid sent for review', fn() => BrgyOps::submitBid($pid, 'Ready'));
-$refused('The person who sent the bid reviews it', fn() => BrgyOps::bidStep($pid, 'review'), 'prepared');
 $as('wh');
 $refused('A user without the review right reviews the bid', fn() => BrgyOps::bidStep($pid, 'review'), 'cannot review');
-$as('approver');
-$does('Another manager reviews', fn() => BrgyOps::bidStep($pid, 'review', 'Prices checked'));
+$as('checker');
+$does('The person who sent the bid reviews it (two roles)', fn() => BrgyOps::bidStep($pid, 'review', 'Prices checked'));
 DB::run('UPDATE brgy_projects SET approver_id = NULL WHERE id = :p', ['p' => $pid]);
-$refused('The reviewer approves what they reviewed', fn() => BrgyOps::bidStep($pid, 'approve'), 'reviewed');
+$refused('The person who sent and reviewed the bid approves it (three roles)', fn() => BrgyOps::bidStep($pid, 'approve'), 'prepared and reviewed');
 // approval limit: an approver whose role allows up to 1,000.00 cannot approve the bid
 $limRole = $roleId('Contracts - Test Limited Approver');
 if (!$limRole) {
@@ -343,9 +344,14 @@ if (!BrgySop::ready()) {
     $refused('Step 3 with a canvass form not signed', fn() => BrgySop::complete((int)$sv, 'svp3', ['Three suppliers completed and signed the canvass forms']), 'signed');
     BrgySop::saveCanvass((int)$sv, ['supplier_name' => 'Test Supplier B', 'total_amount' => 2700, 'remarks' => 'passed'], $pdf('t_cv3_' . $stamp . '.pdf', 'Canvass B'), $cv3);
     $ok('The lowest quotation that passed is the company\'s', (int)(BrgySop::lowest(BrgySop::canvass((int)$sv))['is_company'] ?? 0) === 1);
-    $does('Step 3 done: the canvass makes the award', fn() => BrgySop::complete((int)$sv, 'svp3', ['Three suppliers completed and signed the canvass forms']));
+    $does('Step 3 done: the company quoted the lowest', fn() => BrgySop::complete((int)$sv, 'svp3', ['Three suppliers completed and signed the canvass forms']));
+    // v39: step 4 is the price schedule; finishing it records the award (it was the SI, OR and 2307)
+    $ok('Not awarded at the canvass: the award waits for the price schedule (step 4)', Brgy::mustProject((int)$sv)['status'] === 'open');
+    $does('Step 4 done: the price schedule agrees with the quotation, the award is recorded', fn() => BrgySop::complete((int)$sv, 'svp4', []));
     $P = Brgy::mustProject((int)$sv);
-    $ok('Awarded from the canvass for 2,500.00, fulfilment started on the PO', $P['status'] === 'awarded' && abs((float)$P['contract_amount'] - 2500) < 0.01 && $P['phase'] === 'fulfillment', $P['status'] . ' ' . $P['phase']);
+    $ok('Awarded from the canvass for 2,500.00 at step 4, fulfilment started on the PO', $P['status'] === 'awarded' && abs((float)$P['contract_amount'] - 2500) < 0.01 && $P['phase'] === 'fulfillment', $P['status'] . ' ' . $P['phase']);
+    $ok('Step 4 has no SI, OR or 2307 to attach, and nothing is held for the payment (special case F is for the bidding)',
+        !BrgySop::holdsBilling($P) && !(int)DB::value("SELECT COUNT(*) FROM brgy_project_papers WHERE project_id = :p AND paper_code IN ('si', 'or', 'form_2307')", ['p' => $sv]));
     $iar = (int)DB::value("SELECT id FROM brgy_project_papers WHERE project_id = :p AND paper_code = 'iar'", ['p' => $sv]);
     $as('pm');
     $refused('Delivered and accepted without the signed IAR', fn() => BrgySop::deliverAll((int)$sv, []), 'inspection and acceptance');
@@ -354,12 +360,7 @@ if (!BrgySop::ready()) {
     $refused('Signed copy that is not a PDF or a picture', fn() => BrgySop::attach($iar, ['name' => 'x.docx', 'tmp_name' => '', 'error' => UPLOAD_ERR_OK, 'size' => 10]), 'PDF');
     $as('pm');
     $does('Delivered and accepted in full from the signed IAR', fn() => BrgySop::deliverAll((int)$sv, ['delivery_date' => today(), 'acceptance_date' => today()]));
-    $as('billing');
     $line = Brgy::lines((int)$sv)[0];
-    $refused('Sales invoice while the payment is not released (special case F)', fn() => BrgyOps::saveBilling(['project_id' => $sv, 'billing_date' => today(), 'si_no' => 'T' . $stamp, 'lines' => [$line['id'] => 10]]), 'special case F');
-    $as('maker');
-    $refused('Step 4 while the payment is not released', fn() => BrgySop::complete((int)$sv, 'svp4', ['All copies of BIR Form 2307 signed by the proprietor']), 'held');
-    $refused('Preparing the 2307 while the payment is not released', fn() => BrgySop::prepare((int)DB::value("SELECT id FROM brgy_project_papers WHERE project_id = :p AND paper_code = 'form_2307'", ['p' => $sv])), 'payment');
     $w = BrgySop::withholding(Brgy::mustProject((int)$sv));
     $ok('Taxes withheld from the table: VAT 5% and EWT 1% of the amount net of VAT', abs($w['vat'] - round(2500 / 1.12 * 0.05, 2)) < 0.01 && abs($w['ewt'] - round(2500 / 1.12 * 0.01, 2)) < 0.01,
         $w['vat'] . ' / ' . $w['ewt']);
@@ -381,14 +382,6 @@ if (!BrgySop::ready()) {
     $does('Payment recorded with the official receipt and the taxes withheld', fn() => BrgyOps::saveCollection(['kind' => 'billing', 'billing_id' => $bid, 'collection_date' => today(), 'method' => 'check',
         'check_no' => 'CHK' . $stamp, 'check_date' => today(), 'bank_name' => 'Landbank', 'cash_received' => r2((float)$bb['gross_amount'] - $exp['ewt'] - $exp['vat']), 'ewt_amount' => $exp['ewt'],
         'vatwh_amount' => $exp['vat'], 'receipt_no' => 'OR-T' . $stamp]));
-    $as('maker');
-    $refused('Step 4 with the signed SI, OR and 2307 not attached', fn() => BrgySop::complete((int)$sv, 'svp4', ['All copies of BIR Form 2307 signed by the proprietor']), 'signed');
-    foreach (['si', 'or', 'form_2307'] as $code) {
-        BrgySop::attach((int)DB::value('SELECT id FROM brgy_project_papers WHERE project_id = :p AND paper_code = :c', ['p' => $sv, 'c' => $code]), $pdf('t_' . $code . '_' . $stamp . '.pdf', $code . ' signed'));
-    }
-    $ok('The 2307 is linked to the collection', (bool)DB::value("SELECT cert_2307_doc_id FROM brgy_collections WHERE project_id = :p AND status = 'posted'", ['p' => $sv]));
-    $does('Step 4 done: SI, OR and 2307', fn() => BrgySop::complete((int)$sv, 'svp4', ['All copies of BIR Form 2307 signed by the proprietor']));
-    $refused('The review by the person who prepared the billing papers', fn() => BrgySop::complete((int)$sv, 'svp5', ['Accuracy', 'Completeness', 'Proper signatures', 'Correct computations']), 'someone other');
     $as('approver');
     $refused('The review with signed copies missing', fn() => BrgySop::complete((int)$sv, 'svp5', ['Accuracy', 'Completeness', 'Proper signatures', 'Correct computations']), 'signed copy');
     $as('maker');

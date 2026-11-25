@@ -6,9 +6,9 @@ declare(strict_types=1);
  *
  * A transaction follows one of the processes of the SOP:
  *   svp      I. Small value procurement (below the limit, "below 100K"): transaction form, the barangay's papers
- *            prepared by the company (PR, PO, IAR, RIS, canvass, abstract, DV), canvass of three suppliers, billing
- *            papers once the payment is released (SI, OR, 2307), review, monitoring, forwarding to accounting,
- *            transmittal and release;
+ *            prepared by the company (PR, PO, IAR, RIS, canvass, abstract, DV), canvass of three suppliers, the price
+ *            schedule (v39: it was the SI, OR and 2307, not needed in practice) and the award, review, monitoring,
+ *            forwarding to accounting, transmittal and release;
  *   bidding  II. Bidding: bidding details, verification, PhilGEPS posting, pre-bid papers, representative and SPA,
  *            notarized papers, eligibility papers, additional requirements, certified true copies, signatures,
  *            final verification, submission, post-bidding papers, completion, then the payment process flow;
@@ -31,6 +31,7 @@ final class BrgySop
         'release' => 'Released; signed transmittal returned', 'philgeps' => 'PhilGEPS posting recorded', 'representative' => 'Representative and SPA',
         'signatures' => 'Signatures of the proprietor', 'verify' => 'Bid reviewed and approved', 'submit' => 'Endorsed and submitted', 'post_bid' => 'Award and post-bidding papers',
         'completion' => 'Accepted; certificate of completion', 'payment' => 'Cheque released (follow-ups until then)', 'file' => 'Filed for record; closeout',
+        'price_schedule' => 'Price schedule prepared (agrees with the canvass); the award is recorded',
     ];
 
     public const SOURCES = ['prepare' => 'Prepared by the company', 'company' => 'Company paper on file', 'record' => 'Issued in the program', 'supplier' => 'Filled by a supplier', 'received' => 'Received'];
@@ -291,7 +292,80 @@ final class BrgySop
     /** Special case F of the SOP: no sales invoice, official receipt or 2307 while the payment is not released */
     public static function holdsBilling(array $p): bool
     {
-        return self::uses($p) && ($p['payment_status'] ?? 'waiting') !== 'released' && Brgy::on('brgy_sop_hold_billing');
+        // v39: only a process that still has a step for the SI, OR and 2307 (the small value procurement no longer does)
+        return self::uses($p) && ($p['payment_status'] ?? 'waiting') !== 'released' && Brgy::on('brgy_sop_hold_billing') && self::hasAction((string)$p['process'], 'billing_docs');
+    }
+
+    /** v39: the process has an active step that does $action (the small value procurement's price schedule, the bidding's SI, OR and 2307) */
+    public static function hasAction(string $process, string $action): bool
+    {
+        static $c = [];
+        return $c[$process . '|' . $action] ??= (bool)DB::value('SELECT COUNT(*) FROM brgy_sop_steps WHERE process = :p AND action = :a AND is_active = 1', ['p' => $process, 'a' => $action]);
+    }
+
+    /** v39: the process prepares its price schedule at a step of its own, after the canvass (step 4 of the small value procurement) */
+    public static function hasPricing(string $process): bool
+    {
+        return self::hasAction($process, 'price_schedule');
+    }
+
+    /**
+     * v39: what stands in the way of the price schedule step: the items with their quantities and prices, agreeing with the
+     * company's quotation in the canvass, which is still the lowest that passed (before the award)
+     */
+    public static function pricingGaps(array $p): array
+    {
+        $lines = Brgy::lines((int)$p['id']);
+        if (!$lines) {
+            return ['Enter the items with their prices (Price schedule tab)' . (BrgyDocs::prItems((int)$p['id']) ? ', or take the items typed on the purchase request' : '') . '.'];
+        }
+        $out = [];
+        foreach ($lines as $l) {
+            $what = 'Line ' . $l['line_no'] . ' (' . mb_strimwidth((string)$l['description'], 0, 40, '...') . ')';
+            if ((float)$l['bid_qty'] <= 0) {
+                $out[] = $what . ': enter the quantity.';
+            }
+            if ((float)$l['unit_price'] <= 0) {
+                $out[] = $what . ': enter the unit price (or the unit cost and markup).';
+            }
+        }
+        if ($p['status'] === 'open') {
+            $rows = self::canvass((int)$p['id']);
+            $mine = current(array_filter($rows, fn($r) => (int)$r['is_company'] === 1)) ?: null;
+            $t = Brgy::lineTotals((int)$p['id']);
+            if (!$mine) {
+                $out[] = 'Record the company\'s quotation in the canvass (step 3).';
+            } elseif (abs((float)$mine['total_amount'] - $t['bid']) > 0.004) {
+                $out[] = 'The price schedule (' . money($t['bid']) . ') does not agree with the company\'s quotation in the canvass (' . money($mine['total_amount']) . '): change the prices, or make the quotation the price schedule\'s total.';
+            } else {
+                $best = self::lowest($rows);
+                if (!$best || !(int)$best['is_company']) {
+                    $out[] = 'At ' . money($t['bid']) . ' the company\'s quotation is not the lowest that passed the canvass' . ($best ? ' (' . $best['supplier_name'] . ' quoted ' . money($best['total_amount']) . ')' : '') . '.';
+                }
+            }
+        }
+        return $out;
+    }
+
+    /** v39: the company's quotation in the canvass becomes the total of the price schedule (before the award) */
+    public static function quoteFromSchedule(int $projectId): float
+    {
+        self::need('edit', 'record the canvass');
+        $p = Brgy::mustProject($projectId);
+        if ($p['status'] !== 'open') {
+            fail('The canvass is changed before the award only.');
+        }
+        $t = Brgy::lineTotals($projectId);
+        if ($t['bid'] <= 0) {
+            fail('The price schedule has no total yet.');
+        }
+        $id = (int)DB::value('SELECT id FROM brgy_canvass WHERE project_id = :p AND is_company = 1', ['p' => $projectId]);
+        if (!$id) {
+            fail('The company\'s quotation is not recorded in the canvass.');
+        }
+        DB::update('brgy_canvass', ['total_amount' => $t['bid'], 'updated_at' => date('Y-m-d H:i:s')], 'id = :id', ['id' => $id]);
+        Brgy::log('canvass', 'project', $projectId, $p['project_no'] . ' company quotation from the price schedule', ['amount' => $t['bid'], 'page_key' => 'brgy.projects']);
+        return $t['bid'];
     }
 
     // ================================================================== what stands in the way of a step
@@ -312,7 +386,8 @@ final class BrgySop
                 if (trim((string)$p['title']) === '') {
                     $out[] = 'Enter the project title.';
                 }
-                if ((float)$p['abc_amount'] <= 0) {
+                // v39: the small value procurement may be recorded without the ABC, and its price schedule is step 4
+                if ((float)$p['abc_amount'] <= 0 && $p['process'] !== 'svp') {
                     $out[] = 'Enter the approved budget.';
                 }
                 if ($p['process'] === 'svp') {
@@ -322,9 +397,15 @@ final class BrgySop
                     if (!$p['inspector']) {
                         $out[] = 'Enter the inspector.';
                     }
-                    if (!Brgy::lineTotals((int)$p['id'])['lines']) {
+                    if (!self::hasPricing($p['process']) && !Brgy::lineTotals((int)$p['id'])['lines']) {
                         $out[] = 'Enter the items (Price schedule tab): the complete specifications / particulars.';
                     }
+                }
+                break;
+            case 'price_schedule':
+                // v39: the price schedule after the canvass, agreeing with the company's quotation; done, it records the award
+                foreach (self::pricingGaps($p) as $g) {
+                    $out[] = $g;
                 }
                 break;
             case 'checks':
@@ -506,6 +587,7 @@ final class BrgySop
                 case 'representative':
                     $set = ['submitter_id' => !empty($in['submitter_id']) ? (int)$in['submitter_id'] : null];
                     Brgy::assertUserAllowed('submitter', $set['submitter_id'], (int)$p['submitter_id'] ?: null);   // v33
+                    Brgy::assertRoles($set + $p);   // v39: up to two roles per person
                     break;
                 case 'forward':
                     $set = ['forwarded_to' => $str('forwarded_to', 120) ?? Brgy::setting('brgy_accounting_dept'), 'forwarded_at' => ($d('forwarded_date') ?? today()) . ' ' . date('H:i:s')];
@@ -573,6 +655,15 @@ final class BrgySop
             } elseif ($s['action'] === 'canvass') {
                 $msg .= ' ' . self::canvassResult($projectId);
                 self::refreshPapers($projectId, ['abstract', 'po', 'txn_form']);
+            } elseif ($s['action'] === 'price_schedule') {
+                // v39: the award (when the canvass did not record it), then the item tables of the forms still in draft
+                $award = self::awardFromCanvass($projectId);
+                $msg .= $award !== '' ? ' ' . $award : '';
+                self::refreshPapers($projectId, ['abstract', 'po', 'txn_form']);
+                $n = Access::can('brgy.forms', 'edit') ? BrgyDocs::fillItemTables($projectId) : 0;
+                if ($n) {
+                    $msg .= ' The empty item tables of ' . $n . ' form' . ($n === 1 ? '' : 's') . ' in draft are filled from the price schedule.';
+                }
             } elseif ($s['action'] === 'monitor') {
                 Brgy::event($projectId, 'sop', 'Encoded in the monitoring system', ['details' => 'Copies of the essential documents retained.']);
             }
@@ -833,9 +924,12 @@ final class BrgySop
         if ($name === '') {
             fail('Enter the name of the supplier.');
         }
-        $total = $isCo ? Brgy::lineTotals($projectId)['bid'] : r2(to_num($d['total_amount'] ?? 0));
+        // v39: the company's quotation is the total of the price schedule once it has lines; before (the price schedule is
+        // step 4 of the small value procurement) it is typed, and the price schedule has to agree with it
+        $lt = Brgy::lineTotals($projectId);
+        $total = $isCo && $lt['lines'] > 0 ? $lt['bid'] : r2(to_num($d['total_amount'] ?? 0));
         if ($total <= 0) {
-            fail('Enter the total amount quoted' . ($isCo ? ' (the price schedule is empty)' : '') . '.');
+            fail('Enter the total amount quoted' . ($isCo && $lt['lines'] > 0 ? ' (the price schedule has no total yet)' : '') . '.');
         }
         if ($isCo && DB::value('SELECT id FROM brgy_canvass WHERE project_id = :p AND is_company = 1' . ($id ? ' AND id <> ' . (int)$id : ''), ['p' => $projectId])) {
             fail('The company\'s own quotation is already recorded.');
@@ -894,7 +988,6 @@ final class BrgySop
         $p = Brgy::mustProject($projectId);
         $rows = self::canvass($projectId);
         $best = self::lowest($rows);
-        $date = max(array_map(fn($r) => (string)$r['received_date'], $rows)) ?: today();
         if (!$best || !(int)$best['is_company']) {
             $mine = current(array_filter($rows, fn($r) => (int)$r['is_company'] === 1));
             $why = $mine && $mine['remarks'] === 'failed' ? 'The company\'s quotation failed the canvass.' : 'Another supplier quoted lower.';
@@ -903,6 +996,29 @@ final class BrgySop
             Brgy::event($projectId, 'notice', 'Canvass: not awarded', ['details' => $why, 'direction' => 'in']);
             return 'The canvass did not go to the company: the transaction is recorded as lost.';
         }
+        // v39: the price schedule is a step of its own after the canvass: the award waits for it
+        if (self::hasPricing((string)$p['process'])) {
+            return 'The company quoted the lowest of ' . count($rows) . ' suppliers. Next: prepare the price schedule; when that step is done, the purchase order is recorded as the award.';
+        }
+        return 'The company quoted the lowest of ' . count($rows) . ' suppliers: ' . self::awardFromCanvass($projectId);
+    }
+
+    /**
+     * The company's quotation, the lowest that passed the canvass, is its offer: it is released as the bid, then awarded from
+     * the abstract and the purchase order (v39: at the price schedule step; before, and without that step, at the canvass)
+     */
+    private static function awardFromCanvass(int $projectId): string
+    {
+        $p = Brgy::mustProject($projectId);
+        if ($p['status'] !== 'open') {
+            return '';   // awarded already (at the canvass, before version 39)
+        }
+        $rows = self::canvass($projectId);
+        $best = self::lowest($rows);
+        if (!$best || !(int)$best['is_company']) {
+            fail('The company\'s quotation is not the lowest that passed the canvass.');
+        }
+        $date = max(array_map(fn($r) => (string)$r['received_date'], $rows)) ?: today();
         $t = Brgy::lineTotals($projectId);
         if (abs((float)$best['total_amount'] - $t['bid']) > 0.004) {
             fail('The company\'s quotation (' . money($best['total_amount']) . ') does not agree with the price schedule (' . money($t['bid']) . '). Save the quotation again after changing the prices.');
@@ -917,14 +1033,18 @@ final class BrgySop
             Brgy::snapshotCosting(Brgy::mustProject($projectId), 'Quotation in the canvass');
         }
         Brgy::setPhase(Brgy::mustProject($projectId), 'evaluation', 'Canvass complete: the company quoted the lowest of ' . count($rows) . ' suppliers');
-        $poDate = $p['po_date'] ?: $date;
-        BrgyOps::recordAward($projectId, ['noa_ref' => $p['po_no'] ?: ($p['reference_no'] ?: $p['project_no']), 'noa_date' => $poDate, 'noa_received_date' => max($poDate, $date),
-            'contract_amount' => $t['contract'], 'po_no' => $p['po_no'], 'contract_no' => $p['contract_no'], 'evidence_type' => 'po', 'sop_canvass' => 1]);
+        // v39: the PO no. and date typed on the purchase order (kept for the transaction's forms) when the transaction has none
+        $typed = Brgy::v38Ready() ? BrgyDocs::storedValues($projectId) : [];
+        $poNo = $p['po_no'] ?: (isset($typed['po.no']) ? mb_substr(trim((string)$typed['po.no']['v']), 0, 60) : null);
+        $poTyped = isset($typed['po.date']) ? strtotime((string)$typed['po.date']['v']) : false;
+        $poDate = $p['po_date'] ?: ($poTyped ? date('Y-m-d', $poTyped) : $date);
+        BrgyOps::recordAward($projectId, ['noa_ref' => $poNo ?: ($p['reference_no'] ?: $p['project_no']), 'noa_date' => $poDate, 'noa_received_date' => max($poDate, $date),
+            'contract_amount' => $t['contract'], 'po_no' => $poNo, 'contract_no' => $p['contract_no'], 'evidence_type' => 'po', 'sop_canvass' => 1]);
         $p = Brgy::mustProject($projectId);
         if ($p['po_no'] && $p['phase'] === 'award') {
             BrgyOps::startFulfillment($projectId);
         }
-        return 'The company quoted the lowest of ' . count($rows) . ' suppliers: the purchase order is recorded as the award (' . money($t['contract']) . ').';
+        return 'The purchase order is recorded as the award (' . money($t['contract']) . ').';
     }
 
     // ================================================================== payment (cheque) and delivery

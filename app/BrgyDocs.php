@@ -212,6 +212,10 @@ final class BrgyDocs
         if ($err !== UPLOAD_ERR_OK) {
             fail('The file ' . $name . ' could not be uploaded' . (in_array($err, [UPLOAD_ERR_INI_SIZE, UPLOAD_ERR_FORM_SIZE], true) ? ': it is too large for the server.' : '.'));
         }
+        // v39: a picture that still arrives big is made smaller before it is kept
+        if (is_file((string)($file['tmp_name'] ?? '')) && ($n = Upload::shrinkImage((string)$file['tmp_name'], $name)) > 0) {
+            $file['size'] = $n;
+        }
         if ((int)$file['size'] > self::maxBytes()) {
             fail($name . ' is larger than ' . Brgy::setting('brgy_upload_max_mb') . ' MB.');
         }
@@ -446,9 +450,7 @@ final class BrgyDocs
         if ($decision === 'returned' && trim($remarks) === '') {
             fail('Say what has to be corrected.');
         }
-        if ((int)$d['uploaded_by'] === (int)Auth::id() && Brgy::on('brgy_sod_strict') && !Access::isAdmin()) {
-            fail('You filed this document; another person has to review it.');
-        }
+        // v39: filing a document and reviewing it are two roles, which one person may hold (up to two roles per person)
         DB::tx(function () use ($d, $decision, $remarks) {
             DB::update('brgy_documents', ['status' => $decision, 'is_locked' => $decision === 'final' ? 1 : 0, 'reviewed_by' => Auth::id(), 'reviewed_at' => date('Y-m-d H:i:s'),
                 'review_remarks' => $remarks !== '' ? mb_substr($remarks, 0, 255) : null], 'id = :id', ['id' => $d['id']]);
@@ -680,7 +682,9 @@ final class BrgyDocs
             return self::framing($c, $L, null);
         }
         $e = Brgy::entity((int)$p['entity_id']);
-        $off = fn(string $r) => ($o = Brgy::official((int)$p['entity_id'], $r)) ? $o : null;
+        // v39: the officials of a completed contract are those in office when it was completed; others, today's
+        $asOf = Brgy::officialsAsOf($p);
+        $off = fn(string $r) => ($o = Brgy::official((int)$p['entity_id'], $r, $asOf)) ? $o : null;
         $head = $off('punong_barangay');
         $c += [
             'entity.name' => $e['official_name'], 'entity.address' => (string)$e['address'], 'entity.tin' => (string)$e['tin'], 'entity.province' => (string)$e['province'],
@@ -695,7 +699,7 @@ final class BrgyDocs
         $c += ['entity.title' => $etitle, 'entity.title_upper' => $up($etitle), 'entity.lgu_line' => $lgu !== '' ? ucwords(mb_strtolower($lgu), " -") : '', 'entity.lgu_line_upper' => $lgu,
             'entity.province_upper' => $up($e['province'])];
         $c['entity.lgu_line'] = (string)preg_replace('/^(City|Municipality) Of /', '$1 of ', $c['entity.lgu_line']);
-        $members = DB::all("SELECT name FROM brgy_contacts WHERE entity_id = :e AND role_code = 'bac_member' AND (valid_to IS NULL OR valid_to >= :d) ORDER BY id", ['e' => $p['entity_id'], 'd' => today()]);
+        $members = Brgy::bacMembers((int)$p['entity_id'], $asOf);
         for ($i = 1; $i <= 5; $i++) {
             $c['entity.bac_member_' . $i] = (string)($members[$i - 1]['name'] ?? '');
             $c['entity.bac_member_' . $i . '_upper'] = $up($members[$i - 1]['name'] ?? '');
@@ -1049,7 +1053,8 @@ final class BrgyDocs
     private static function sopContext(array $p, array $e, array $lines, array $L): array
     {
         $up = fn($v) => mb_strtoupper((string)$v);
-        $off = fn(string $r) => Brgy::official((int)$p['entity_id'], $r);
+        $asOf = Brgy::officialsAsOf($p);   // v39
+        $off = fn(string $r) => Brgy::official((int)$p['entity_id'], $r, $asOf);
         $short = trim((string)($e['barangay'] ?? '')) ?: (string)preg_replace('/^(barangay|brgy\.?)\s+/i', '', (string)$e['official_name']);
         $head = $off('punong_barangay');
         $approp = $off('appropriations_chair');
@@ -1095,7 +1100,7 @@ final class BrgyDocs
         if ($bacChair) {
             $bac[] = [$bacChair['name'], 'BAC Chairman'];
         }
-        foreach (DB::all("SELECT name FROM brgy_contacts WHERE entity_id = :e AND role_code = 'bac_member' AND (valid_to IS NULL OR valid_to >= :d) ORDER BY id", ['e' => $p['entity_id'], 'd' => today()]) as $m) {
+        foreach (Brgy::bacMembers((int)$p['entity_id'], $asOf) as $m) {
             $bac[] = [$m['name'], 'BAC Member'];
         }
         $bacHtml = '';
@@ -1288,19 +1293,21 @@ final class BrgyDocs
      * Fills the placeholders. Known fields with no value are listed in $missing and shown as a marked gap, so a draft
      * shows what is still to be filled; unknown placeholders are left as typed.
      */
-    public static function render(string $body, array $ctx, ?array &$missing = null): string
+    public static function render(string $body, array $ctx, ?array &$missing = null, array $optional = []): string
     {
         $missing = [];
         $known = [];
         foreach (self::FIELDS as $g) {
             $known += $g;
         }
-        $html = (string)preg_replace_callback('/\{\{\s*([a-z0-9_.]+)\s*\}\}/i', function ($m) use ($ctx, $known, &$missing) {
+        // v39: a field the template lets stay blank (the P.R. no. and date ...) is marked ph-opt: printed empty, not a gap
+        $cls = fn(string $k) => in_array($k, $optional, true) ? 'ph-missing ph-opt' : 'ph-missing';
+        $html = (string)preg_replace_callback('/\{\{\s*([a-z0-9_.]+)\s*\}\}/i', function ($m) use ($ctx, $known, &$missing, $cls) {
             $k = strtolower($m[1]);
             if (!array_key_exists($k, $ctx)) {
                 if (isset($known[$k])) {
                     $missing[$k] = $known[$k];
-                    return '<span class="ph-missing" data-ph="' . h($k) . '">[' . h($known[$k]) . ']</span>';
+                    return '<span class="' . $cls($k) . '" data-ph="' . h($k) . '">[' . h($known[$k]) . ']</span>';
                 }
                 return '<span class="ph-unknown">{{' . h($k) . '}}</span>';
             }
@@ -1310,7 +1317,7 @@ final class BrgyDocs
             }
             if (trim((string)$v) === '') {
                 $missing[$k] = $known[$k] ?? $k;
-                return '<span class="ph-missing" data-ph="' . h($k) . '">[' . h($known[$k] ?? $k) . ']</span>';
+                return '<span class="' . $cls($k) . '" data-ph="' . h($k) . '">[' . h($known[$k] ?? $k) . ']</span>';
             }
             return nl2br(h((string)$v));
         }, $body);
@@ -1450,11 +1457,275 @@ final class BrgyDocs
         return new DOMXPath($doc);
     }
 
-    /** Gaps left in a form's text (fields that had no value when it was made) */
-    public static function gaps(string $html): array
+    /**
+     * Gaps left in a form's text (fields that had no value when it was made). v39: a field the template lets stay blank
+     * ($optional, or marked ph-opt) is not a gap: it prints empty.
+     */
+    public static function gaps(string $html, array $optional = []): array
     {
-        preg_match_all('/class="ph-missing"[^>]*>\[([^\]]*)\]/', $html, $m);
-        return array_values(array_unique(array_map('html_entity_decode', $m[1])));
+        preg_match_all('/<span class="ph-missing( ph-opt)?"([^>]*)>\[([^\]]*)\]/', $html, $m, PREG_SET_ORDER);
+        $out = [];
+        foreach ($m as $x) {
+            $key = preg_match('/data-ph="([^"]*)"/', $x[2], $k) ? strtolower($k[1]) : '';
+            if ($x[1] !== '' || ($key !== '' && in_array($key, $optional, true))) {
+                continue;
+            }
+            $out[] = html_entity_decode($x[3]);
+        }
+        return array_values(array_unique($out));
+    }
+
+    /**
+     * v39: the barangay's officers named in a draft form of an ongoing contract who are no longer in office (changed on the
+     * customer since): [old name => [new name, role]] for the form's page to change, and whether the BAC members changed in
+     * number (then the form is filled again from the records to list them all)
+     */
+    public static function officerChanges(array $p, string $body): array
+    {
+        $out = ['pairs' => [], 'members_changed' => false];
+        if (!in_array($p['status'] ?? '', ['open', 'awarded'], true) || trim($body) === '') {
+            return $out;
+        }
+        $text = mb_strtolower(html_entity_decode(strip_tags(str_replace(['<br>', '<br/>', '</td>', '</div>', '</p>'], ' ', $body)), ENT_QUOTES, 'UTF-8'));
+        $text = (string)preg_replace('/\s+/u', ' ', $text);
+        $in = fn(string $name) => trim($name) !== '' && preg_match('/(^|[^\p{L}])' . preg_quote(mb_strtolower(trim($name)), '/') . '($|[^\p{L}])/u', $text) === 1;
+        $eid = (int)$p['entity_id'];
+        $today = today();
+        $labels = ['punong_barangay' => 'Punong Barangay', 'bac_chair' => 'BAC Chairman', 'treasurer' => 'Treasurer', 'appropriations_chair' => 'Chairman, Committee on Appropriations',
+            'secretary' => 'Secretary', 'bookkeeper' => 'Bookkeeper', 'city_accountant' => 'City/Municipal Accountant', 'bac_secretariat' => 'BAC Secretariat'];
+        foreach (array_keys($labels) as $role) {
+            $cur = Brgy::official($eid, $role, $today);
+            if (!$cur || $in((string)$cur['name'])) {
+                continue;
+            }
+            foreach (DB::all("SELECT DISTINCT name FROM brgy_contacts WHERE entity_id = :e AND role_code = :r AND valid_to IS NOT NULL AND valid_to < :d ORDER BY valid_to DESC", ['e' => $eid, 'r' => $role, 'd' => $today]) as $old) {
+                if ($in((string)$old['name']) && mb_strtolower(trim((string)$old['name'])) !== mb_strtolower(trim((string)$cur['name']))) {
+                    $out['pairs'][trim((string)$old['name'])] = [trim((string)$cur['name']), $labels[$role] ?? $role];
+                    break;
+                }
+            }
+        }
+        $now = array_values(array_filter(array_map(fn($m) => trim((string)$m['name']), Brgy::bacMembers($eid, $today)), fn($n) => !$in($n)));
+        $gone = [];
+        foreach (DB::all("SELECT DISTINCT name FROM brgy_contacts WHERE entity_id = :e AND role_code = 'bac_member' AND valid_to IS NOT NULL AND valid_to < :d ORDER BY id", ['e' => $eid, 'd' => $today]) as $old) {
+            $n = trim((string)$old['name']);
+            if ($in($n) && !isset($out['pairs'][$n])) {
+                $gone[] = $n;
+            }
+        }
+        if ($gone || ($now && preg_match('/bac member/i', $text))) {
+            foreach ($gone as $i => $n) {
+                if (isset($now[$i])) {
+                    $out['pairs'][$n] = [$now[$i], 'BAC member'];
+                }
+            }
+            $out['members_changed'] = count($gone) !== count($now);
+        }
+        return $out;
+    }
+
+    /** v39: the fields a template lets stay blank (Proforma & Form Templates > the template > Fields that may stay blank) */
+    public static function optionalKeys(?array $tpl): array
+    {
+        $raw = (string)($tpl['optional_fields'] ?? '');
+        return array_values(array_filter(array_map(fn($x) => strtolower(trim($x)), explode(',', $raw)), fn($x) => preg_match('/^[a-z0-9_.]+$/', $x) === 1));
+    }
+
+    /** v39: the fields a form's template lets stay blank */
+    public static function formOptional(array $f): array
+    {
+        static $c = [];
+        $tid = (int)($f['template_id'] ?? 0);
+        if (!$tid) {
+            return [];
+        }
+        if (!isset($c[$tid])) {
+            try {
+                $c[$tid] = self::optionalKeys(DB::row('SELECT optional_fields FROM brgy_templates WHERE id = :id', ['id' => $tid]));
+            } catch (Throwable $e) {
+                $c[$tid] = [];   // the 2026-11-26 migration has not been run
+            }
+        }
+        return $c[$tid];
+    }
+
+    // ================================================================== v39: item tables worked on in a form's page
+
+    /**
+     * The rows typed or listed in an item table of a form's text: [[column => text]], without the "nothing follows" row and the
+     * blank rows. $cols are the table's columns in order (from data-cols, or the template's layout for an older form).
+     */
+    public static function itemRows(DOMElement $table, array $cols): array
+    {
+        $out = [];
+        foreach ($table->getElementsByTagName('tbody') as $tb) {
+            foreach ($tb->getElementsByTagName('tr') as $tr) {
+                $cells = [];
+                foreach ($tr->childNodes as $td) {
+                    if ($td instanceof DOMElement && in_array(strtolower($td->nodeName), ['td', 'th'], true)) {
+                        $cells[] = $td;
+                    }
+                }
+                $row = [];
+                foreach ($cols as $i => $ck) {
+                    $row[$ck] = isset($cells[$i]) ? trim(str_replace("\xc2\xa0", ' ', (string)$cells[$i]->textContent)) : '';
+                }
+                if (str_contains((string)($row['description'] ?? ''), '***nothing follows***') || str_contains(' ' . $tr->getAttribute('class') . ' ', ' fx-nf ')) {
+                    continue;
+                }
+                $typed = array_filter(array_diff_key($row, array_flip(['no', 'est_amount', 'amount', 'blank_price', 'blank_total'])), fn($v) => $v !== '');
+                if ($typed) {
+                    $out[] = $row;
+                }
+            }
+        }
+        return $out;
+    }
+
+    /** v39: the columns of an item table in a form's text (data-cols, or the template's layout when they match the headings) */
+    public static function tableCols(DOMElement $table, array $L): array
+    {
+        $dc = trim((string)$table->getAttribute('data-cols'));
+        if ($dc !== '') {
+            return explode(',', $dc);
+        }
+        $name = (string)$table->getAttribute('data-table');
+        if (!isset(BrgyLayout::TABLES[$name])) {
+            return [];
+        }
+        $cols = array_keys(array_filter(BrgyLayout::columns($name, $L), fn($c) => $c['show']));
+        $heads = 0;
+        foreach ($table->getElementsByTagName('thead') as $th) {
+            $rows = $th->getElementsByTagName('tr');
+            $last = $rows->length ? $rows->item($rows->length - 1) : null;
+            $heads = $last ? $last->getElementsByTagName('th')->length : 0;
+        }
+        return $heads === count($cols) ? $cols : [];
+    }
+
+    /** v39: the items typed on the transaction's purchase request (its newest one), for the price schedule */
+    public static function prItems(int $projectId): array
+    {
+        $f = DB::row("SELECT id, form_no, body, template_id FROM brgy_forms WHERE project_id = :p AND doc_type = 'pr' AND status <> 'void' ORDER BY id DESC LIMIT 1", ['p' => $projectId]);
+        if (!$f) {
+            return [];
+        }
+        $xp = self::xpath((string)$f['body']);
+        $t = $xp ? $xp->query('//table[@data-table="pr.items"]')->item(0) : null;
+        if (!$t instanceof DOMElement) {
+            return [];
+        }
+        $tpl = DB::row('SELECT * FROM brgy_templates WHERE id = :id', ['id' => $f['template_id']]);
+        $cols = self::tableCols($t, BrgyLayout::layout($tpl));
+        $out = [];
+        foreach ($cols ? self::itemRows($t, $cols) : [] as $r) {
+            if (trim((string)($r['description'] ?? '')) === '') {
+                continue;
+            }
+            $out[] = ['description' => $r['description'], 'unit' => (string)($r['unit'] ?? ''), 'qty' => to_num($r['qty'] ?? 0), 'est' => to_num(str_ireplace(['php', '₱'], '', (string)($r['est_unit'] ?? '')))];
+        }
+        return $out ? ['form_id' => (int)$f['id'], 'form_no' => (string)$f['form_no'], 'items' => $out] : [];
+    }
+
+    /**
+     * v39: the item tables still empty on the transaction's forms in draft are filled from its price schedule (the price
+     * schedule is step 4 of the small value procurement, after the forms of step 2 were made); returns how many forms changed
+     */
+    public static function fillItemTables(int $projectId): int
+    {
+        $lines = Brgy::lines($projectId);
+        if (!$lines) {
+            return 0;
+        }
+        $n = 0;
+        foreach (DB::all("SELECT f.*, t.layout_json AS t_layout, t.paper AS t_paper, t.orientation AS t_orientation FROM brgy_forms f JOIN brgy_templates t ON t.id = f.template_id
+                           WHERE f.project_id = :p AND f.status IN ('draft', 'returned') AND f.body LIKE '%data-table=%'", ['p' => $projectId]) as $f) {
+            $L = BrgyLayout::layout(['layout_json' => $f['t_layout'], 'paper' => $f['t_paper'], 'orientation' => $f['t_orientation']]);
+            $doc = new DOMDocument('1.0', 'UTF-8');
+            $prev = libxml_use_internal_errors(true);
+            $doc->loadHTML('<?xml encoding="UTF-8"><html><body><div id="r">' . $f['body'] . '</div></body></html>', LIBXML_HTML_NODEFDTD);
+            libxml_clear_errors();
+            libxml_use_internal_errors($prev);
+            $xp = new DOMXPath($doc);
+            $changed = false;
+            foreach (iterator_to_array($xp->query('//table[@data-table]')) as $t) {
+                $name = (string)$t->getAttribute('data-table');
+                if (!in_array($name, BrgyLayout::GRID_TABLES, true)) {
+                    continue;
+                }
+                $cols = self::tableCols($t, $L);
+                if (!$cols || self::itemRows($t, $cols)) {
+                    continue;   // a table with rows in it stays as it is
+                }
+                $frag = $doc->createDocumentFragment();
+                $tmp = new DOMDocument('1.0', 'UTF-8');
+                $prev = libxml_use_internal_errors(true);
+                $tmp->loadHTML('<?xml encoding="UTF-8"><html><body><div id="x">' . BrgyLayout::itemsTable($name, $lines, $L) . '</div></body></html>', LIBXML_HTML_NODEFDTD);
+                libxml_clear_errors();
+                libxml_use_internal_errors($prev);
+                $newT = $tmp->getElementById('x')->firstChild;
+                if (!$newT) {
+                    continue;
+                }
+                $frag->appendChild($doc->importNode($newT, true));
+                $t->parentNode->replaceChild($frag, $t);
+                $changed = true;
+            }
+            if (!$changed) {
+                continue;
+            }
+            $root = $doc->getElementById('r');
+            $html = '';
+            foreach ($root->childNodes as $c) {
+                $html .= $doc->saveHTML($c);
+            }
+            DB::update('brgy_forms', ['body' => self::sanitize($html), 'updated_at' => date('Y-m-d H:i:s')], 'id = :id', ['id' => $f['id']]);
+            Brgy::bumpVersion('brgy_forms', (int)$f['id']);
+            Brgy::log('refresh', 'form', (int)$f['id'], $f['form_no'], ['reason' => 'Item tables filled from the price schedule', 'page_key' => 'brgy.forms']);
+            $n++;
+        }
+        return $n;
+    }
+
+    /** v39: an older form's item tables get the columns and layout attributes the page needs to work them out again */
+    public static function markItemTables(string $body, array $L): string
+    {
+        if (!str_contains($body, 'data-table=') || !preg_match('/<table[^>]*data-table="(?:' . implode('|', array_map(fn($x) => preg_quote($x, '/'), BrgyLayout::GRID_TABLES)) . ')"(?![^>]*data-cols)/', $body)) {
+            return $body;
+        }
+        $doc = new DOMDocument('1.0', 'UTF-8');
+        $prev = libxml_use_internal_errors(true);
+        $doc->loadHTML('<?xml encoding="UTF-8"><html><body><div id="r">' . $body . '</div></body></html>', LIBXML_HTML_NODEFDTD);
+        libxml_clear_errors();
+        libxml_use_internal_errors($prev);
+        $xp = new DOMXPath($doc);
+        $done = false;
+        foreach ($xp->query('//table[@data-table]') as $t) {
+            $name = (string)$t->getAttribute('data-table');
+            if (!in_array($name, BrgyLayout::GRID_TABLES, true) || $t->getAttribute('data-cols') !== '') {
+                continue;
+            }
+            $cols = self::tableCols($t, $L);
+            if (!$cols) {
+                continue;
+            }
+            $all = BrgyLayout::columns($name, $L);
+            $attrs = BrgyLayout::gridAttrs($name, array_intersect_key($all, array_flip($cols)), $L);
+            if (preg_match_all('/ (data-[a-z]+)="([^"]*)"/', $attrs, $mm, PREG_SET_ORDER)) {
+                foreach ($mm as $a) {
+                    $t->setAttribute($a[1], html_entity_decode($a[2]));
+                }
+                $done = true;
+            }
+        }
+        if (!$done) {
+            return $body;
+        }
+        $html = '';
+        foreach ($doc->getElementById('r')->childNodes as $c) {
+            $html .= $doc->saveHTML($c);
+        }
+        return $html;
     }
 
     // ================================================================== cleaning HTML typed by users
@@ -1462,7 +1733,8 @@ final class BrgyDocs
     private const TAGS = ['p', 'br', 'hr', 'b', 'strong', 'i', 'em', 'u', 's', 'strike', 'sub', 'sup', 'small', 'span', 'div', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
         'ul', 'ol', 'li', 'table', 'thead', 'tbody', 'tfoot', 'tr', 'th', 'td', 'colgroup', 'col', 'caption', 'blockquote', 'pre', 'code', 'a', 'img', 'font', 'center'];
     private const DROP = ['script', 'style', 'iframe', 'object', 'embed', 'form', 'input', 'button', 'select', 'textarea', 'link', 'meta', 'base', 'svg', 'math', 'video', 'audio', 'source', 'frame', 'frameset', 'applet', 'noscript', 'template'];
-    private const ATTRS = ['style', 'class', 'title', 'align', 'colspan', 'rowspan', 'width', 'height', 'valign', 'border', 'cellpadding', 'cellspacing', 'href', 'src', 'alt', 'span', 'start', 'type', 'data-ph', 'data-section', 'data-table'];
+    private const ATTRS = ['style', 'class', 'title', 'align', 'colspan', 'rowspan', 'width', 'height', 'valign', 'border', 'cellpadding', 'cellspacing', 'href', 'src', 'alt', 'span', 'start', 'type', 'data-ph', 'data-section', 'data-table',
+        'data-cols', 'data-aligns', 'data-blank', 'data-nf', 'data-total', 'data-prefix'];
     private const STYLE_PROPS = ['text-align', 'font-weight', 'font-style', 'text-decoration', 'text-transform', 'font-size', 'font-family', 'color', 'background-color', 'background',
         'width', 'min-width', 'max-width', 'height', 'min-height', 'border', 'border-top', 'border-bottom', 'border-left', 'border-right', 'border-collapse', 'border-color', 'border-style',
         'border-width', 'padding', 'padding-top', 'padding-bottom', 'padding-left', 'padding-right', 'margin', 'margin-top', 'margin-bottom', 'margin-left', 'margin-right',
@@ -1595,7 +1867,9 @@ final class BrgyDocs
         $orientation = $L['orientation'];
         $font = BrgyLayout::FONTS[$L['font']] ?? 'Arial, sans-serif';
         $b = (float)$L['border'] . 'px solid #000';
-        $body = (string)preg_replace('/<span class="ph-missing"[^>]*>(.*?)<\/span>/', '<span style="background:#fff3bf">$1</span>', BrgyLayout::stripHidden($body, $L)) . BrgyLayout::footerHtml($L);
+        // v39: a field that may stay blank is a blank space; another blank stays marked
+        $body = (string)preg_replace(['/<span class="ph-missing ph-opt"[^>]*>.*?<\/span>/', '/<span class="ph-missing"[^>]*>(.*?)<\/span>/'],
+            [str_repeat('&nbsp;', 12), '<span style="background:#fff3bf">$1</span>'], BrgyLayout::stripHidden($body, $L)) . BrgyLayout::footerHtml($L);
         return '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">'
             . '<head><meta charset="utf-8"><title>' . h($title) . '</title>'
             . '<!--[if gte mso 9]><xml><w:WordDocument><w:View>Print</w:View><w:Zoom>100</w:Zoom></w:WordDocument></xml><![endif]-->'

@@ -39,6 +39,11 @@ function brgy_save_template(array $d, ?int $id): int
             'is_prescribed' => !empty($d['is_prescribed']) ? 1 : 0, 'official_source' => mb_substr(trim((string)($d['official_source'] ?? '')), 0, 255) ?: null,
             'official_version' => mb_substr(trim((string)($d['official_version'] ?? '')), 0, 80) ?: null, 'required_fields' => mb_substr(trim((string)($d['required_fields'] ?? '')), 0, 255) ?: null,
             'sort_order' => (int)($d['sort_order'] ?? 0), 'is_active' => isset($d['is_active']) ? (int)(bool)$d['is_active'] : 1, 'updated_by' => Auth::id(), 'updated_at' => date('Y-m-d H:i:s')];
+        // v39: the fields that may stay blank: printed empty, not counted as blanks (field keys, comma separated)
+        if (array_key_exists('optional_fields', $d)) {
+            $opt = array_values(array_unique(array_filter(array_map(fn($x) => strtolower(trim(str_replace(['{', '}'], '', $x))), preg_split('/[,\s]+/', (string)$d['optional_fields'])), fn($x) => preg_match('/^[a-z0-9_]+\.[a-z0-9_.]+$/', $x) === 1)));
+            $row['optional_fields'] = $opt ? mb_substr(implode(',', $opt), 0, 255) : null;
+        }
         $note = mb_substr(trim((string)($d['change_note'] ?? '')), 0, 255);
         if ($id) {
             Brgy::checkVersion('brgy_templates', $id, $d['lock_version'] ?? null);
@@ -155,7 +160,7 @@ if ($a === 'format_preview' && $id && is_post()) {
     $t = DB::row('SELECT * FROM brgy_templates WHERE id = :id', ['id' => $id]);
     $L = BrgyLayout::fromPost($_POST);
     $p = gint('project_id') ? Brgy::project(gint('project_id')) : null;
-    $html = BrgyDocs::render((string)$t['body'], BrgyDocs::context($p, null, 'BFM-PREVIEW', $L));
+    $html = BrgyDocs::render((string)$t['body'], BrgyDocs::context($p, null, 'BFM-PREVIEW', $L), $nil, BrgyDocs::optionalKeys($t));
     header('Content-Type: application/json');
     echo json_encode(['css' => BrgyLayout::css($L, '#fmtPreview', false), 'style' => BrgyLayout::styleAttr($L), 'html' => $html . BrgyLayout::footerHtml($L), 'cls' => trim(BrgyLayout::docClass($L)),
         'paper' => BrgyLayout::paperLabel($L)]);
@@ -174,7 +179,7 @@ if (in_array($a, ['print', 'test'], true) && $id) {
     if ($a === 'test' || g('mode') === 'positions') {
         BrgyLayout::printPositions($t['name'] . ($a === 'test' ? ' (test page)' : ''), BrgyLayout::positions($t), BrgyLayout::values($ctx, $p ? Brgy::lines((int)$p['id']) : [], $L), ['test' => $a === 'test', 'back' => $back]);
     }
-    BrgyLayout::printPage($t['name'] . ' (sample)', BrgyDocs::render($t['body'], $ctx), $L, ['draft' => (int)$t['needs_approval'] === 1, 'clean' => (int)$t['needs_approval'] === 0, 'back' => $back]);
+    BrgyLayout::printPage($t['name'] . ' (sample)', BrgyDocs::render($t['body'], $ctx, $nil, BrgyDocs::optionalKeys($t)), $L, ['draft' => (int)$t['needs_approval'] === 1, 'clean' => (int)$t['needs_approval'] === 0, 'back' => $back]);
 }
 if ($a === 'bg' && $id) {
     Access::require($pageKey, 'view');
@@ -407,6 +412,8 @@ if (in_array($a, ['new', 'edit'], true)) {
             <?= check_field('is_prescribed', 'Prescribed form (GPPB / entity)', fv('is_prescribed', $t, 0), 'col-12') ?>
             <?= input_field('official_source', 'Official source', fv('official_source', $t), ['class' => 'col-12']) ?>
             <?= input_field('official_version', 'Official version', fv('official_version', $t), ['class' => 'col-12']) ?>
+            <?= input_field('optional_fields', 'Fields that may stay blank', fv('optional_fields', $t), ['class' => 'col-12', 'extra' => 'maxlength="255" placeholder="e.g. pr.no, pr.date" aria-describedby="optHelp"']) ?>
+            <div class="col-12 form-text mt-0" id="optHelp">Fields of this template (as in {{pr.no}}, without the braces) that print empty when they have no value, instead of stopping the form from going for review.</div>
             <?= input_field('sort_order', 'Order in lists', fv('sort_order', $t, 100), ['type' => 'number', 'step' => '1', 'class' => 'col-6']) ?>
             <?= $t ? check_field('is_active', 'Active', fv('is_active', $t, 1), 'col-6') : '' ?>
             <?= input_field('change_note', 'What changed', '', ['class' => 'col-12', 'extra' => 'placeholder="kept with the version"']) ?>
@@ -442,7 +449,7 @@ if ($a === 'view' && $id) {
     $L = BrgyLayout::layout($t);
     $missing = [];
     $ctx = BrgyDocs::context($p, null, 'BFM-PREVIEW', $L);
-    $preview = BrgyDocs::render($t['body'], $ctx, $missing);
+    $preview = BrgyDocs::render($t['body'], $ctx, $missing, BrgyDocs::optionalKeys($t));
     $versions = DB::all('SELECT v.*, u.full_name FROM brgy_template_versions v LEFT JOIN users u ON u.id = v.changed_by WHERE v.template_id = :t ORDER BY v.version_no DESC', ['t' => $id]);
     $uses = (int)DB::value('SELECT COUNT(*) FROM brgy_forms WHERE template_id = :t', ['t' => $id]);
     $canEditT = Access::can($pageKey, 'edit');
@@ -480,6 +487,7 @@ if ($a === 'view' && $id) {
             <dt>Counts as</dt><dd><?= h($t['doc_type'] ? Brgy::docTypeName($t['doc_type']) : 'nothing') ?></dd>
             <dt>Prints</dt><dd><?= h(BrgyLayout::paperLabel($L)) ?>, <?= h($L['font'] . ' ' . $L['font_size'] . ' pt') ?><?= (int)$L['copies'] > 1 ? ', ' . (int)$L['copies'] . ' copies' : '' ?><div class="text-muted"><?= $t['print_mode'] === 'positions' ? 'On pre-printed paper (values only)' : 'With the layout' ?></div></dd>
             <dt>Approval</dt><dd><?= (int)$t['needs_approval'] ? 'Review and approval; DRAFT until final' : 'None: forms print clean as soon as they are prepared' ?></dd>
+            <?php if ($optKeys = BrgyDocs::optionalKeys($t)): // v39 ?><dt>May stay blank</dt><dd><?php $kn = array_merge(...array_values(BrgyDocs::FIELDS)); echo h(implode(', ', array_map(fn($k) => $kn[$k] ?? $k, $optKeys))); ?><div class="text-muted">Printed empty when they have no value</div></dd><?php endif; ?>
             <dt>Status</dt><dd><?= Brgy::st($t['is_active'] ? 'ok' : 'void', $t['is_active'] ? 'Active' : 'Set aside') ?></dd>
             <?php if ((int)$t['is_prescribed']): ?><dt>Prescribed</dt><dd><?= h($t['official_source'] ?: 'yes') ?><?= $t['official_version'] ? '<div class="text-muted">' . h($t['official_version']) . '</div>' : '' ?></dd><?php endif; ?>
             <dt>Forms made</dt><dd><?= $uses ?></dd>

@@ -1081,7 +1081,7 @@ layout_start('Import from CSV', ['actions' => page_link('admin.backup', [], 'Bac
         <div class="form-text mb-2"><?= h($types[$type]['note']) ?></div>
         <div class="mb-3"><a class="btn btn-sm btn-outline-secondary" href="<?= h(url($pageKey, ['a' => 'template', 'type' => $type])) ?>"><i class="bi bi-download"></i> Download the blank template</a></div>
         <label class="form-label d-block">CSV file</label>
-        <input class="form-control form-control-sm" type="file" name="file" accept=".csv,text/csv,text/plain" required>
+        <input class="form-control form-control-sm" type="file" name="file" accept=".csv,text/csv,text/plain" required data-no-shrink>
         <div class="d-flex gap-2 mt-3 flex-wrap">
           <button class="btn btn-primary" name="mode" value="check"><i class="bi bi-search"></i> Check the file</button>
           <button class="btn btn-outline-secondary" name="mode" value="import" data-confirm="Check and import this file in one step? Records are added to the books."><i class="bi bi-upload"></i> Check and import in one step</button>

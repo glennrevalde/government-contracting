@@ -73,9 +73,7 @@ if ($a === 'approve' && $id && is_post()) {
         if (!$r || $r['status'] !== 'proposed') {
             fail('Only a proposed requirement is approved.');
         }
-        if ((int)$r['created_by'] === (int)Auth::id() && Brgy::on('brgy_sod_strict') && !Access::isAdmin()) {
-            fail('You proposed it; another approver has to approve it.');
-        }
+        // v39: proposing and approving are two roles, which one person may hold (up to two roles per person)
         DB::update('brgy_requirements', ['status' => 'approved', 'approved_by' => Auth::id(), 'approved_at' => date('Y-m-d H:i:s')], 'id = :id', ['id' => $id]);
         Brgy::log('approve', 'requirement', $id, $r['code'] . ' ' . $r['name'], ['reason' => trim((string)p('remarks')) ?: null, 'page_key' => 'brgy.requirements']);
         return 'Approved: new checklists include it ("Add what the library suggests" adds it to open projects).';

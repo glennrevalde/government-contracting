@@ -77,6 +77,48 @@ $paperRow = function (array $pp, array $step) use ($self, $canEdit, $canAttach, 
 $money = Brgy::money($p);
 $w = BrgySop::dvAmounts($p);   // v34: the amounts of the DV (its gross, VAT and EWT once entered on it)
 $lt = Brgy::lineTotals($id);
+// v39: the price schedule is a step of its own (step 4 of the small value procurement); the payment (cheque) has a box of
+// its own below the steps when no step of the process records it
+$pricingStep = BrgySop::hasPricing((string)$p['process']);
+$payStep = (bool)array_filter($S['steps'], fn($x) => in_array($x['action'], ['payment', 'billing_docs'], true));
+/** The payment: the cheque released or awaited, the follow-ups, and once released the delivery, invoice and receipt */
+$payBox = function (string $action) use ($p, $id, $w, $canEdit): string {
+    $live = in_array($p['status'], ['open', 'awarded'], true);
+    $released = $p['payment_status'] === 'released';
+    ob_start(); ?>
+              <div class="pay-box <?= $released ? 'is-released' : 'is-waiting' ?>">
+                <div class="pay-state"><i class="bi bi-<?= $released ? 'cash-coin' : 'hourglass-split' ?>"></i>
+                  <div><b><?= $released ? 'Payment released' : 'Payment not released yet' ?></b>
+                    <div class="small"><?= $released ? 'Cheque ' . h($p['cheque_no']) . ' dated ' . h(fdate($p['cheque_date'])) . ($p['cheque_bank'] ? ', ' . h($p['cheque_bank']) : '') . ', ' . money($p['cheque_amount'])
+                        . (!empty($p['cheque_tradename']) ? ', payable to ' . h($p['cheque_tradename']) : '')
+                        : ($action === 'billing_docs' ? 'Hold the SI, OR and 2307; follow up with the barangay and wait.' : 'Follow up with the barangay until the cheque is ready.') . ' Expected cheque: ' . money($w['net']) . ' (' . money($w['gross']) . ' less ' . money($w['vat']) . ' VAT and ' . money($w['ewt']) . ' income tax withheld).' ?></div></div></div>
+                <?php if (!$released && ($canEdit || Access::can('brgy.collections', 'create')) && $live): ?>
+                  <div class="d-flex flex-wrap gap-1 mt-2"><button type="button" class="btn btn-sm btn-success" data-bs-toggle="modal" data-bs-target="#mPayRelease"><i class="bi bi-check2-circle"></i> Cheque ready</button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#mFollow"><i class="bi bi-telephone-outbound"></i> Log a follow-up</button></div>
+                <?php endif; ?>
+                <?php $fu = DB::all("SELECT * FROM brgy_events WHERE project_id = :p AND event_type = 'payment' ORDER BY event_at DESC LIMIT 4", ['p' => $id]);
+                if ($fu): ?><ul class="small mb-0 mt-2 ps-3"><?php foreach ($fu as $e): ?><li><?= h(fdate(substr((string)$e['event_at'], 0, 10))) ?>: <?= h($e['title']) ?></li><?php endforeach; ?></ul><?php endif; ?>
+              </div>
+              <?php if ($action !== 'payment' && $released && $p['status'] === 'awarded'):
+                  Brgy::refreshLines($id);
+                  $m2 = Brgy::money(Brgy::mustProject($id)); ?>
+                <div class="link-list mt-2">
+                  <div class="ll-row"><span><b>Delivery and acceptance (IAR)</b><span class="small text-muted d-block"><?= money($m2['accepted']) ?> of <?= money($m2['contract']) ?> accepted</span></span>
+                    <span><?php if ($m2['accepted'] < $m2['contract'] - 0.004 && Access::can('brgy.deliveries', 'create')): ?><button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#mDeliverAll"><i class="bi bi-truck"></i> Delivered and accepted</button><?php else: ?><span class="small text-success"><i class="bi bi-check-lg"></i> Accepted</span><?php endif; ?></span></div>
+                  <?php // v36: a pack not invoiced yet is opened from here; another pack is offered only for accepted quantities in no pack
+                  $pend2 = Brgy::pendingBillings($id);
+                  $newPack = $m2['accepted'] > $m2['billed'] + $m2['billing_draft'] + 0.004 && $m2['billed'] + $m2['billing_draft'] < $m2['contract'] - 0.004; ?>
+                  <div class="ll-row"><span><b>Sales invoice</b><span class="small text-muted d-block"><?= money($m2['billed']) ?> invoiced<?= $pend2 ? ', ' . money($m2['billing_draft']) . ' in billing pack' . (count($pend2) > 1 ? 's ' : ' ') . h(implode(', ', array_map(fn($x) => $x['billing_no'] . ' (' . (Brgy::WF[$x['status']] ?? $x['status']) . ')', $pend2))) . ', not invoiced yet' : '' ?></span></span>
+                    <span class="d-flex flex-wrap gap-1 justify-content-end"><?php foreach ($pend2 as $x): ?><?= page_link('brgy.billing', ['a' => 'view', 'id' => $x['id']], 'Open ' . $x['billing_no'], 'btn-outline-primary', 'receipt') ?><?php endforeach; ?>
+                      <?= $newPack ? page_link('brgy.billing', ['a' => 'new', 'project_id' => $id], 'Make the billing pack', 'btn-outline-primary', 'receipt', 'create') : '' ?>
+                      <?= !$pend2 && !$newPack ? '<span class="small text-success"><i class="bi bi-check-lg"></i> Invoiced</span>' : '' ?></span></div>
+                  <div class="ll-row"><span><b>Official receipt / payment received</b><span class="small text-muted d-block"><?= money($m2['cash']) ?> collected, <?= money($m2['taxes']) ?> taxes withheld</span></span>
+                    <span><?= $m2['ar_open'] > 0.004 ? page_link('brgy.collections', ['a' => 'new', 'project_id' => $id, 'check_no' => $p['cheque_no']], 'Record the payment', 'btn-outline-primary', 'cash-coin', 'create') : ($m2['cash'] > 0 ? '<span class="small text-success"><i class="bi bi-check-lg"></i> Recorded</span>' : '') ?></span></div>
+                </div>
+              <?php endif; ?>
+<?php
+    return (string)ob_get_clean();
+};
 ?>
 <div class="sop-head">
   <div class="sop-head-main">
@@ -133,10 +175,12 @@ $lt = Brgy::lineTotals($id);
             case 'details': ?>
               <dl class="dl-grid small mb-2">
                 <dt>Project title</dt><dd><?= h($p['title']) ?></dd>
-                <dt>Approved budget</dt><dd><?= (float)$p['abc_amount'] > 0 ? money($p['abc_amount']) : '<span class="text-danger">not entered</span>' ?></dd>
+                <dt>Approved budget</dt><dd><?= (float)$p['abc_amount'] > 0 ? money($p['abc_amount']) : ($p['process'] === 'svp' ? '<span class="text-muted">not entered</span>' : '<span class="text-danger">not entered</span>') ?></dd>
                 <dt>Requestor</dt><dd><?= h(trim((string)$p['requestor'])) ?: '<span class="text-danger">not entered</span>' ?></dd>
                 <dt>Inspector</dt><dd><?= h(trim((string)$p['inspector'])) ?: '<span class="text-danger">not entered</span>' ?></dd>
+                <?php if (!$pricingStep): // v39: with the price schedule as a step of its own (step 4), the items are worked on there ?>
                 <dt>Items / particulars</dt><dd><?= $lt['lines'] ? $lt['lines'] . ' line(s), ' . money($lt['bid']) : '<span class="text-danger">none yet</span>' ?> <a href="<?= h($self(['tab' => 'lines'])) ?>">Price schedule</a></dd>
+                <?php endif; ?>
                 <dt>Purpose</dt><dd><?= h((string)$p['purpose']) ?></dd>
                 <?php $est = Brgy::v34Ready() ? Brgy::estimates($p) : null;
                 if ($est && $est['any']): $pc = fn(?float $r) => $r === null ? '' : ' (' . Brgy::rateKey($r) . '%)'; ?>
@@ -184,43 +228,32 @@ $lt = Brgy::lineTotals($id);
                 <?php if (!$cv): ?><tr><td colspan="7" class="text-muted small">No quotation yet. Record the three suppliers canvassed, the company's own quotation among them, each with its signed canvass form.</td></tr><?php endif; ?>
               </tbody></table></div>
               <?php if ($canEdit && $p['status'] === 'open'): ?><div class="mb-2 d-flex flex-wrap gap-1"><button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#mCanvass" data-canvass="{}"><i class="bi bi-plus-lg"></i> Add a quotation</button>
-                <?php if (!array_filter($cv, fn($c) => (int)$c['is_company'] === 1)): ?><button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#mCanvass" data-canvass='<?= h(json_encode(['is_company' => 1, 'supplier_name' => Brgy::setting('brgy_tradename') ?: Settings::get('company_name'), 'total_amount' => $lt['bid'], 'remarks' => 'passed'])) ?>'><i class="bi bi-building"></i> Add the company's quotation</button><?php endif; ?></div>
-                <div class="small text-muted mb-2">When the step is done, the company's quotation being the lowest that passed, the purchase order is recorded as the award (<?= money($lt['bid']) ?>); otherwise the transaction is recorded as lost.</div><?php endif; ?>
+                <?php if (!array_filter($cv, fn($c) => (int)$c['is_company'] === 1)): ?><button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#mCanvass" data-canvass='<?= h(json_encode(['is_company' => 1, 'supplier_name' => Brgy::setting('brgy_tradename') ?: Settings::get('company_name'), 'total_amount' => $lt['lines'] ? $lt['bid'] : '', 'remarks' => 'passed'])) ?>'><i class="bi bi-building"></i> Add the company's quotation</button><?php endif; ?></div>
+                <div class="small text-muted mb-2"><?= $pricingStep ? 'When the step is done and the company\'s quotation is the lowest that passed, the price schedule is next (step 4), where the purchase order is recorded as the award; otherwise the transaction is recorded as lost.'
+                    : 'When the step is done, the company\'s quotation being the lowest that passed, the purchase order is recorded as the award (' . money($lt['bid']) . '); otherwise the transaction is recorded as lost.' ?></div><?php endif; ?>
+              <?php break;
+            case 'price_schedule':
+              // v39: step 4 of the small value procurement: the price schedule, agreeing with the company's quotation; done, the award
+              $coQ = current(array_filter(BrgySop::canvass($id), fn($c) => (int)$c['is_company'] === 1)) ?: null;
+              $agree = $coQ && $lt['lines'] && abs((float)$coQ['total_amount'] - $lt['bid']) <= 0.004;
+              $schedOpen = $p['status'] === 'open' && in_array($p['bid_status'], ['draft', 'returned'], true);
+              $prIt = $schedOpen && !$lt['lines'] ? BrgyDocs::prItems($id) : []; ?>
+              <dl class="dl-grid small mb-2">
+                <dt>Items</dt><dd><?= $lt['lines'] ? $lt['lines'] . ' line' . ($lt['lines'] === 1 ? '' : 's') . ', ' . money($lt['bid']) : '<span class="text-danger">none yet</span>' ?></dd>
+                <?php if ($coQ): ?><dt>Company's quotation</dt><dd><?= money($coQ['total_amount']) ?> in the canvass<?= $lt['lines'] ? ($agree ? ' <span class="text-success"><i class="bi bi-check-lg"></i> agrees with the price schedule</span>' : ' <span class="text-danger">does not agree with the price schedule</span>') : '' ?></dd><?php endif; ?>
+                <?php if ($p['status'] === 'awarded' || $p['status'] === 'closed'): ?><dt>Award</dt><dd>Purchase order <?= h((string)($p['po_no'] ?: $p['noa_ref'])) ?>, <?= money(Brgy::contractTotal($p)) ?></dd>
+                <?php elseif ($p['status'] === 'open'): ?><dt>Award</dt><dd class="text-muted">Recorded when this step is done: the purchase order at the price schedule's total.</dd><?php endif; ?>
+              </dl>
+              <div class="d-flex flex-wrap gap-1 mb-2">
+                <a class="btn btn-sm btn-outline-primary" href="<?= h($self(['tab' => 'lines'])) ?>"><i class="bi bi-table"></i> <?= $lt['lines'] ? 'Open the price schedule' : 'Prepare the price schedule' ?></a>
+                <?php if ($prIt && $canEdit && $live): ?><?= $post('lines_from_pr', '<input type="hidden" name="lock_version" value="' . (int)$p['lock_version'] . '"><button class="btn btn-sm btn-primary"><i class="bi bi-box-arrow-in-down"></i> Take the ' . count($prIt['items']) . ' item' . (count($prIt['items']) === 1 ? '' : 's') . ' of the purchase request ' . h($prIt['form_no']) . '</button>', 'd-inline') ?><?php endif; ?>
+                <?php if ($coQ && $lt['lines'] && !$agree && $p['status'] === 'open' && $canEdit && $live): ?><?= $post('quote_from_schedule', '<button class="btn btn-sm btn-outline-secondary" data-confirm="Make the company\'s quotation in the canvass ' . h(money($lt['bid'])) . ', the total of the price schedule?"><i class="bi bi-arrow-left-right"></i> Make the company\'s quotation ' . money($lt['bid']) . '</button>', 'd-inline') ?><?php endif; ?>
+              </div>
               <?php break;
             case 'payment':
             case 'billing_docs':
-              $released = $p['payment_status'] === 'released'; ?>
-              <div class="pay-box <?= $released ? 'is-released' : 'is-waiting' ?>">
-                <div class="pay-state"><i class="bi bi-<?= $released ? 'cash-coin' : 'hourglass-split' ?>"></i>
-                  <div><b><?= $released ? 'Payment released' : 'Payment not released yet' ?></b>
-                    <div class="small"><?= $released ? 'Cheque ' . h($p['cheque_no']) . ' dated ' . h(fdate($p['cheque_date'])) . ($p['cheque_bank'] ? ', ' . h($p['cheque_bank']) : '') . ', ' . money($p['cheque_amount'])
-                        . (!empty($p['cheque_tradename']) ? ', payable to ' . h($p['cheque_tradename']) : '')
-                        : 'Hold the SI, OR and 2307; follow up with the barangay and wait. Expected cheque: ' . money($w['net']) . ' (' . money($w['gross']) . ' less ' . money($w['vat']) . ' VAT and ' . money($w['ewt']) . ' income tax withheld).' ?></div></div></div>
-                <?php if (!$released && ($canEdit || Access::can('brgy.collections', 'create')) && $live): ?>
-                  <div class="d-flex flex-wrap gap-1 mt-2"><button type="button" class="btn btn-sm btn-success" data-bs-toggle="modal" data-bs-target="#mPayRelease"><i class="bi bi-check2-circle"></i> Cheque ready</button>
-                    <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#mFollow"><i class="bi bi-telephone-outbound"></i> Log a follow-up</button></div>
-                <?php endif; ?>
-                <?php $fu = DB::all("SELECT * FROM brgy_events WHERE project_id = :p AND event_type = 'payment' ORDER BY event_at DESC LIMIT 4", ['p' => $id]);
-                if ($fu): ?><ul class="small mb-0 mt-2 ps-3"><?php foreach ($fu as $e): ?><li><?= h(fdate(substr((string)$e['event_at'], 0, 10))) ?>: <?= h($e['title']) ?></li><?php endforeach; ?></ul><?php endif; ?>
-              </div>
-              <?php if ($s['action'] === 'billing_docs' && $released && $p['status'] === 'awarded'):
-                  Brgy::refreshLines($id);
-                  $m2 = Brgy::money(Brgy::mustProject($id)); ?>
-                <div class="link-list mt-2">
-                  <div class="ll-row"><span><b>Delivery and acceptance (IAR)</b><span class="small text-muted d-block"><?= money($m2['accepted']) ?> of <?= money($m2['contract']) ?> accepted</span></span>
-                    <span><?php if ($m2['accepted'] < $m2['contract'] - 0.004 && Access::can('brgy.deliveries', 'create')): ?><button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#mDeliverAll"><i class="bi bi-truck"></i> Delivered and accepted</button><?php else: ?><span class="small text-success"><i class="bi bi-check-lg"></i> Accepted</span><?php endif; ?></span></div>
-                  <?php // v36: a pack not invoiced yet is opened from here; another pack is offered only for accepted quantities in no pack
-                  $pend2 = Brgy::pendingBillings($id);
-                  $newPack = $m2['accepted'] > $m2['billed'] + $m2['billing_draft'] + 0.004 && $m2['billed'] + $m2['billing_draft'] < $m2['contract'] - 0.004; ?>
-                  <div class="ll-row"><span><b>Sales invoice</b><span class="small text-muted d-block"><?= money($m2['billed']) ?> invoiced<?= $pend2 ? ', ' . money($m2['billing_draft']) . ' in billing pack' . (count($pend2) > 1 ? 's ' : ' ') . h(implode(', ', array_map(fn($x) => $x['billing_no'] . ' (' . (Brgy::WF[$x['status']] ?? $x['status']) . ')', $pend2))) . ', not invoiced yet' : '' ?></span></span>
-                    <span class="d-flex flex-wrap gap-1 justify-content-end"><?php foreach ($pend2 as $x): ?><?= page_link('brgy.billing', ['a' => 'view', 'id' => $x['id']], 'Open ' . $x['billing_no'], 'btn-outline-primary', 'receipt') ?><?php endforeach; ?>
-                      <?= $newPack ? page_link('brgy.billing', ['a' => 'new', 'project_id' => $id], 'Make the billing pack', 'btn-outline-primary', 'receipt', 'create') : '' ?>
-                      <?= !$pend2 && !$newPack ? '<span class="small text-success"><i class="bi bi-check-lg"></i> Invoiced</span>' : '' ?></span></div>
-                  <div class="ll-row"><span><b>Official receipt / payment received</b><span class="small text-muted d-block"><?= money($m2['cash']) ?> collected, <?= money($m2['taxes']) ?> taxes withheld</span></span>
-                    <span><?= $m2['ar_open'] > 0.004 ? page_link('brgy.collections', ['a' => 'new', 'project_id' => $id, 'check_no' => $p['cheque_no']], 'Record the payment', 'btn-outline-primary', 'cash-coin', 'create') : ($m2['cash'] > 0 ? '<span class="small text-success"><i class="bi bi-check-lg"></i> Recorded</span>' : '') ?></span></div>
-                </div>
-              <?php endif; ?>
-              <?php break;
+              echo $payBox($s['action']);
+              break;
             case 'forward': ?>
               <?= $isCur && $canEdit ? $post('sop_save', '<div class="row g-2 align-items-end"><div class="col-sm-5"><label class="form-label">Forwarded to</label><input class="form-control form-control-sm" name="forwarded_to" maxlength="120" value="' . h($p['forwarded_to'] ?: Brgy::setting('brgy_accounting_dept')) . '"></div>'
                   . '<div class="col-sm-4"><label class="form-label">On</label><input class="form-control form-control-sm" type="date" name="forwarded_date" value="' . h($p['forwarded_at'] ? substr((string)$p['forwarded_at'], 0, 10) : today()) . '"></div><div class="col-sm-3"><button class="btn btn-sm btn-outline-primary w-100">Save</button></div></div>', 'mb-2', ['step' => $code])
@@ -299,6 +332,9 @@ $lt = Brgy::lineTotals($id);
   </div>
 </div>
 
+<?php if (!$payStep && $p['process'] !== 'general'): ?>
+<div class="card mt-3" id="paymentBox"><div class="card-header"><i class="bi bi-cash-coin"></i> Payment</div><div class="card-body"><?= $payBox('standalone') ?></div></div>
+<?php endif; ?>
 <div class="card mt-3" id="allPapers"><div class="card-header d-flex align-items-center"><span><i class="bi bi-folder2-open"></i> All papers of this transaction</span>
   <?php if ($signedCount): ?><a class="btn btn-sm btn-outline-secondary ms-auto" href="<?= h(url($pageKey, ['a' => 'papers_zip', 'id' => $id])) ?>"><i class="bi bi-file-zip"></i> ZIP of the signed copies</a><?php endif; ?></div>
   <div class="table-responsive"><table class="table table-sm mb-0 align-middle papers-table">
@@ -351,7 +387,7 @@ echo $modal('mPayRelease', 'Cheque ready: payment released', 'pay_release', '<di
     . '<div class="col-sm-6"><label class="form-label">Amount of the cheque</label><input class="form-control" name="cheque_amount" inputmode="decimal" value="' . h(number_format($w['net'], 2, '.', '')) . '" required></div>'
     . '<div class="col-sm-6"><label class="form-label">DV no. (if known)</label><input class="form-control" name="dv_no" maxlength="40" value="' . h((string)$p['dv_no']) . '"></div>'
     . $chequeTn
-    . '<div class="col-12 form-text">Expected: ' . money($w['gross']) . ' less ' . money($w['vat']) . ' VAT and ' . money($w['ewt']) . ' income tax withheld = ' . money($w['net']) . '. The SI, OR and 2307 can now be prepared.</div></div>', 'Record the cheque', 'btn-success');
+    . '<div class="col-12 form-text">Expected: ' . money($w['gross']) . ' less ' . money($w['vat']) . ' VAT and ' . money($w['ewt']) . ' income tax withheld = ' . money($w['net']) . '.' . (BrgySop::hasAction((string)$p['process'], 'billing_docs') ? ' The SI, OR and 2307 can now be prepared.' : '') . '</div></div>', 'Record the cheque', 'btn-success');
 echo $modal('mFollow', 'Payment follow-up', 'pay_followup', '<label class="form-label">What the barangay said</label><textarea class="form-control" name="remarks" rows="2" required></textarea><label class="form-label mt-2">Follow up again on</label><input class="form-control" type="date" name="next_date" value="' . date('Y-m-d', strtotime('+3 days')) . '">', 'Log it');
 echo $modal('mDeliverAll', 'Delivered and accepted', 'deliver_all', '<p class="small text-muted">Everything still to deliver on the contract is recorded as one delivery, accepted in full from the signed inspection and acceptance report (IAR ' . h($p['iar_no'] ?: 'no.') . '). For partial deliveries or rejections use Deliveries & Acceptance instead.</p>'
     . '<div class="row g-2"><div class="col-sm-6"><label class="form-label">Delivered on</label><input class="form-control" type="date" name="delivery_date" value="' . h($p['delivery_date'] ?: today()) . '"></div>'
@@ -368,5 +404,6 @@ $ccBody = '<input type="hidden" name="canvass_id" value=""><input type="hidden" 
     . '<div class="col-12"><label class="form-label">Address</label><input class="form-control" name="address" maxlength="255"></div>'
     . '<div class="col-sm-6"><label class="form-label">Received on</label><input class="form-control" type="date" name="received_date" value="' . today() . '"></div>'
     . brgy_file_field('file', 'Canvass form signed by the supplier (PDF, JPG or JPEG)', 'Leave empty to keep the one attached.', 'col-12', false, '.pdf,.jpg,.jpeg,.png')
-    . '<div class="col-12 form-text" data-company-note hidden>The company\'s quotation is the total of the price schedule (' . money($lt['bid']) . ').</div></div>';
+    . '<div class="col-12 form-text" data-company-note data-lines="' . (int)$lt['lines'] . '" hidden>' . ($lt['lines'] ? 'The company\'s quotation is the total of the price schedule (' . money($lt['bid']) . ').'
+        : 'Enter the company\'s quoted total. The price schedule is prepared ' . ($pricingStep ? 'at step 4' : 'on its tab') . ' and has to agree with it.') . '</div></div>';
 echo $modal('mCanvass', 'Quotation of a supplier', 'canvass_save', $ccBody, 'Save');

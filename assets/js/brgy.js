@@ -353,8 +353,8 @@
     // the marks of the box being typed in (ph-focus, sig-focus) are not part of the page
     const unmark = (el, cls) => { el.classList.remove(cls); if (!el.className) el.removeAttribute('class'); };
     const take = () => {
-      const marked = $$('.ph-focus, .sig-focus', editor).map((el) => [el, el.className]);
-      marked.forEach(([el]) => { unmark(el, 'ph-focus'); unmark(el, 'sig-focus'); });
+      const marked = $$('.ph-focus, .sig-focus, .ig-focus', editor).map((el) => [el, el.className]);
+      marked.forEach(([el]) => { unmark(el, 'ph-focus'); unmark(el, 'sig-focus'); unmark(el, 'ig-focus'); });
       const h = editor.innerHTML;
       marked.forEach(([el, c]) => { el.className = c; });
       return { h, f: histFields().map((el) => el.value) };
@@ -528,10 +528,17 @@
     const gapPanel = $('#gapPanel');
     const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
     const keyOf = (s) => s.dataset.ph || s.textContent;
+    // v39: the fields the template lets stay blank (the P.R. no. and date ...): printed empty, not counted as blanks
+    let optList = [];
+    try { optList = JSON.parse((gapPanel && gapPanel.dataset.optional) || '[]') || []; } catch (err) { optList = []; }
+    const optKeys = new Set(optList);
+    const isOpt = (k) => optKeys.has(k);
+    const blankCls = (k) => (isOpt(k) ? 'ph-missing ph-opt' : 'ph-missing');
+    $$('.ph-missing', editor).forEach((s) => { if (s.dataset.ph && isOpt(s.dataset.ph)) s.classList.add('ph-opt'); });
     // a blank clicked in the page and left as it was ("[Purchase order no.]") is still a blank
     const untouched = (s) => s.classList.contains('ph-set') && !!s.title && s.textContent === '[' + s.title + ']';
     const unclick = () => $$('.ph-set', editor).forEach((s) => {
-      if (untouched(s) || s.textContent.trim() === '') { s.className = 'ph-missing'; s.textContent = '[' + (s.title || keyOf(s)) + ']'; s.removeAttribute('title'); }
+      if (untouched(s) || s.textContent.trim() === '') { s.className = blankCls(keyOf(s)); s.textContent = '[' + (s.title || keyOf(s)) + ']'; s.removeAttribute('title'); }
     });
     const fieldsInPage = () => {
       const out = new Map();
@@ -539,7 +546,7 @@
         const k = keyOf(s);
         const missing = s.classList.contains('ph-missing') || untouched(s);
         const label = missing ? s.textContent.replace(/^\[|\]$/g, '') : (s.title || k);
-        if (!out.has(k)) out.set(k, { label, missing: false, value: '' });
+        if (!out.has(k)) out.set(k, { label, missing: false, value: '', opt: isOpt(k) || s.classList.contains('ph-opt') });
         const e = out.get(k);
         if (missing) e.missing = true;
         else if (e.value === '') e.value = s.textContent;
@@ -554,7 +561,7 @@
       spansOf(k).forEach((s) => {
         if (!s.dataset.ph) s.dataset.ph = k;
         if (v.trim() === '') {
-          s.className = 'ph-missing';
+          s.className = blankCls(k);
           s.removeAttribute('title');
           s.textContent = '[' + label + ']';
         } else {
@@ -574,7 +581,7 @@
     const listGaps = () => {
       if (!gapList) return;
       const fields = fieldsInPage();
-      const blanks = [...fields.values()].filter((e) => e.missing).length;
+      const blanks = [...fields.values()].filter((e) => e.missing && !e.opt).length;
       gapNone.hidden = blanks > 0;
       gapNone.textContent = fields.size ? 'No blanks left. What was filled in stays below, to change.' : 'No blanks left.';
       const have = new Map($$('[data-gap]', gapList).map((w) => [w.dataset.gap, w]));
@@ -600,17 +607,20 @@
             inp.autocomplete = 'off';
             inp.addEventListener('focus', () => { record(); focusKey = k; mark(k, true); });
             inp.addEventListener('blur', () => { focusKey = null; mark(k, false); });
-            inp.addEventListener('input', () => { applyGap(k, inp.value, wrap.dataset.label); wrap.classList.toggle('is-blank', inp.value.trim() === ''); listSigs(); });
+            inp.addEventListener('input', () => { applyGap(k, inp.value, wrap.dataset.label); wrap.classList.toggle('is-blank', inp.value.trim() === '' && !isOpt(k)); listSigs(); });
             inp.addEventListener('change', () => { record(); listGaps(); });
             inp.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') { ev.preventDefault(); inp.blur(); } });
             wrap.appendChild(inp);
           }
         }
         wrap.dataset.label = e.label;
-        wrap.querySelector('label').textContent = e.label;
+        const lab = wrap.querySelector('label');
+        lab.textContent = e.label;
+        if (e.opt) { const hint = document.createElement('span'); hint.className = 'gap-opt'; hint.textContent = 'may stay blank'; lab.appendChild(hint); }
         const inp = wrap.querySelector('input');
         if (inp && document.activeElement !== inp) inp.value = e.missing ? '' : e.value;
-        wrap.classList.toggle('is-blank', e.missing);
+        wrap.classList.toggle('is-blank', e.missing && !e.opt);
+        wrap.classList.toggle('is-opt', !!e.opt);
         // in the order of the page
         if (prev ? prev.nextElementSibling !== wrap : gapList.firstElementChild !== wrap) {
           if (prev) prev.after(wrap); else gapList.prepend(wrap);
@@ -781,6 +791,192 @@
       if (sidePos) sidePos.addEventListener('input', () => { if (linked >= 0) { putSig(linked, 'pos', sidePos.value); listSigs(); } });
     }
 
+    // ---- v39: the item tables of the page (purchase request, purchase order, RIS, IAR, request for quotation). Their rows are
+    // typed, added, moved and taken away in the panel (Items), as many as needed (the form runs on to more pages), and the
+    // table in the page follows with its numbers, amounts and total. The table itself is changed only from the panel.
+    const itemPanel = $('#itemPanel');
+    const GRID_NAMES = { 'pr.items': 'Purchase request items', 'po.items': 'Purchase order items', 'ris.items': 'Requisition and issue slip items',
+      'iar.items': 'Inspection and acceptance report items', 'rfq.items': 'Request for quotation items' };
+    const COL_LABEL = { qty: 'Qty', unit: 'Unit', description: 'Description', est_unit: 'Est. cost', unit_price: 'Unit cost', issued_qty: 'Issued', remarks: 'Remarks' };
+    const COL_EDIT = ['description', 'qty', 'unit', 'est_unit', 'unit_price', 'issued_qty', 'remarks'];
+    const MONEY_COLS = ['est_unit', 'unit_price'];
+    const num2 = (v) => { const n = parseFloat(String(v).replace(/[^0-9.\-]/g, '')); return Number.isFinite(n) ? n : 0; };
+    const money2 = (v) => v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const gridTables = () => $$('table.fx-items[data-cols]', editor).filter((t) => GRID_NAMES[t.dataset.table]);
+    const colsOf = (t) => t.dataset.cols.split(',');
+    const cellText = (td) => (td ? String(td.innerText || td.textContent || '').replace(/ /g, ' ').replace(/[ \t]+\n/g, '\n').trim() : '');
+    /** the rows of a table in the page: [{column: text}], without "nothing follows" and the blank rows */
+    const readRows = (t) => {
+      const cols = colsOf(t);
+      const out = [];
+      $$('tbody > tr', t).forEach((tr) => {
+        if (tr.classList.contains('fx-nf')) return;
+        const tds = [...tr.children].filter((c) => /^(TD|TH)$/.test(c.nodeName));
+        const r = {};
+        cols.forEach((c, i) => { r[c] = cellText(tds[i]); });
+        if ((r.description || '').includes('***nothing follows***')) return;
+        if (!COL_EDIT.some((c) => (r[c] || '') !== '')) return;
+        out.push(r);
+      });
+      return out;
+    };
+    const priceCol = (t) => (colsOf(t).includes('est_unit') ? 'est_unit' : (colsOf(t).includes('unit_price') ? 'unit_price' : ''));
+    const amountOf = (t, r) => { const pc = priceCol(t); return pc && String(r.qty || '').trim() !== '' && String(r[pc] || '').trim() !== '' ? Math.round(num2(r.qty) * num2(r[pc]) * 100) / 100 : null; };
+    /** writes the rows into the table of the page: the numbers, the amounts, "nothing follows", the blank rows and the total */
+    const writeRows = (t, rows) => {
+      const cols = colsOf(t);
+      const al = (t.dataset.aligns || '').split(',');
+      const tb = $('tbody', t) || t.appendChild(document.createElement('tbody'));
+      let h = '';
+      let total = 0;
+      rows.forEach((r, i) => {
+        const amt = amountOf(t, r);
+        total += amt || 0;
+        h += '<tr>' + cols.map((c, k) => {
+          let v = '';
+          if (c === 'no') v = String(i + 1);
+          else if (c === 'est_amount' || c === 'amount') v = amt === null ? '' : money2(amt);
+          else if (c === 'blank_price' || c === 'blank_total') v = '';
+          else if (MONEY_COLS.includes(c)) v = String(r[c] || '').trim() !== '' ? money2(num2(r[c])) : '';
+          else v = String(r[c] || '');
+          return '<td style="text-align:' + (al[k] || 'left') + '">' + esc(v).replace(/\n/g, '<br>') + '</td>';
+        }).join('') + '</tr>';
+      });
+      if (rows.length && t.dataset.nf === '1') h += '<tr class="fx-nf">' + cols.map((c) => (c === 'description' ? '<td style="text-align:center;font-weight:bold">***nothing follows***</td>' : '<td></td>')).join('') + '</tr>';
+      const blank = parseInt(t.dataset.blank || '0', 10) || 0;
+      for (let i = 0; i < blank; i++) h += '<tr class="fx-blank">' + cols.map(() => '<td>&nbsp;</td>').join('') + '</tr>';
+      tb.innerHTML = h;
+      let tot = $('tfoot td.fx-tot', t);
+      if (!tot) { const tds = $$('tfoot td', t); tot = tds.length > 1 && tds[0].hasAttribute('colspan') ? tds[1] : null; }
+      if (tot && t.dataset.total) tot.textContent = (t.dataset.prefix || '') + money2(Math.round(total * 100) / 100);
+      dirty = true;
+      return Math.round(total * 100) / 100;
+    };
+    const grids = [];
+    const buildGrid = (g) => {
+      const t = g.table;
+      const cols = colsOf(t).filter((c) => COL_EDIT.includes(c));
+      const pc = priceCol(t);
+      g.box.innerHTML = '';
+      const head = document.createElement('div');
+      head.className = 'ig-head';
+      head.innerHTML = '<span><i class="bi bi-list-ol"></i> ' + esc(GRID_NAMES[t.dataset.table]) + '</span><span class="ig-count">' + g.rows.length + (g.rows.length === 1 ? ' row' : ' rows') + '</span>';
+      g.box.appendChild(head);
+      const list = document.createElement('div');
+      list.className = 'ig-rows';
+      g.rows.forEach((r, i) => {
+        const row = document.createElement('div');
+        row.className = 'ig-row';
+        row.dataset.r = i;
+        const others = cols.filter((c) => c !== 'description');
+        row.innerHTML = '<div class="ig-top"><span class="ig-no">' + (i + 1) + '</span>'
+          + '<span class="ig-tools"><button type="button" class="ig-btn" data-ig="up" title="Move up" aria-label="Move row ' + (i + 1) + ' up"' + (i === 0 ? ' disabled' : '') + '><i class="bi bi-arrow-up"></i></button>'
+          + '<button type="button" class="ig-btn" data-ig="down" title="Move down" aria-label="Move row ' + (i + 1) + ' down"' + (i === g.rows.length - 1 ? ' disabled' : '') + '><i class="bi bi-arrow-down"></i></button>'
+          + '<button type="button" class="ig-btn" data-ig="insert" title="Add a row below" aria-label="Add a row below row ' + (i + 1) + '"><i class="bi bi-plus-lg"></i></button>'
+          + '<button type="button" class="ig-btn is-del" data-ig="del" title="Remove the row" aria-label="Remove row ' + (i + 1) + '"><i class="bi bi-trash"></i></button></span></div>'
+          + (cols.includes('description') ? '<label class="ig-lab" for="ig' + g.n + 'd' + i + '">' + COL_LABEL.description + '</label><textarea class="form-control form-control-sm" rows="1" id="ig' + g.n + 'd' + i + '" data-col="description"></textarea>' : '')
+          + '<div class="ig-fields">' + others.map((c) => '<div class="ig-f' + (c === 'remarks' ? ' is-wide' : '') + '"><label class="ig-lab" for="ig' + g.n + c + i + '">' + COL_LABEL[c] + '</label><input class="form-control form-control-sm'
+            + (MONEY_COLS.includes(c) || c === 'qty' || c === 'issued_qty' ? ' text-end' : '') + '" id="ig' + g.n + c + i + '" data-col="' + c + '" autocomplete="off"' + (MONEY_COLS.includes(c) || c === 'qty' ? ' inputmode="decimal"' : '') + '></div>').join('') + '</div>'
+          + (pc ? '<div class="ig-amt">Amount <b data-amt></b></div>' : '');
+        $$('[data-col]', row).forEach((el) => {
+          el.value = r[el.dataset.col] || '';
+          el.addEventListener('focus', () => { record(); row.classList.add('is-on'); markRow(g, i, true); });
+          el.addEventListener('blur', () => {
+            row.classList.remove('is-on');
+            markRow(g, i, false);
+            if (MONEY_COLS.includes(el.dataset.col) && el.value.trim() !== '') { el.value = money2(num2(el.value)); r[el.dataset.col] = el.value; writeRows(t, g.rows); showAmounts(g); }
+            record();
+          });
+          el.addEventListener('input', () => { r[el.dataset.col] = el.value; writeRows(t, g.rows); showAmounts(g); });
+          if (el.tagName === 'TEXTAREA') {
+            const grow = () => { el.style.height = 'auto'; el.style.height = (el.scrollHeight + 2) + 'px'; };
+            el.addEventListener('input', grow);
+            requestAnimationFrame(grow);
+          } else {
+            el.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') { ev.preventDefault(); el.blur(); } });
+          }
+        });
+        list.appendChild(row);
+      });
+      g.box.appendChild(list);
+      const foot = document.createElement('div');
+      foot.className = 'ig-foot';
+      foot.innerHTML = '<button type="button" class="btn btn-sm btn-outline-primary" data-ig="add"><i class="bi bi-plus-lg"></i> Add a row</button>'
+        + (pc && t.dataset.total ? '<span class="ig-total">Total <b data-total></b></span>' : '');
+      g.box.appendChild(foot);
+      showAmounts(g);
+    };
+    const showAmounts = (g) => {
+      let total = 0;
+      $$('.ig-row', g.box).forEach((row) => {
+        const r = g.rows[Number(row.dataset.r)];
+        const a = r ? amountOf(g.table, r) : null;
+        total += a || 0;
+        const b = $('[data-amt]', row);
+        if (b) b.textContent = a === null ? '-' : money2(a);
+      });
+      const tb = $('[data-total]', g.box);
+      if (tb) tb.textContent = (g.table.dataset.prefix || '') + money2(Math.round(total * 100) / 100);
+      const cnt = $('.ig-count', g.box);
+      if (cnt) cnt.textContent = g.rows.length + (g.rows.length === 1 ? ' row' : ' rows');
+    };
+    const dataRows = (t) => $$('tbody > tr', t).filter((tr) => !tr.classList.contains('fx-nf') && !tr.classList.contains('fx-blank'));
+    const markRow = (g, i, on) => { const tr = dataRows(g.table)[i]; if (tr) { if (on) { tr.classList.add('ig-focus'); tr.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); } else unmark(tr, 'ig-focus'); } };
+    /** a change of the rows themselves (added, moved, taken away): one step of the page's history */
+    const reshape = (g, fn, focusAt) => {
+      record();
+      fn();
+      writeRows(g.table, g.rows);
+      buildGrid(g);
+      record();
+      if (focusAt !== undefined && focusAt !== null) { const el = $('.ig-row[data-r="' + focusAt + '"] [data-col]', g.box); if (el) el.focus(); }
+    };
+    const initGrids = () => {
+      if (!itemPanel) return;
+      itemPanel.innerHTML = '';
+      grids.length = 0;
+      gridTables().forEach((t, n) => {
+        t.setAttribute('contenteditable', 'false');
+        t.classList.add('fx-grid-on');
+        const box = document.createElement('div');
+        box.className = 'item-grid';
+        itemPanel.appendChild(box);
+        const g = { table: t, box, rows: readRows(t), n };
+        grids.push(g);
+        buildGrid(g);
+        box.addEventListener('click', (ev) => {
+          const b = ev.target.closest('[data-ig]');
+          if (!b || b.disabled) return;
+          const row = b.closest('.ig-row');
+          const i = row ? Number(row.dataset.r) : -1;
+          const blankRow = () => { const r = {}; colsOf(t).forEach((c) => { r[c] = ''; }); return r; };
+          if (b.dataset.ig === 'add') reshape(g, () => g.rows.push(blankRow()), g.rows.length);
+          else if (b.dataset.ig === 'insert') reshape(g, () => g.rows.splice(i + 1, 0, blankRow()), i + 1);
+          else if (b.dataset.ig === 'del') reshape(g, () => g.rows.splice(i, 1), Math.min(i, g.rows.length - 2));
+          else if (b.dataset.ig === 'up' && i > 0) reshape(g, () => g.rows.splice(i - 1, 0, g.rows.splice(i, 1)[0]), i - 1);
+          else if (b.dataset.ig === 'down' && i < g.rows.length - 1) reshape(g, () => g.rows.splice(i + 1, 0, g.rows.splice(i, 1)[0]), i + 1);
+        });
+      });
+      if (grids.length) itemPanel.insertAdjacentHTML('beforeend', '<div class="form-text mb-3">Add as many rows as needed: the form runs on to more pages when printed, with the headings again on each page. The table in the page changes from here.</div>');
+    };
+    // a click on an item table in the page opens its row here
+    editor.addEventListener('click', (e) => {
+      const t = e.target.closest && e.target.closest('table.fx-grid-on');
+      if (!t) return;
+      const g = grids.find((x) => x.table === t);
+      if (!g) return;
+      const tr = e.target.closest('tr');
+      const i = dataRows(t).indexOf(tr);
+      const el = i >= 0 ? $('.ig-row[data-r="' + i + '"] [data-col]', g.box) : $('[data-ig="add"]', g.box);
+      if (el) { el.scrollIntoView({ block: 'center', behavior: 'smooth' }); el.focus({ preventScroll: true }); }
+    });
+    initGrids();
+    H.after.push(initGrids);
+    // the marks of the page's tables are not kept with the form
+    form.addEventListener('submit', () => {
+      gridTables().forEach((t) => { t.removeAttribute('contenteditable'); t.classList.remove('fx-grid-on'); $$('.ig-focus', t).forEach((x) => unmark(x, 'ig-focus')); });
+    });
+
     // a click on a blank in the page selects it, so typing replaces it; it stays the same field
     editor.addEventListener('click', (e) => {
       const s = e.target.closest('.ph-missing');
@@ -853,6 +1049,37 @@
       }
     } else {
       dirty = false;
+    }
+
+    // v39: the barangay's officers changed on its customer since this draft was made (an ongoing contract): their new names
+    // take the place of the old ones in the page, one step taken back with Undo
+    let offData = {};
+    try { offData = JSON.parse((gapPanel && gapPanel.dataset.officers) || '{}') || {}; } catch (err) { offData = {}; }
+    const offPairs = Object.entries(offData.pairs || {});
+    const swapped = [];
+    if (offPairs.length) {
+      const walker = document.createTreeWalker(editor, NodeFilter.SHOW_TEXT);
+      const nodes = [];
+      while (walker.nextNode()) nodes.push(walker.currentNode);
+      offPairs.forEach(([oldName, pair]) => {
+        const newName = String(pair[0]);
+        const re = new RegExp('(^|[^\\p{L}])(' + oldName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\s+/g, '\\s+') + ')(?=$|[^\\p{L}])', 'giu');
+        let hit = false;
+        nodes.forEach((n) => {
+          const t = n.data.replace(re, (m, pre, name) => { hit = true; return pre + (name === name.toUpperCase() && name !== name.toLowerCase() ? newName.toUpperCase() : newName); });
+          if (t !== n.data) n.data = t;
+        });
+        if (hit) swapped.push(pair[1] + ' ' + newName + ' (was ' + oldName + ')');
+      });
+    }
+    const gapOff = $('#gapOfficers');
+    if (swapped.length || offData.members) {
+      if (swapped.length) { listGaps(); listSigs(); record(); dirty = true; }
+      if (gapOff) {
+        gapOff.innerHTML = '<i class="bi bi-people"></i> <span>' + (swapped.length ? 'The barangay\'s officers changed since this form was made: ' + esc(swapped.join(', ')) + '. Save to keep, or Undo to take them back.' : '')
+          + (offData.members ? (swapped.length ? ' ' : '') + 'The BAC members changed in number: use Fill again from the records to list them as they are now.' : '') + '</span>';
+        gapOff.hidden = false;
+      }
     }
 
     form.addEventListener('input', (e) => { if (!editor.contains(e.target)) dirty = true; });
@@ -944,9 +1171,11 @@
       const co = String(obj.is_company || '0') === '1';
       const isCo = $('input[name="is_company"]', form);
       if (isCo) isCo.value = co ? '1' : '0';
-      const tot = $('input[name="total_amount"]', form);
-      if (tot) tot.readOnly = co;
       const note = $('[data-company-note]', form);
+      // v39: the company's total is typed while the price schedule is empty (the price schedule is step 4 of the small value procurement)
+      const fromLines = co && note && Number(note.dataset.lines || '0') > 0;
+      const tot = $('input[name="total_amount"]', form);
+      if (tot) tot.readOnly = fromLines;
       if (note) note.hidden = !co;
       const rd = $('input[name="received_date"]', form);
       if (rd && !rd.value) rd.value = new Date().toISOString().slice(0, 10);
